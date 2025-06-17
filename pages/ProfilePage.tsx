@@ -97,7 +97,7 @@ const ProfilePage: React.FC = () => {
       
       const updatesToSave: Partial<UserProfile> = {};
       // Compare with initialProfileData to send only changed fields
-      (Object.keys(profileData) as Array<keyof UserProfile>).forEach(key => {
+      (Object.keys(profileData) as Array<keyof UserProfile>).forEach(<K extends keyof UserProfile>(key: K) => {
         if (profileData[key] !== initialProfileData[key]) {
           updatesToSave[key] = profileData[key]; 
         }
@@ -184,6 +184,7 @@ const ProfilePage: React.FC = () => {
             <label htmlFor="profileType" className={labelClass}>Profile Type</label>
             <select name="profileType" id="profileType" value={profileData.profileType || 'Fan'} onChange={handleChange} className={`${inputClass} mt-1`}>
               <option value="Fan">Fan</option>
+              <option value="Player">Player</option>
               <option value="Scorer">Scorer</option>
               <option value="Organizer">Tournament Organizer</option>
             </select>

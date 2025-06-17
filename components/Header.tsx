@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { APP_NAME } from '../constants';
@@ -55,6 +56,9 @@ const Header: React.FC = () => {
   const mainMenuItems = [
     { name: 'My Matches', path: '/matches' },
     { name: 'My Tournaments', path: '/tournaments' },
+    { name: 'My Teams', path: '/my-teams' },
+    { name: 'My Performance', path: '/my-performance' },
+    { name: 'Toss', path: '/matches/newmatch/score' },
     { name: 'My Stats', path: '/stats' },
   ];
   

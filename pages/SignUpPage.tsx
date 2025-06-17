@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
@@ -126,6 +127,7 @@ const SignUpPage: React.FC = () => {
                 className={`${inputClass} mt-1 text-gray-100`}
             >
                 <option value="Fan" className="bg-gray-700">Fan</option>
+                <option value="Player" className="bg-gray-700">Player</option>
                 <option value="Scorer" className="bg-gray-700">Scorer</option>
                 <option value="Organizer" className="bg-gray-700">Tournament Organizer</option>
             </select>

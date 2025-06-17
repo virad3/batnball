@@ -133,7 +133,7 @@ export interface UserProfile {
   id: string; // from auth.users.id
   username: string; // from user_metadata or profiles table
   email?: string; // from auth.users.email
-  profileType: "Scorer" | "Organizer" | "Fan"; // from user_metadata or profiles table
+  profileType: "Scorer" | "Organizer" | "Fan" | "Player"; // from user_metadata or profiles table
   profilePicUrl?: string; // from user_metadata or profiles table
   achievements?: string[]; // from user_metadata or profiles table (example)
 
