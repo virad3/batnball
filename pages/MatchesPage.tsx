@@ -1,31 +1,38 @@
 
 import React, { useState, useEffect } from 'react';
 import { Match } from '../types';
-import { getAllMatches } from '../services/dataService';
+import { getAllMatches } from '../services/dataService'; // Use Supabase via dataService
 import MatchCard from '../components/MatchCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const MatchesPage: React.FC = () => {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'live' | 'upcoming' | 'completed'>('all');
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchMatches = async () => {
       setLoading(true);
       try {
-        const allMatches = await getAllMatches();
-        setMatches(allMatches);
+        const allMatchesFromDB = await getAllMatches(); // Fetches user-specific matches
+        setMatches(allMatchesFromDB);
       } catch (error) {
         console.error("Failed to fetch matches:", error);
+        // Handle error display to user if necessary
       } finally {
         setLoading(false);
       }
     };
     fetchMatches();
   }, []);
+
+  const handleCreateNewMatch = () => {
+    // Navigate to scoring page with a special ID that indicates a new match
+    navigate('/matches/newmatch/score');
+  };
 
   const filteredMatches = matches.filter(match => {
     if (filter === 'all') return true;
@@ -35,10 +42,10 @@ const MatchesPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-50 mb-4 sm:mb-0">Matches</h1>
-        <Link to="/matches/newmatch/score"> 
-            <Button variant="primary">Start New Match</Button>
-        </Link>
+        <h1 className="text-3xl font-bold text-gray-50 mb-4 sm:mb-0">My Matches</h1>
+        <Button variant="primary" onClick={handleCreateNewMatch}>
+            Start New Match
+        </Button>
       </div>
       
       <div className="flex space-x-2 mb-6 pb-2 border-b border-gray-700">
@@ -64,7 +71,9 @@ const MatchesPage: React.FC = () => {
           ))}
         </div>
       ) : (
-        <p className="text-center text-gray-400 py-8">No matches found for the selected filter.</p>
+        <p className="text-center text-gray-400 py-8">
+            {filter === 'all' ? "No matches found. Why not start one?" : `No ${filter} matches found.`}
+        </p>
       )}
     </div>
   );

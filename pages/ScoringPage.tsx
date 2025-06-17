@@ -1,9 +1,8 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Match, BallEvent, Score, MatchFormat } from '../types';
-import { getMatchById, updateMatch } from '../services/dataService'; 
+import { Match, BallEvent, Score, MatchFormat, PlayerBattingStats, PlayerBowlingStats, DismissalType, InningsRecord } from '../types';
+// getMatchById, updateMatch from dataService are now mostly handled by context
 import ScoreDisplay from '../components/ScoreDisplay';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -11,38 +10,29 @@ import { useMatchContext } from '../contexts/MatchContext';
 
 const SQUAD_SIZE = 11;
 
+// Simplified button components, can be enhanced
 const RunsButton: React.FC<{ runs: number; onClick: (runs: number) => void }> = ({ runs, onClick }) => (
-  <Button
-    variant="outline"
-    className="w-full aspect-square text-xl font-semibold" 
-    onClick={() => onClick(runs)}
-  >
+  <Button variant="outline" className="w-full aspect-square text-xl font-semibold" onClick={() => onClick(runs)}>
     {runs}
   </Button>
 );
 
 const ExtraButton: React.FC<{ type: BallEvent['extraType']; onClick: (type: BallEvent['extraType']) => void }> = ({ type, onClick }) => (
-    <Button
-        variant="secondary" 
-        size="sm"
-        className="flex-1"
-        onClick={() => onClick(type)}
-    >
+    <Button variant="secondary" size="sm" className="flex-1" onClick={() => onClick(type)}>
         {type}
     </Button>
 );
 
-
 const ScoringPage: React.FC = () => {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
-  const {
-    matchDetails, setMatchDetails: contextSetMatchDetails,
-    startMatch: contextStartMatch, addBall: contextAddBall, switchInnings: contextSwitchInnings,
-    innings1, innings2, currentInnings, battingTeamName, bowlingTeamName, target
-  } = useMatchContext();
+  const context = useMatchContext();
+  const { 
+    matchDetails, loadMatch, startNewMatch, updateTossAndStartInnings, addBall, switchInnings, saveMatchState, endMatch,
+    currentStrikerName, currentNonStrikerName, currentBowlerName, setPlayerRoles, currentInningsNumber, target
+  } = context;
 
-  const [loading, setLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(true);
   const [showTossModal, setShowTossModal] = useState(false);
   const [tossWinnerNameState, setTossWinnerNameState] = useState<string | null>(null);
   const [electedToState, setElectedToState] = useState<"Bat" | "Bowl" | null>(null);
@@ -55,154 +45,83 @@ const ScoringPage: React.FC = () => {
   const [newPlayerNameA, setNewPlayerNameA] = useState('');
   const [newPlayerNameB, setNewPlayerNameB] = useState('');
 
+  const [showPlayerRolesModal, setShowPlayerRolesModal] = useState(false);
+  // States for player role selection in the modal
+  const [modalStriker, setModalStriker] = useState<string>('');
+  const [modalNonStriker, setModalNonStriker] = useState<string>('');
+  const [modalBowler, setModalBowler] = useState<string>('');
+
+  const [showWicketModal, setShowWicketModal] = useState(false);
+  const [wicketDetails, setWicketDetails] = useState<{ batsmanOut: string; dismissalType: DismissalType; bowler?: string; fielder?: string; }>({ batsmanOut: '', dismissalType: DismissalType.BOWLED });
+
 
   const initializePage = useCallback(async () => {
-    setLoading(true);
-    if (matchId && matchId !== "newmatch") {
-        if (matchDetails && matchDetails.id === matchId) {
-             if (matchDetails.status === "Upcoming" && !battingTeamName && !matchDetails.tossWinnerName) {
-                setTossWinnerNameState(matchDetails.teamAName);
-                setShowTossModal(true);
-            } else if (matchDetails.status === "Live" && battingTeamName && (!matchDetails.teamASquad || matchDetails.teamASquad.length < SQUAD_SIZE || !matchDetails.teamBSquad || matchDetails.teamBSquad.length < SQUAD_SIZE)) {
-                // If live and squads are not complete, show squad modal
-                setAvailableTeamAPlayers(matchDetails.teamASquad || []);
-                setAvailableTeamBPlayers(matchDetails.teamBSquad || []);
-                setSelectedTeamASquad(matchDetails.teamASquad || []);
-                setSelectedTeamBSquad(matchDetails.teamBSquad || []);
-                setShowSquadSelectionModal(true);
-            }
-            setLoading(false);
-            return;
-        }
-        try {
-            const fetchedMatch = await getMatchById(matchId);
-            if (fetchedMatch) {
-                contextSetMatchDetails(fetchedMatch);
-                if (fetchedMatch.status === "Upcoming" && !fetchedMatch.tossWinnerName) {
-                    setTossWinnerNameState(fetchedMatch.teamAName);
-                    setShowTossModal(true);
-                } else if (fetchedMatch.status !== "Upcoming" && !battingTeamName && fetchedMatch.tossWinnerName && fetchedMatch.electedTo) {
-                    contextStartMatch(fetchedMatch.id, fetchedMatch.tossWinnerName, fetchedMatch.electedTo, fetchedMatch);
-                    // Check for squad selection after starting context match
-                    if (!fetchedMatch.teamASquad || fetchedMatch.teamASquad.length < SQUAD_SIZE || !fetchedMatch.teamBSquad || fetchedMatch.teamBSquad.length < SQUAD_SIZE) {
-                        setAvailableTeamAPlayers(fetchedMatch.teamASquad || []);
-                        setAvailableTeamBPlayers(fetchedMatch.teamBSquad || []);
-                        setSelectedTeamASquad(fetchedMatch.teamASquad || []);
-                        setSelectedTeamBSquad(fetchedMatch.teamBSquad || []);
-                        setShowSquadSelectionModal(true);
-                    }
-                } else if (fetchedMatch.status === "Live" && battingTeamName && (!fetchedMatch.teamASquad || fetchedMatch.teamASquad.length < SQUAD_SIZE || !fetchedMatch.teamBSquad || fetchedMatch.teamBSquad.length < SQUAD_SIZE)) {
-                     setAvailableTeamAPlayers(fetchedMatch.teamASquad || []);
-                     setAvailableTeamBPlayers(fetchedMatch.teamBSquad || []);
-                     setSelectedTeamASquad(fetchedMatch.teamASquad || []);
-                     setSelectedTeamBSquad(fetchedMatch.teamBSquad || []);
-                     setShowSquadSelectionModal(true);
-                }
-            } else {
-                navigate('/matches');
-            }
-        } catch (error) {
-            console.error("Failed to fetch match details:", error);
-            navigate('/matches');
-        }
-    } else if (matchId === "newmatch") {
-        const tempMatchData = matchDetails && matchDetails.id.startsWith("temp-") ? matchDetails : {
-            id: `temp-${Date.now()}`,
-            teamAName: "Team A", 
-            teamBName: "Team B",
-            date: new Date().toISOString(),
-            venue: "Local Ground",
-            format: MatchFormat.T20, 
-            status: "Upcoming",
-            overs: 20,
-            teamASquad: [],
-            teamBSquad: [],
-        };
-        contextSetMatchDetails(tempMatchData as Match);
-        setTossWinnerNameState(tempMatchData.teamAName);
-        setShowTossModal(true);
-        // Reset squad states for new match
-        setAvailableTeamAPlayers([]);
-        setAvailableTeamBPlayers([]);
-        setSelectedTeamASquad([]);
-        setSelectedTeamBSquad([]);
+    setPageLoading(true);
+    if (!matchId) { navigate('/matches'); return; }
 
-    } else if (matchDetails && matchDetails.status === "Upcoming" && !battingTeamName && !matchDetails.tossWinnerName) {
-        setTossWinnerNameState(matchDetails.teamAName);
-        setShowTossModal(true);
+    let loadedMatch = context.matchDetails && context.matchDetails.id === matchId ? context.matchDetails : await loadMatch(matchId);
+
+    if (matchId === "newmatch" && !loadedMatch) {
+      const tempMatchData: Partial<Match> = {
+        // id will be set by createMatch in context
+        teamAName: "Team A", teamBName: "Team B", date: new Date().toISOString(),
+        venue: "Local Ground", format: MatchFormat.T20, status: "Upcoming", overs_per_innings: 20,
+        teamASquad: [], teamBSquad: [],
+      };
+      loadedMatch = await startNewMatch(tempMatchData);
+      if (loadedMatch) { // If startNewMatch now directly uses the created ID, no need to navigate
+          // navigate(`/matches/${loadedMatch.id}/score`, { replace: true }); // This might cause loop if not handled well
+          // For now, assume context handles the new match ID correctly
+      }
     }
-    setLoading(false);
+
+    if (loadedMatch) {
+      if (loadedMatch.status === "Upcoming" && !loadedMatch.tossWinnerName) {
+        setTossWinnerNameState(loadedMatch.teamAName); // Default toss winner
+        setShowTossModal(true);
+      } else if (loadedMatch.status === "Live" && (!loadedMatch.teamASquad || loadedMatch.teamASquad.length < SQUAD_SIZE || !loadedMatch.teamBSquad || loadedMatch.teamBSquad.length < SQUAD_SIZE)) {
+        setAvailableTeamAPlayers(loadedMatch.teamASquad || []);
+        setSelectedTeamASquad(loadedMatch.teamASquad || []);
+        setAvailableTeamBPlayers(loadedMatch.teamBSquad || []);
+        setSelectedTeamBSquad(loadedMatch.teamBSquad || []);
+        setShowSquadSelectionModal(true);
+      } else if (loadedMatch.status === "Live" && (!currentStrikerName || !currentBowlerName)) {
+         // If live and roles not set (e.g. page reload)
+        setModalStriker(loadedMatch.current_striker_name || '');
+        setModalNonStriker(loadedMatch.current_non_striker_name || '');
+        setModalBowler(loadedMatch.current_bowler_name || '');
+        setShowPlayerRolesModal(true);
+      }
+    } else if (matchId !== "newmatch") {
+      navigate('/matches'); // Match not found, redirect
+    }
+    setPageLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, contextSetMatchDetails, navigate]); // Removed matchDetails, battingTeamName etc to avoid loops
+  }, [matchId, navigate, loadMatch, startNewMatch]); // context.matchDetails removed to avoid loops
 
   useEffect(() => {
     initializePage();
   }, [initializePage]);
 
 
-  const handleStartMatch = async () => {
-    if (matchDetails && tossWinnerNameState && electedToState) {
-      let matchToStart: Match = {
-        ...matchDetails, 
-        tossWinnerName: tossWinnerNameState, 
-        electedTo: electedToState, 
-        status: "Live"
-      };
-      
-      try {
-          const savedMatch = await updateMatch(matchToStart); 
-          matchToStart = savedMatch; 
-          contextSetMatchDetails(matchToStart); 
-          contextStartMatch(matchToStart.id, tossWinnerNameState, electedToState, matchToStart);
-          setShowTossModal(false);
-
-          if (!matchToStart.teamASquad || matchToStart.teamASquad.length < SQUAD_SIZE || !matchToStart.teamBSquad || matchToStart.teamBSquad.length < SQUAD_SIZE) {
-            setAvailableTeamAPlayers(matchToStart.teamASquad || []);
-            setAvailableTeamBPlayers(matchToStart.teamBSquad || []);
-            setSelectedTeamASquad(matchToStart.teamASquad || []);
-            setSelectedTeamBSquad(matchToStart.teamBSquad || []);
-            setShowSquadSelectionModal(true);
-          }
-      } catch (error) {
-          console.error("Failed to update match with toss details:", error);
+  const handleTossSubmit = async () => {
+    if (!matchDetails || !tossWinnerNameState || !electedToState) return;
+    try {
+      await updateTossAndStartInnings(tossWinnerNameState, electedToState);
+      setShowTossModal(false);
+      // After toss, if squads are not set, show squad selection
+      if (!matchDetails.teamASquad || matchDetails.teamASquad.length < SQUAD_SIZE || !matchDetails.teamBSquad || matchDetails.teamBSquad.length < SQUAD_SIZE) {
+        setAvailableTeamAPlayers(matchDetails.teamASquad || []);
+        setSelectedTeamASquad(matchDetails.teamASquad || []);
+        setAvailableTeamBPlayers(matchDetails.teamBSquad || []);
+        setSelectedTeamBSquad(matchDetails.teamBSquad || []);
+        setShowSquadSelectionModal(true);
+      } else {
+         // If squads are set, proceed to player roles selection
+        setShowPlayerRolesModal(true);
       }
-    }
-  };
-
-  const handleBallEvent = async (runs: number, isWicket: boolean = false, extraType?: BallEvent['extraType'], extraRuns?: number) => {
-    if (!battingTeamName || !bowlingTeamName || !matchDetails) return;
-    const ballEvent: BallEvent = { runs, isWicket, extraType, extraRuns };
-    contextAddBall(ballEvent);
-  };
-  
-  const currentMatchInnings = currentInnings === 1 ? innings1 : innings2;
-  const scoreForDisplay: Score | null = currentMatchInnings && battingTeamName && bowlingTeamName ? {
-      runs: currentMatchInnings.score,
-      wickets: currentMatchInnings.wickets,
-      overs: currentMatchInnings.overs,
-      ballsThisOver: currentMatchInnings.balls % 6,
-      battingTeamName: battingTeamName,
-      bowlingTeamName: bowlingTeamName,
-  } : null;
-
-  const handleCloseTossModal = () => {
-    setShowTossModal(false);
-    if (matchId === "newmatch" && (!matchDetails || !matchDetails.status || matchDetails.status === "Upcoming")) {
-        navigate('/matches');
-    }
-  };
-
-  const handleAddPlayer = (team: 'A' | 'B') => {
-    if (team === 'A' && newPlayerNameA.trim()) {
-      if (!availableTeamAPlayers.includes(newPlayerNameA.trim())) {
-        setAvailableTeamAPlayers(prev => [...prev, newPlayerNameA.trim()]);
-      }
-      setNewPlayerNameA('');
-    } else if (team === 'B' && newPlayerNameB.trim()) {
-      if (!availableTeamBPlayers.includes(newPlayerNameB.trim())) {
-        setAvailableTeamBPlayers(prev => [...prev, newPlayerNameB.trim()]);
-      }
-      setNewPlayerNameB('');
+    } catch (error) {
+        console.error("Error submitting toss:", error);
     }
   };
 
@@ -215,6 +134,20 @@ const ScoringPage: React.FC = () => {
       setSelectedTeamBSquad(prev =>
         prev.includes(playerName) ? prev.filter(p => p !== playerName) : [...prev, playerName]
       );
+    }
+  };
+  
+  const handleAddPlayer = (team: 'A' | 'B') => {
+    if (team === 'A' && newPlayerNameA.trim()) {
+      if (!availableTeamAPlayers.includes(newPlayerNameA.trim())) {
+        setAvailableTeamAPlayers(prev => [...prev, newPlayerNameA.trim()]);
+      }
+      setNewPlayerNameA('');
+    } else if (team === 'B' && newPlayerNameB.trim()) {
+      if (!availableTeamBPlayers.includes(newPlayerNameB.trim())) {
+        setAvailableTeamBPlayers(prev => [...prev, newPlayerNameB.trim()]);
+      }
+      setNewPlayerNameB('');
     }
   };
 
@@ -230,18 +163,106 @@ const ScoringPage: React.FC = () => {
         teamBSquad: selectedTeamBSquad,
     };
     try {
-        const savedMatch = await updateMatch(updatedMatchWithSquads);
-        contextSetMatchDetails(savedMatch); // Update context with the final match details including squads
+        // contextSetMatchDetails(updatedMatchWithSquads); // Optimistic update
+        await saveMatchState(); // Save with current context state which should include squads
+        context.setMatchDetails(updatedMatchWithSquads); // update context after save
         setShowSquadSelectionModal(false);
+        setShowPlayerRolesModal(true); // Proceed to select opening players
     } catch (error) {
         console.error("Error saving squads:", error);
         alert("Failed to save squads. Please try again.");
     }
   };
+  
+  const handlePlayerRolesSubmit = async () => {
+    if (!modalStriker || !modalNonStriker || !modalBowler) {
+        alert("Please select striker, non-striker, and bowler.");
+        return;
+    }
+    setPlayerRoles(modalStriker, modalNonStriker, modalBowler);
+    // Persist these roles to the match object
+    if (matchDetails) {
+        const updatedMatchData = {
+            ...matchDetails,
+            current_striker_name: modalStriker,
+            current_non_striker_name: modalNonStriker,
+            current_bowler_name: modalBowler,
+        };
+        // context.setMatchDetails(updatedMatchData); // Optimistic
+        await saveMatchState(); // This will save the context's state which now has roles
+        context.setMatchDetails(updatedMatchData);
+    }
+    setShowPlayerRolesModal(false);
+  };
 
+  const handleWicketSubmit = async () => {
+    if (!currentStrikerName || !currentBowlerName) return; // Should not happen if wicket modal is up
+
+    const ballEvent: BallEvent = {
+        runs: 0, // Wicket ball typically is 0 unless runs are also scored (e.g. run out)
+        isWicket: true,
+        wicketType: wicketDetails.dismissalType,
+        batsmanOutName: wicketDetails.batsmanOut, // Current striker or non-striker
+        bowlerName: wicketDetails.bowler || currentBowlerName, // bowler involved, could be different from current bowler for run out
+        fielderName: wicketDetails.fielder,
+        strikerName: currentStrikerName, // Assume striker faced, adjust if non-striker run out
+    };
+    await addBall(ballEvent);
+    setShowWicketModal(false);
+    // After wicket, potentially show player roles modal to select new batsman
+    // This needs logic to determine who is out and if innings ended
+    const currentInningsData = currentInningsNumber === 1 ? matchDetails?.innings1Record : matchDetails?.innings2Record;
+    if (currentInningsData && currentInningsData.totalWickets < SQUAD_SIZE -1) { // -1 because 10 wickets means 11th batsman can't bat
+        // Reset modal states for new batsman selection. Pre-fill bowler.
+        setModalStriker(''); // Let user pick new striker
+        setModalNonStriker(wicketDetails.batsmanOut === currentStrikerName ? currentNonStrikerName! : currentStrikerName!); // Other batsman remains
+        setModalBowler(currentBowlerName!);
+        setShowPlayerRolesModal(true); // To select new batsman
+    }
+  };
+  
+  const handleSimpleBallEvent = async (runs: number, isWicket: boolean = false, extraType?: BallEvent['extraType'], extraRuns?: number) => {
+    if (!currentStrikerName || !currentBowlerName) {
+        alert("Please set Striker and Bowler first!");
+        setShowPlayerRolesModal(true);
+        return;
+    }
+    if(isWicket) {
+        // Show wicket modal
+        setWicketDetails({ 
+            batsmanOut: currentStrikerName, // Default to striker, can be changed in modal
+            dismissalType: DismissalType.BOWLED, // Default, change in modal
+            bowler: currentBowlerName,
+            fielder: ''
+        });
+        setShowWicketModal(true);
+    } else {
+        const ballEvent: BallEvent = { 
+            runs, 
+            isWicket: false, 
+            extraType, 
+            extraRuns, 
+            strikerName: currentStrikerName, 
+            bowlerName: currentBowlerName 
+        };
+        await addBall(ballEvent);
+    }
+  };
+
+  const currentMatchInningsData = currentInningsNumber === 1 ? matchDetails?.innings1Record : matchDetails?.innings2Record;
+  const scoreForDisplay: Score | null = currentMatchInningsData && matchDetails?.current_batting_team ? {
+      runs: currentMatchInningsData.totalRuns,
+      wickets: currentMatchInningsData.totalWickets,
+      overs: Math.floor(currentMatchInningsData.totalBallsBowled / 6),
+      ballsThisOver: currentMatchInningsData.totalBallsBowled % 6,
+      battingTeamName: matchDetails.current_batting_team,
+      bowlingTeamName: matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamBName : matchDetails.teamAName,
+  } : null;
+
+
+  // Render functions for modals (Squad, PlayerRoles, Wicket) - similar structure to previous version
   const renderSquadSelectionSection = (
     teamType: 'A' | 'B',
-    teamName: string,
     availablePlayers: string[],
     selectedSquad: string[],
     newPlayerName: string,
@@ -278,45 +299,37 @@ const ScoringPage: React.FC = () => {
               <span className="text-sm">{player}</span>
             </label>
           ))}
-          {availablePlayers.length === 0 && <p className="text-sm text-gray-400 italic">No players added yet. Use the input above.</p>}
+          {availablePlayers.length === 0 && <p className="text-sm text-gray-400 italic">No players added yet.</p>}
         </div>
       </div>
     );
   };
 
 
-  if (loading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
-  if (!matchDetails) return <div className="text-center p-8 text-xl text-gray-300">Match details not loaded. <Link to="/matches" className="text-slate-400 hover:underline">Go to Matches</Link></div>;
+  if (pageLoading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
+  if (!matchDetails) return <div className="text-center p-8 text-xl text-gray-300">Match details not loaded or found. <Link to="/matches" className="text-red-400 hover:underline">Go to Matches</Link></div>;
 
-  if (showTossModal && matchDetails) {
+  // MODALS
+  if (showTossModal) {
     const inputClass = "w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 text-gray-100 placeholder-gray-400";
     const labelClass = "block text-sm font-medium text-gray-200 mb-1";
-
     return (
       <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
         <div className="relative bg-gray-800 p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
-          <button
-            onClick={handleCloseTossModal}
-            aria-label="Close toss modal"
-            className="absolute top-3 right-3 text-gray-400 hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-gray-700"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <button onClick={() => {setShowTossModal(false); if(matchId==="newmatch") navigate('/matches')}} aria-label="Close toss modal" className="absolute top-3 right-3 text-gray-400 hover:text-gray-200 p-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
           <h2 className="text-2xl font-bold text-gray-50 mb-6 text-center">Match Toss</h2>
           {matchId === "newmatch" && (
             <div className="mb-4 space-y-3">
                  <div>
                     <label htmlFor="teamAName" className={labelClass}>Team A Name:</label>
                     <input type="text" id="teamAName" value={matchDetails.teamAName} 
-                            onChange={(e) => contextSetMatchDetails({...matchDetails, teamAName: e.target.value, ...(tossWinnerNameState === matchDetails.teamAName && { tossWinnerNameState: e.target.value}) })} 
+                            onChange={(e) => context.setMatchDetails({...matchDetails, teamAName: e.target.value, ...(tossWinnerNameState === matchDetails.teamAName && { tossWinnerNameState: e.target.value}) })} 
                             className={inputClass}/>
                  </div>
                  <div>
                     <label htmlFor="teamBName" className={labelClass}>Team B Name:</label>
                     <input type="text" id="teamBName" value={matchDetails.teamBName} 
-                            onChange={(e) => contextSetMatchDetails({...matchDetails, teamBName: e.target.value, ...(tossWinnerNameState === matchDetails.teamBName && { tossWinnerNameState: e.target.value})})}
+                            onChange={(e) => context.setMatchDetails({...matchDetails, teamBName: e.target.value, ...(tossWinnerNameState === matchDetails.teamBName && { tossWinnerNameState: e.target.value})})}
                             className={inputClass}/>
                  </div>
             </div>
@@ -324,7 +337,7 @@ const ScoringPage: React.FC = () => {
           <div className="mb-4">
             <label htmlFor="tossWinner" className={labelClass}>Toss Won By:</label>
             <select id="tossWinner" value={tossWinnerNameState || ''} onChange={(e) => setTossWinnerNameState(e.target.value)} className={inputClass}>
-              <option value="" disabled className="text-gray-500">Select Team</option>
+              <option value="" disabled>Select Team</option>
               {matchDetails.teamAName && <option value={matchDetails.teamAName}>{matchDetails.teamAName}</option>}
               {matchDetails.teamBName && <option value={matchDetails.teamBName}>{matchDetails.teamBName}</option>}
             </select>
@@ -336,84 +349,182 @@ const ScoringPage: React.FC = () => {
               <Button variant={electedToState === "Bowl" ? "primary" : "outline"} onClick={() => setElectedToState("Bowl")} className="flex-1">Bowl</Button>
             </div>
           </div>
-          <Button onClick={handleStartMatch} disabled={!tossWinnerNameState || !electedToState || !matchDetails.teamAName || !matchDetails.teamBName} className="w-full" variant="primary" size="lg">
-            Start Match & Select Squads
+          <Button onClick={handleTossSubmit} disabled={!tossWinnerNameState || !electedToState || !matchDetails.teamAName || !matchDetails.teamBName} className="w-full" variant="primary" size="lg">
+            Finalize Toss & Proceed
           </Button>
         </div>
       </div>
     );
   }
 
-  if (showSquadSelectionModal && matchDetails) {
-    return (
+  if (showSquadSelectionModal) {
+     return (
         <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
             <div className="bg-gray-800 p-4 sm:p-6 rounded-xl shadow-2xl w-full max-w-2xl border border-gray-700 max-h-[90vh] overflow-y-auto">
                 <h2 className="text-xl sm:text-2xl font-bold text-gray-50 mb-4 text-center">Select Playing XI ({SQUAD_SIZE} Players per Team)</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    {renderSquadSelectionSection('A', matchDetails.teamAName, availableTeamAPlayers, selectedTeamASquad, newPlayerNameA, setNewPlayerNameA)}
-                    {renderSquadSelectionSection('B', matchDetails.teamBName, availableTeamBPlayers, selectedTeamBSquad, newPlayerNameB, setNewPlayerNameB)}
+                    {renderSquadSelectionSection('A', availableTeamAPlayers, selectedTeamASquad, newPlayerNameA, setNewPlayerNameA)}
+                    {renderSquadSelectionSection('B', availableTeamBPlayers, selectedTeamBSquad, newPlayerNameB, setNewPlayerNameB)}
                 </div>
                 <Button 
                     onClick={handleConfirmSquads} 
                     disabled={selectedTeamASquad.length !== SQUAD_SIZE || selectedTeamBSquad.length !== SQUAD_SIZE}
-                    className="w-full" 
-                    variant="primary" 
-                    size="lg"
-                >
-                    Confirm Squads & Proceed
+                    className="w-full" variant="primary" size="lg">
+                    Confirm Squads & Select Roles
                 </Button>
-                 <Button 
-                    onClick={() => { setShowSquadSelectionModal(false); if(matchId === "newmatch") navigate("/matches");}} 
-                    variant="outline" 
-                    size="sm"
-                    className="w-full mt-3"
-                >
-                    Cancel / Back
+                 <Button onClick={() => { setShowSquadSelectionModal(false); if(!matchDetails.tossWinnerName) setShowTossModal(true);}} variant="outline" size="sm" className="w-full mt-3">
+                    Back
                 </Button>
             </div>
         </div>
     );
   }
-  
-  if (!battingTeamName || !bowlingTeamName || !matchDetails.teamASquad || matchDetails.teamASquad.length < SQUAD_SIZE || !matchDetails.teamBSquad || matchDetails.teamBSquad.length < SQUAD_SIZE) {
-     return (
-        <div className="text-center p-8 text-xl text-gray-300">
-            <p className="mb-3">Match setup incomplete.</p>
-            {matchDetails.status === "Upcoming" && !matchDetails.tossWinnerName && <Button onClick={() => { setTossWinnerNameState(matchDetails.teamAName); setShowTossModal(true);}} className="mt-2" variant="primary">Complete Toss</Button>}
-            {matchDetails.status === "Live" && battingTeamName && (!matchDetails.teamASquad || matchDetails.teamASquad.length < SQUAD_SIZE || !matchDetails.teamBSquad || matchDetails.teamBSquad.length < SQUAD_SIZE) && (
-                 <Button onClick={() => {
-                     setAvailableTeamAPlayers(matchDetails.teamASquad || []);
-                     setAvailableTeamBPlayers(matchDetails.teamBSquad || []);
-                     setSelectedTeamASquad(matchDetails.teamASquad || []);
-                     setSelectedTeamBSquad(matchDetails.teamBSquad || []);
-                     setShowSquadSelectionModal(true);
-                 }} className="mt-2" variant="primary">Select Playing XI</Button>
-            )}
-            <Link to="/matches" className="block mt-4 text-slate-400 hover:underline">Go to Matches</Link>
+
+  if (showPlayerRolesModal && matchDetails) {
+    const currentBattingTeamSquad = matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamASquad : matchDetails.teamBSquad;
+    const currentBowlingTeamSquad = matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamBSquad : matchDetails.teamASquad;
+
+    // Filter out batsmen who are already out (simplified: assumes PlayerBattingStats exists and status is NOT_OUT)
+    const activeInningsRecord = currentInningsNumber === 1 ? matchDetails.innings1Record : matchDetails.innings2Record;
+    const availableBatsmen = currentBattingTeamSquad?.filter(pName => {
+        const pStat = activeInningsRecord?.battingPerformances.find(bp => bp.playerName === pName);
+        return !pStat || pStat.status === DismissalType.NOT_OUT;
+    }) || [];
+    
+    const inputClass = "w-full p-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-red-500 focus:border-red-500";
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-lg border border-gray-700">
+                <h2 className="text-xl font-bold text-gray-50 mb-4">Set Player Roles for Current Innings</h2>
+                <div className="space-y-4">
+                    <div>
+                        <label htmlFor="striker" className="block text-sm font-medium text-gray-300 mb-1">Striker:</label>
+                        <select id="striker" value={modalStriker} onChange={e => setModalStriker(e.target.value)} className={inputClass}>
+                            <option value="">Select Striker</option>
+                            {availableBatsmen?.map(p => <option key={`s-${p}`} value={p} disabled={p === modalNonStriker}>{p}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label htmlFor="nonStriker" className="block text-sm font-medium text-gray-300 mb-1">Non-Striker:</label>
+                        <select id="nonStriker" value={modalNonStriker} onChange={e => setModalNonStriker(e.target.value)} className={inputClass}>
+                            <option value="">Select Non-Striker</option>
+                            {availableBatsmen?.map(p => <option key={`ns-${p}`} value={p} disabled={p === modalStriker}>{p}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label htmlFor="bowler" className="block text-sm font-medium text-gray-300 mb-1">Current Bowler:</label>
+                        <select id="bowler" value={modalBowler} onChange={e => setModalBowler(e.target.value)} className={inputClass}>
+                            <option value="">Select Bowler</option>
+                            {currentBowlingTeamSquad?.map(p => <option key={`b-${p}`} value={p}>{p}</option>)}
+                        </select>
+                    </div>
+                </div>
+                <div className="mt-6 flex justify-end space-x-3">
+                    <Button variant="outline" onClick={() => setShowPlayerRolesModal(false)}>Cancel</Button>
+                    <Button variant="primary" onClick={handlePlayerRolesSubmit}>Confirm Roles</Button>
+                </div>
+            </div>
         </div>
-     );
+    );
+  }
+  
+  if (showWicketModal && matchDetails) {
+    const activeBatsmen = [currentStrikerName, currentNonStrikerName].filter(Boolean) as string[];
+    const currentBowlingTeamSquad = matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamBSquad : matchDetails.teamASquad;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-lg border border-gray-700">
+                <h2 className="text-xl font-bold text-red-400 mb-4">Wicket Details</h2>
+                <div className="space-y-3">
+                    <div>
+                        <label className="text-sm text-gray-300">Batsman Out:</label>
+                        <select value={wicketDetails.batsmanOut} onChange={e => setWicketDetails(s => ({...s, batsmanOut: e.target.value}))} className="w-full mt-1 p-2 bg-gray-700 rounded">
+                            {activeBatsmen.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-sm text-gray-300">Dismissal Type:</label>
+                        <select value={wicketDetails.dismissalType} onChange={e => setWicketDetails(s => ({...s, dismissalType: e.target.value as DismissalType}))}  className="w-full mt-1 p-2 bg-gray-700 rounded">
+                            {Object.values(DismissalType).filter(dt => dt !== DismissalType.NOT_OUT).map(type => <option key={type} value={type}>{type}</option>)}
+                        </select>
+                    </div>
+                     {/* Conditional fields for bowler/fielder based on dismissal type */}
+                    {(wicketDetails.dismissalType === DismissalType.CAUGHT || wicketDetails.dismissalType === DismissalType.STUMPED || wicketDetails.dismissalType === DismissalType.RUN_OUT) && (
+                        <div>
+                            <label className="text-sm text-gray-300">Fielder:</label>
+                            <select value={wicketDetails.fielder} onChange={e => setWicketDetails(s => ({...s, fielder: e.target.value}))}  className="w-full mt-1 p-2 bg-gray-700 rounded">
+                                <option value="">Select Fielder</option>
+                                {currentBowlingTeamSquad?.map(p => <option key={p} value={p}>{p}</option>)}
+                            </select>
+                        </div>
+                    )}
+                    {/* Assume bowler is current bowler unless run out etc. Could add explicit selection if needed. */}
+                </div>
+                <div className="mt-6 flex justify-end space-x-2">
+                    <Button variant="outline" onClick={() => setShowWicketModal(false)}>Cancel</Button>
+                    <Button variant="danger" onClick={handleWicketSubmit}>Confirm Wicket</Button>
+                </div>
+            </div>
+        </div>
+    );
   }
 
-  // ---- Main Scoring Interface ----
+
+  // Fallback / Incomplete Setup checks
+  if (matchDetails.status === "Live" && (!matchDetails.teamASquad || matchDetails.teamASquad.length < SQUAD_SIZE || !matchDetails.teamBSquad || matchDetails.teamBSquad.length < SQUAD_SIZE)) {
+    return (
+        <div className="text-center p-8 text-xl text-gray-300">
+            <p className="mb-3">Squads not selected for this match.</p>
+            <Button onClick={() => {
+                setAvailableTeamAPlayers(matchDetails.teamASquad || []); setSelectedTeamASquad(matchDetails.teamASquad || []);
+                setAvailableTeamBPlayers(matchDetails.teamBSquad || []); setSelectedTeamBSquad(matchDetails.teamBSquad || []);
+                setShowSquadSelectionModal(true);
+            }} className="mt-2" variant="primary">Select Squads</Button>
+            <Link to="/matches" className="block mt-4 text-red-400 hover:underline">Go to Matches</Link>
+        </div>
+    );
+  }
+  if (matchDetails.status === "Live" && (!currentStrikerName || !currentBowlerName)) {
+    return (
+        <div className="text-center p-8 text-xl text-gray-300">
+            <p className="mb-3">Player roles (striker, bowler) not set.</p>
+            <Button onClick={() => setShowPlayerRolesModal(true)} className="mt-2" variant="primary">Set Player Roles</Button>
+            <Link to="/matches" className="block mt-4 text-red-400 hover:underline">Go to Matches</Link>
+        </div>
+    );
+  }
+
+
+  // MAIN SCORING INTERFACE
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       <h1 className="text-3xl font-bold text-gray-50 text-center">
         {matchDetails.teamAName} vs {matchDetails.teamBName}
       </h1>
       
-      <ScoreDisplay score={scoreForDisplay} target={target} currentInnings={currentInnings} totalOvers={matchDetails.overs} />
+      <ScoreDisplay score={scoreForDisplay} target={target} currentInnings={currentInningsNumber} totalOvers={matchDetails.overs_per_innings} />
+      
+      <div className="p-2 bg-gray-800 rounded-lg shadow border border-gray-700 text-sm text-gray-300 text-center">
+        <p>Striker: <span className="font-semibold text-gray-100">{currentStrikerName || "N/A"}</span></p>
+        <p>Non-Striker: <span className="font-semibold text-gray-100">{currentNonStrikerName || "N/A"}</span></p>
+        <p>Bowler: <span className="font-semibold text-gray-100">{currentBowlerName || "N/A"}</span></p>
+        <Button size="sm" variant="outline" className="mt-1" onClick={() => setShowPlayerRolesModal(true)}>Change Roles</Button>
+      </div>
+
 
       <div className="p-4 bg-gray-800 rounded-lg shadow space-y-4 border border-gray-700">
         <h3 className="text-lg font-semibold text-gray-100">Scoring Controls:</h3>
         <div className="grid grid-cols-4 gap-2">
-          {[0, 1, 2, 3, 4, 5, 6].map(r => <RunsButton key={r} runs={r} onClick={() => handleBallEvent(r)} />)}
-          <Button variant="danger" className="w-full aspect-square text-lg font-semibold" onClick={() => handleBallEvent(0, true)}>WKT</Button>
+          {[0, 1, 2, 3, 4, 5, 6].map(r => <RunsButton key={r} runs={r} onClick={() => handleSimpleBallEvent(r)} />)}
+          <Button variant="danger" className="w-full aspect-square text-lg font-semibold" onClick={() => handleSimpleBallEvent(0, true)}>WKT</Button>
         </div>
         <div className="flex space-x-2">
             {(["Wide", "NoBall", "Byes", "LegByes"] as BallEvent['extraType'][]).map(type => 
                 <ExtraButton key={type} type={type} onClick={() => {
-                    const extraRunsValue = type === "Wide" || type === "NoBall" ? 1 : 0; // Simplified: No Ball runs are separate from the run off the bat.
-                    handleBallEvent(type === "Wide" || type === "NoBall" ? 0 : 0, false, type, extraRunsValue);
+                    const extraRunsValue = type === "Wide" || type === "NoBall" ? 1 : promptForExtraRuns(type); // Prompt for byes/legbyes
+                    if (extraRunsValue === null) return; // User cancelled prompt
+                    handleSimpleBallEvent(0, false, type, extraRunsValue); 
                 }} />
             )}
         </div>
@@ -421,26 +532,39 @@ const ScoringPage: React.FC = () => {
 
       <div className="p-4 bg-gray-800 rounded-lg shadow border border-gray-700">
           <h3 className="text-lg font-semibold text-gray-100 mb-3">Match Actions:</h3>
-          {currentInnings === 1 && currentMatchInnings && (currentMatchInnings.wickets >= SQUAD_SIZE -1 || (matchDetails.overs && currentMatchInnings.overs >= matchDetails.overs && currentMatchInnings.balls % 6 === 0 && currentMatchInnings.balls > 0) ) && (
-            <Button onClick={contextSwitchInnings} variant="primary" className="w-full mb-3">End Innings & Start 2nd Innings</Button>
+          {currentInningsNumber === 1 && currentMatchInningsData && (currentMatchInningsData.totalWickets >= SQUAD_SIZE -1 || (matchDetails.overs_per_innings && currentMatchInningsData.totalOversBowled >= matchDetails.overs_per_innings)) && (
+            <Button onClick={switchInnings} variant="primary" className="w-full mb-3">End Innings & Start 2nd Innings</Button>
           )}
-          <Button onClick={() => navigate('/matches')} variant="outline" className="w-full">Back to Matches</Button>
+          {/* Add End Match Button condition */}
+          <Button onClick={async () => { await saveMatchState(); navigate('/matches');}} variant="outline" className="w-full">Save & Exit to Matches</Button>
       </div>
 
       <div className="p-4 bg-gray-800 rounded-lg shadow mt-4 border border-gray-700">
-        <h3 className="text-lg font-semibold text-gray-100 mb-2">Recent Events:</h3>
+        <h3 className="text-lg font-semibold text-gray-100 mb-2">Recent Events: (Timeline)</h3>
         <ul className="text-sm space-y-1.5 text-gray-300 max-h-40 overflow-y-auto pr-2">
-            {currentMatchInnings?.timeline?.slice(-5).reverse().map((event, idx) => (
-                <li key={idx} className="border-b border-gray-700 pb-1.5 text-gray-300">
-                   {event.isWicket ? <span className="font-semibold text-red-400">WICKET!</span> : `${event.runs} run(s)`}
+            {currentMatchInningsData?.timeline?.slice(-10).reverse().map((event, idx) => (
+                <li key={idx} className="border-b border-gray-700 pb-1.5">
+                   Ball for {event.strikerName}: {event.isWicket ? <span className="font-semibold text-red-400">WICKET! ({event.wicketType})</span> : `${event.runs} run(s)`}
                    {event.extraType && <span className="text-yellow-400"> ({event.extraType}{event.extraRuns ? ` +${event.extraRuns}` : ''})</span>}
                 </li>
             ))}
-            {currentMatchInnings?.timeline?.length === 0 && <li className="text-gray-400">No events yet.</li>}
+            {(!currentMatchInningsData?.timeline || currentMatchInningsData.timeline.length === 0) && <li className="text-gray-400">No events yet.</li>}
         </ul>
       </div>
     </div>
   );
 };
+// Helper function to prompt for Bye/LegBye runs
+const promptForExtraRuns = (type: string): number | null => {
+    const runsStr = prompt(`Enter ${type} runs (0-6):`);
+    if (runsStr === null) return null; // User cancelled
+    const runs = parseInt(runsStr, 10);
+    if (isNaN(runs) || runs < 0 || runs > 6) {
+        alert("Invalid number of runs. Please enter a value between 0 and 6.");
+        return null;
+    }
+    return runs;
+};
 
 export default ScoringPage;
+

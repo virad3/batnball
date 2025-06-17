@@ -1,8 +1,10 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Tournament, TournamentFormat } from '../types'; 
-import { createTournament, mockTeamNamesForSelection } from '../services/dataService'; 
+import { createTournament } from '../services/dataService'; // Uses Supabase
 import Button from '../components/Button';
+// mockTeamNamesForSelection is removed from dataService, users add teams manually.
 
 const CreateTournamentPage: React.FC = () => {
   const navigate = useNavigate();
@@ -16,52 +18,59 @@ const CreateTournamentPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const availableTeamNamesForSelection = mockTeamNamesForSelection; 
-
-  const handleTeamSelection = (teamName: string) => {
-    setSelectedTeamNames(prev => 
-      prev.includes(teamName) ? prev.filter(name => name !== teamName) : [...prev, teamName]
-    );
-  };
+  // No longer using mockTeamNamesForSelection from dataService.
+  // All teams are added manually.
 
   const handleAddCustomTeam = () => {
     if (customTeamName.trim() && !selectedTeamNames.includes(customTeamName.trim())) {
       setSelectedTeamNames(prev => [...prev, customTeamName.trim()]);
       setCustomTeamName('');
+    } else if (selectedTeamNames.includes(customTeamName.trim())) {
+      alert("Team already added.");
     }
   };
+
+  const handleRemoveTeam = (teamNameToRemove: string) => {
+    setSelectedTeamNames(prev => prev.filter(name => name !== teamNameToRemove));
+  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!tournamentName || !startDate || !endDate || selectedTeamNames.length < 2) {
-      setError("Please fill all required fields and select/add at least two teams.");
+      setError("Please fill all required fields and add at least two teams.");
       return;
     }
+    if (new Date(startDate) > new Date(endDate)) {
+      setError("Start date cannot be after end date.");
+      return;
+    }
+
     setLoading(true);
 
-    const newTournamentData: Omit<Tournament, 'id' | 'matches' | 'organizerName'> = {
+    const newTournamentData: Omit<Tournament, 'id' | 'matches' | 'organizerName' | 'user_id'> = {
       name: tournamentName,
       format,
       startDate,
       endDate,
       teamNames: selectedTeamNames,
-      logoUrl: logoUrl || `https://picsum.photos/seed/${encodeURIComponent(tournamentName)}/400/200`,
+      logoUrl: logoUrl || undefined, // Send undefined if empty for Supabase
     };
 
     try {
-      const createdTournament = await createTournament(newTournamentData);
+      const createdTournament = await createTournament(newTournamentData); // dataService function now uses Supabase
       setLoading(false);
       navigate(`/tournaments/${createdTournament.id}`);
-    } catch (err) {
-      setError("Failed to create tournament. Please try again.");
+    } catch (err: any) {
+      setError(err.message || "Failed to create tournament. Please try again.");
       setLoading(false);
       console.error(err);
     }
   };
   
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
-  const inputFocusClass = "focus:ring-red-500 focus:border-red-500"; // Updated focus ring
+  const inputFocusClass = "focus:ring-red-500 focus:border-red-500";
   const inputClass = `${inputBaseClass} ${inputFocusClass}`;
   const labelClass = "block text-sm font-medium text-gray-200";
 
@@ -98,38 +107,37 @@ const CreateTournamentPage: React.FC = () => {
           }
         `}</style>
 
-
         <div>
           <label className={labelClass}>Teams (min. 2) <span className="text-red-400">*</span></label>
-          <p className="text-xs text-gray-400 mt-0.5">Select from suggestions or add custom team names.</p>
-          <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto p-2 border border-gray-600 rounded-md bg-gray-700">
-            {availableTeamNamesForSelection.map(name => (
-              <label key={name} className={`flex items-center space-x-2 p-2.5 rounded-md cursor-pointer transition-colors ${selectedTeamNames.includes(name) ? 'bg-red-700 text-white' : 'bg-gray-650 hover:bg-red-600 text-gray-200'}`}> {/* Updated selected bg and hover */}
-                <input 
-                  type="checkbox" 
-                  checked={selectedTeamNames.includes(name)} 
-                  onChange={() => handleTeamSelection(name)}
-                  className="form-checkbox h-4 w-4 text-red-700 border-gray-500 rounded focus:ring-red-500 bg-gray-500 checked:bg-red-700 focus:ring-offset-gray-700" // Updated checkbox colors
-                />
-                <span className="text-sm font-medium">{name}</span>
-              </label>
-            ))}
-          </div>
+           <p className="text-xs text-gray-400 mt-0.5">Add custom team names below.</p>
           <div className="mt-3 flex space-x-2">
             <input 
               type="text" 
               value={customTeamName} 
               onChange={(e) => setCustomTeamName(e.target.value)} 
-              placeholder="Add custom team name"
+              placeholder="Enter team name"
               className={`${inputClass} flex-grow`}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomTeam();}}}
             />
-            <Button type="button" onClick={handleAddCustomTeam} variant="secondary">Add</Button>
+            <Button type="button" onClick={handleAddCustomTeam} variant="secondary">Add Team</Button>
           </div>
           {selectedTeamNames.length > 0 && (
-            <div className="mt-3">
-              <p className="text-xs font-medium text-gray-300">Selected teams ({selectedTeamNames.length}):</p>
-              <ul className="list-disc list-inside text-sm text-gray-400 columns-2 sm:columns-3">
-                {selectedTeamNames.map(name => <li key={name} className="truncate">{name}</li>)}
+            <div className="mt-3 p-3 bg-gray-700 rounded-md border border-gray-600">
+              <p className="text-xs font-medium text-gray-300 mb-2">Added teams ({selectedTeamNames.length}):</p>
+              <ul className="space-y-1 max-h-32 overflow-y-auto">
+                {selectedTeamNames.map(name => (
+                    <li key={name} className="flex justify-between items-center text-sm text-gray-200 p-1.5 bg-gray-600 rounded-md">
+                        <span className="truncate">{name}</span>
+                        <button 
+                            type="button" 
+                            onClick={() => handleRemoveTeam(name)}
+                            className="ml-2 text-red-400 hover:text-red-300 text-xs"
+                            aria-label={`Remove ${name}`}
+                        >
+                            Remove
+                        </button>
+                    </li>
+                ))}
               </ul>
             </div>
           )}

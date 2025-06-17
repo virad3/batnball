@@ -12,58 +12,119 @@ export enum TournamentFormat {
   ROUND_ROBIN = "Round Robin"
 }
 
+export enum DismissalType {
+  NOT_OUT = "Not Out",
+  BOWLED = "Bowled",
+  CAUGHT = "Caught",
+  LBW = "LBW",
+  RUN_OUT = "Run Out",
+  STUMPED = "Stumped",
+  HIT_WICKET = "Hit Wicket",
+  RETIRED_HURT = "Retired Hurt",
+  TIMED_OUT = "Timed Out",
+  HANDLED_BALL = "Handled Ball", // Historic, now Obstruction
+  OBSTRUCTING_FIELD = "Obstructing Field",
+  HIT_BALL_TWICE = "Hit Ball Twice", // Historic
+  OTHER = "Other"
+}
+
+export interface PlayerBattingStats {
+  playerId: string; // Corresponds to a name from the squad list
+  playerName: string;
+  runs: number;
+  ballsFaced: number;
+  fours: number;
+  sixes: number;
+  status: DismissalType;
+  bowlerName?: string; // Bowler who took the wicket
+  fielderName?: string; // Fielder involved in dismissal (catch, run out, stump)
+  battingOrder?: number;
+}
+
+export interface PlayerBowlingStats {
+  playerId: string; // Corresponds to a name from the squad list
+  playerName: string;
+  oversBowled: number; // Can be decimal, e.g., 3.5 for 3 overs and 5 balls
+  ballsBowled: number; // Total balls bowled by this bowler
+  maidens: number;
+  runsConceded: number;
+  wickets: number;
+}
+
+export interface InningsRecord {
+  teamName: string;
+  totalRuns: number;
+  totalWickets: number;
+  totalOversBowled: number; // Actual overs bowled, e.g., 19.5
+  totalBallsBowled: number;
+  battingPerformances: PlayerBattingStats[];
+  bowlingPerformances: PlayerBowlingStats[];
+  declared?: boolean;
+  forfeited?: boolean;
+  timeline?: BallEvent[]; // Optional: keep if detailed ball-by-ball is stored within innings JSON
+}
+
 export interface Match {
-  id: string;
+  id: string; // UUID from Supabase
+  user_id?: string; // UUID of the user who created the match
   teamAName: string;
   teamBName: string;
-  date: string; // ISO string or Date object
+  date: string; // ISO string
   venue: string;
   format: MatchFormat;
   status: "Upcoming" | "Live" | "Completed";
   tossWinnerName?: string;
   electedTo?: "Bat" | "Bowl";
-  overs?: number; // Max overs for limited over matches
-  currentScore?: Score;
-  result?: string; // e.g., "Team A won by 5 wickets"
+  overs_per_innings?: number; // Max overs for limited over matches
+  
   teamASquad?: string[];
   teamBSquad?: string[];
+  
+  result_summary?: string; // e.g., "Team A won by 5 wickets"
+  tournament_id?: string | null; // Optional foreign key
+
+  innings1Record?: InningsRecord | null;
+  innings2Record?: InningsRecord | null;
+
+  // Fields to track current state if not fully in context or for quick resume
+  current_batting_team?: string;
+  current_bowler_name?: string;
+  current_striker_name?: string;
+  current_non_striker_name?: string;
 }
 
+// Score is now more of a display concern derived from InningsRecord
 export interface Score {
   runs: number;
   wickets: number;
-  overs: number; // Overs completed
-  ballsThisOver: number; // Balls bowled in the current over
+  overs: number; 
+  ballsThisOver: number;
   battingTeamName: string;
   bowlingTeamName: string;
 }
 
 export interface BallEvent {
-  runs: number; // 0-6
+  runs: number; 
   isWicket: boolean;
-  wicketType?: "Bowled" | "Caught" | "LBW" | "Run Out" | "Stumped" | "Hit Wicket" | "Other"; // Still useful for commentary
+  wicketType?: DismissalType;
+  batsmanOutName?: string;
+  bowlerName?: string; // Bowler involved in the ball event
+  fielderName?: string; // Fielder involved in wicket
   extraType?: "Wide" | "NoBall" | "Byes" | "LegByes";
   extraRuns?: number;
-  commentary?: string; // Auto-generated or manual
-}
-
-export interface Innings {
-  teamName: string;
-  score: number;
-  wickets: number;
-  overs: number;
-  balls: number; // Total balls bowled in the innings
-  timeline: BallEvent[];
+  commentary?: string;
+  strikerName?: string; // Who faced the ball
 }
 
 export interface Tournament {
   id: string;
+  user_id?: string;
   name: string;
   format: TournamentFormat;
   startDate: string;
   endDate: string;
   teamNames: string[];
-  matches?: Match[]; // Matches will also be simplified
+  matches?: Match[]; 
   organizerName?: string; 
   logoUrl?: string;
 }
@@ -72,12 +133,11 @@ export interface UserProfile {
   id: string;
   username: string;
   email?: string;
-  profileType: "Scorer" | "Organizer" | "Fan"; // Removed "Player" as it's less distinct now
+  profileType: "Scorer" | "Organizer" | "Fan";
   achievements?: string[];
   profilePicUrl?: string;
 }
 
-// For Gemini Service
 export interface GeneratedCommentary {
   ballByBall: string;
   summary?: string;
@@ -85,20 +145,24 @@ export interface GeneratedCommentary {
 
 // Match context types
 export interface MatchState {
-  matchId: string | null;
-  innings1: Innings | null;
-  innings2: Innings | null;
-  currentInnings: 1 | 2;
-  battingTeamName: string | null;
-  bowlingTeamName: string | null;
-  target: number | null; // For 2nd innings
-  matchDetails: Match | null; // Full match details
+  matchDetails: Match | null;
+  // Live scoring specific state that might not be directly part of Match object until persisted
+  currentStrikerName: string | null;
+  currentNonStrikerName: string | null;
+  currentBowlerName: string | null;
+  currentInningsNumber: 1 | 2;
+  // Target is still useful for display
+  target: number | null; 
 }
 
 export interface MatchContextType extends MatchState {
-  setMatchDetails: (match: Match) => void;
-  startMatch: (matchId: string, tossWinnerName: string, electedTo: "Bat" | "Bowl", matchInfo: Match) => void;
-  addBall: (event: BallEvent) => void;
-  switchInnings: () => void;
-  // other actions
+  setMatchDetails: (match: Match | null) => void;
+  loadMatch: (matchId: string) => Promise<Match | null>;
+  startNewMatch: (partialMatchData: Partial<Match>) => Promise<Match | null>;
+  updateTossAndStartInnings: (tossWinner: string, elected: "Bat" | "Bowl") => Promise<void>;
+  addBall: (event: BallEvent) => Promise<void>; // Make async for potential save
+  switchInnings: () => Promise<void>; // Make async
+  saveMatchState: () => Promise<void>; // Explicit save
+  endMatch: (resultSummary: string) => Promise<void>;
+  setPlayerRoles: (striker?: string, nonStriker?: string, bowler?: string) => void;
 }

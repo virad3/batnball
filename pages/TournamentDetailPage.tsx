@@ -1,7 +1,14 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom'; 
 import { Tournament, Match } from '../types'; 
-import { getTournamentById, getMatchesByTournamentId } from '../services/dataService';
+import { getTournamentById } from '../services/dataService'; // getMatchesByTournamentId might need rework
+// For now, matches associated with a tournament are not directly queryable in a simple way
+// if `matches` is not a field in the `tournaments` table or `tournament_id` in `matches` table.
+// We'll assume for now that tournament.matches might be populated if created that way, or we show none.
+// A proper implementation would query matches where tournament_id = current tournamentId.
+import { supabase } from '../services/supabaseClient'; // Direct Supabase for specific match query
+
 import LoadingSpinner from '../components/LoadingSpinner';
 import MatchCard from '../components/MatchCard';
 import Button from '../components/Button';
@@ -22,11 +29,17 @@ const TournamentDetailPage: React.FC = () => {
         const tournamentDetails = await getTournamentById(tournamentId);
         setTournament(tournamentDetails);
         if (tournamentDetails) {
-          // Prefer matches array from tournament object if available
-          const tournamentMatches = tournamentDetails.matches && tournamentDetails.matches.length > 0 
-            ? tournamentDetails.matches 
-            : await getMatchesByTournamentId(tournamentDetails.id);
-          setMatches(tournamentMatches);
+          // Fetch matches associated with this tournament_id
+          const { data: tournamentMatches, error: matchesError } = await supabase
+            .from('matches')
+            .select('*')
+            .eq('tournament_id', tournamentDetails.id);
+          
+          if (matchesError) {
+            console.error("Error fetching matches for tournament:", matchesError);
+          } else {
+            setMatches(tournamentMatches || []);
+          }
         }
       } catch (error) {
         console.error("Failed to fetch tournament details:", error);
@@ -38,7 +51,7 @@ const TournamentDetailPage: React.FC = () => {
   }, [tournamentId]);
 
   if (loading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
-  if (!tournament) return <div className="text-center p-8 text-xl text-red-400">Tournament not found. <Link to="/tournaments" className="text-slate-400 hover:underline">Go to Tournaments</Link></div>;
+  if (!tournament) return <div className="text-center p-8 text-xl text-red-400">Tournament not found. <Link to="/tournaments" className="text-red-400 hover:underline">Go to Tournaments</Link></div>;
 
   const TabButton: React.FC<{tabKey: 'fixtures' | 'teams' | 'standings', label: string}> = ({ tabKey, label }) => (
     <Button
@@ -80,6 +93,7 @@ const TournamentDetailPage: React.FC = () => {
       {activeTab === 'fixtures' && (
         <section>
           <h2 className="text-2xl font-bold text-gray-100 mb-4">Fixtures & Results</h2>
+          {/* TODO: Add button to create a new match for this tournament */}
           {matches.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {matches.map(match => <MatchCard key={match.id} match={match} />)}
@@ -115,11 +129,7 @@ const TournamentDetailPage: React.FC = () => {
           <h2 className="text-2xl font-bold text-gray-100 mb-4">Points Table / Standings</h2>
           <div className="bg-gray-800 rounded-lg shadow p-4 border border-gray-700 min-h-[150px]">
             <p className="text-gray-300">Standings feature is simplified. Detailed points table based on match results will be available in a future update.</p>
-            {tournament.teamNames && tournament.teamNames.length > 0 && (
-                <ul className="list-disc list-inside pl-1 mt-4 space-y-1">
-                    {tournament.teamNames.map((name, idx) => <li key={idx} className="text-gray-300">{name}</li>)}
-                </ul>
-            )}
+            {/* Logic for displaying standings would go here */}
             {(!tournament.teamNames || tournament.teamNames.length === 0) && <p className="text-gray-400 mt-4">No teams to display standings for.</p>}
           </div>
         </section>

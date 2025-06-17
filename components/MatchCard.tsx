@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Match } from '../types'; 
+import { Match, InningsRecord } from '../types'; 
 import Button from './Button';
 
 interface MatchCardProps {
@@ -17,15 +18,37 @@ const TeamDisplaySimple: React.FC<{ teamName: string, score?: string }> = ({ tea
 const MatchCard: React.FC<MatchCardProps> = ({ match }) => {
   const matchDate = new Date(match.date);
 
-  const getTeamScoreDisplay = (teamName: string) => {
-    if (match.status === "Completed") {
-        if (match.result?.includes(teamName)) return "Winner"; 
+  const getTeamScoreDisplay = (teamNameToDisplay: string): string | undefined => {
+    let inningsToUse: InningsRecord | null | undefined = null;
+
+    if (match.status === "Live") {
+      if (match.current_batting_team === teamNameToDisplay) {
+        // This team is currently batting
+        if (match.innings1Record && match.innings1Record.teamName === match.current_batting_team) {
+          inningsToUse = match.innings1Record;
+        } else if (match.innings2Record && match.innings2Record.teamName === match.current_batting_team) {
+          inningsToUse = match.innings2Record;
+        }
+      }
+      // If not currently batting, we don't show live score for them in this card's team line for simplicity.
+      // The overall score might be handled differently or this implies they are bowling.
+    } else if (match.status === "Completed") {
+      // For completed matches, show final score for the team if available
+      if (match.innings1Record && match.innings1Record.teamName === teamNameToDisplay) {
+        inningsToUse = match.innings1Record;
+      } else if (match.innings2Record && match.innings2Record.teamName === teamNameToDisplay) {
+        inningsToUse = match.innings2Record;
+      }
     }
-    if (match.currentScore && match.currentScore.battingTeamName === teamName) {
-      return `${match.currentScore.runs}/${match.currentScore.wickets} (${match.currentScore.overs}.${match.currentScore.ballsThisOver})`;
+
+    if (inningsToUse) {
+      // inningsToUse.totalOversBowled is already in format like 19.5 for 19 overs 5 balls
+      return `${inningsToUse.totalRuns}/${inningsToUse.totalWickets} (${inningsToUse.totalOversBowled} Ov)`;
     }
-    return undefined; 
+
+    return undefined;
   };
+
 
   const getStatusSpecificStyling = () => {
     switch (match.status) {
@@ -61,8 +84,8 @@ const MatchCard: React.FC<MatchCardProps> = ({ match }) => {
 
         <p className="text-xs text-gray-400 mb-3 truncate">{match.venue}</p>
         
-        {match.status === "Completed" && match.result && (
-          <p className="text-sm font-semibold text-green-400 mb-3">{match.result}</p> 
+        {match.status === "Completed" && match.result_summary && (
+          <p className="text-sm font-semibold text-green-400 mb-3">{match.result_summary}</p> 
         )}
 
         {match.status === "Live" && match.tossWinnerName && (
