@@ -4,7 +4,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { APP_NAME, COLORS } from '../constants';
 import { UserProfile } from '../types';
 import { getCurrentUserProfile } from '../services/dataService';
-import logo from './assets/logo.png';
 
 const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -114,7 +113,7 @@ const Header: React.FC = () => {
 
           {/* Logo and App Name (Link to home) */}
           <Link to="/home" className="flex items-center ml-3 sm:ml-4"> {/* Added margin for spacing from hamburger */}
-            <img src={logo} alt="Bat&Ball Logo" className="h-8 w-auto mr-2" /> {/* Logo */}
+            <img src='/logo.png' alt="Bat&Ball Logo" className="h-8 w-auto mr-2" /> {/* Logo */}
             <span className="text-xl sm:text-2xl font-bold tracking-tight">
               {APP_NAME}
             </span>
