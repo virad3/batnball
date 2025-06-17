@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Session, User, AuthError, SignUpWithPasswordCredentials } from '@supabase/supabase-js';
 import { supabase } from '../services/supabaseClient';
@@ -39,6 +40,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, currentSession) => {
+        console.log("Auth state changed, event:", _event, "session:", currentSession); // For debugging metadata updates
         setLoading(true);
         setError(null);
         setSession(currentSession);

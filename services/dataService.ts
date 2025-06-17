@@ -1,7 +1,7 @@
 
 import { Match, Tournament, UserProfile } from '../types';
 import { supabase } from './supabaseClient';
-import { AuthError } from '@supabase/supabase-js';
+import { AuthError, User }  from '@supabase/supabase-js';
 
 // Helper to get current user ID
 const getUserId = async (): Promise<string | null> => {
@@ -12,7 +12,7 @@ const getUserId = async (): Promise<string | null> => {
 // Matches
 export const getAllMatches = async (): Promise<Match[]> => {
   const userId = await getUserId();
-  if (!userId) return []; // Or throw error, depending on desired behavior for unauthenticated users
+  if (!userId) return []; 
 
   const { data, error } = await supabase
     .from('matches')
@@ -46,13 +46,12 @@ export const getUpcomingMatches = async (limit: number = 3): Promise<Match[]> =>
 
 export const getMatchById = async (id: string): Promise<Match | null> => {
   const userId = await getUserId();
-  if (!userId) return null; // Or ensure ID is enough if public viewing is allowed with different RLS
+  if (!userId && id !== 'newmatch') return null; 
 
   const { data, error } = await supabase
     .from('matches')
     .select('*')
     .eq('id', id)
-    // .eq('user_id', userId) // Might be redundant if RLS handles this, or useful for strict check
     .single();
   if (error) {
     console.error('Error fetching match by ID:', error.message);
@@ -69,7 +68,6 @@ export const createMatch = async (matchData: Partial<Match>): Promise<Match> => 
   const matchToInsert = {
     ...matchData,
     user_id: userId,
-    // Ensure default empty innings records if not provided
     innings1Record: matchData.innings1Record || null,
     innings2Record: matchData.innings2Record || null,
   };
@@ -89,14 +87,10 @@ export const createMatch = async (matchData: Partial<Match>): Promise<Match> => 
 };
 
 export const updateMatch = async (matchId: string, updates: Partial<Match>): Promise<Match> => {
-  // const userId = await getUserId(); // Potentially useful for RLS checks if not automatically handled
-  // if (!userId) throw new Error("User must be logged in to update a match.");
-
   const { data, error } = await supabase
     .from('matches')
     .update(updates)
     .eq('id', matchId)
-    // .eq('user_id', userId) // Add if RLS needs client-side reinforcement
     .select()
     .single();
   
@@ -148,7 +142,6 @@ export const getOngoingTournaments = async (limit: number = 2): Promise<Tourname
 };
 
 export const getTournamentById = async (id: string): Promise<Tournament | null> => {
-  // Assuming tournaments might be public or user-specific based on RLS
   const { data, error } = await supabase
     .from('tournaments')
     .select('*')
@@ -188,25 +181,141 @@ export const createTournament = async (tournamentData: Omit<Tournament, 'id' | '
   return data;
 };
 
+// --- User Profile Functions ---
 
-// This function is still primarily illustrative. Profile data should come from auth.user
-// or a dedicated 'profiles' table linked to auth.users.id.
-// The Header uses auth.user directly. ProfilePage can do the same.
-export const getCurrentUserProfile = async (): Promise<UserProfile | null> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+export const getFullUserProfile = async (userId: string): Promise<UserProfile | null> => {
+  const { data: { user: authUser } } = await supabase.auth.getUser(); 
+  if (!authUser || authUser.id !== userId) {
+    // If the currently authenticated user is not the one we're asking for,
+    // this implies a potential issue or an attempt to fetch another user's full profile
+    // which should be generally restricted by RLS on 'profiles' table anyway.
+    // For simplicity, we only allow fetching the current authenticated user's full profile.
+    console.warn("Attempted to fetch profile for a different or non-authenticated user.");
+    return null;
+  }
 
-  // This is a simplified profile based on auth data.
-  // A real app would likely fetch from a 'profiles' table.
-  return {
-    id: user.id,
-    username: user.user_metadata?.username || user.email?.split('@')[0] || 'User',
-    email: user.email,
-    profileType: user.user_metadata?.profile_type || 'Fan',
-    profilePicUrl: user.user_metadata?.profile_pic_url,
-    achievements: user.user_metadata?.achievements || [],
+  let profileDataFromTable: Partial<UserProfile> = {};
+  const { data: dbProfile, error: dbError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+
+  if (dbError && dbError.code !== 'PGRST116') { 
+    console.error('Error fetching profile from DB:', dbError);
+  }
+  if (dbProfile) {
+    profileDataFromTable = dbProfile;
+  }
+  
+  const combinedProfile: UserProfile = {
+    id: authUser.id,
+    email: authUser.email,
+    username: authUser.user_metadata?.username || profileDataFromTable?.username || authUser.email?.split('@')[0] || 'User',
+    profileType: authUser.user_metadata?.profile_type || profileDataFromTable?.profileType || 'Fan',
+    profilePicUrl: authUser.user_metadata?.profile_pic_url || profileDataFromTable?.profilePicUrl,
+    achievements: authUser.user_metadata?.achievements || [], 
+
+    location: profileDataFromTable?.location ?? null,
+    date_of_birth: profileDataFromTable?.date_of_birth ?? null,
+    mobile_number: profileDataFromTable?.mobile_number ?? null,
+    player_role: profileDataFromTable?.player_role ?? null,
+    batting_style: profileDataFromTable?.batting_style ?? null,
+    bowling_style: profileDataFromTable?.bowling_style ?? null,
   };
+  return combinedProfile;
 };
 
-// mockTeamNamesForSelection is no longer needed as teams are entered per tournament
+export const updateUserProfile = async (
+  userId: string,
+  profileUpdates: Partial<UserProfile>
+): Promise<{ user: User | null, profile: UserProfile | null, error?: any }> => {
+  let authMetaDataUpdates: Record<string, any> = {};
+  let profilesTableSpecificUpdates: Omit<Partial<UserProfile>, 'id' | 'email' | 'achievements' | 'username' | 'profilePicUrl' | 'profileType'> = {};
+  let profilesTableSharedUpdates: Partial<Pick<UserProfile, 'username' | 'profilePicUrl' | 'profileType'>> = {};
+
+
+  if (profileUpdates.username !== undefined) {
+    authMetaDataUpdates.username = profileUpdates.username;
+    profilesTableSharedUpdates.username = profileUpdates.username;
+  }
+  if (profileUpdates.profilePicUrl !== undefined) { // Check for actual change if it's for clearing
+    authMetaDataUpdates.profile_pic_url = profileUpdates.profilePicUrl;
+    profilesTableSharedUpdates.profilePicUrl = profileUpdates.profilePicUrl;
+  }
+  if (profileUpdates.profileType !== undefined) {
+    authMetaDataUpdates.profile_type = profileUpdates.profileType;
+    profilesTableSharedUpdates.profileType = profileUpdates.profileType;
+  }
+
+  if (profileUpdates.location !== undefined) profilesTableSpecificUpdates.location = profileUpdates.location;
+  if (profileUpdates.date_of_birth !== undefined) profilesTableSpecificUpdates.date_of_birth = profileUpdates.date_of_birth;
+  if (profileUpdates.mobile_number !== undefined) profilesTableSpecificUpdates.mobile_number = profileUpdates.mobile_number;
+  if (profileUpdates.player_role !== undefined) profilesTableSpecificUpdates.player_role = profileUpdates.player_role;
+  if (profileUpdates.batting_style !== undefined) profilesTableSpecificUpdates.batting_style = profileUpdates.batting_style;
+  if (profileUpdates.bowling_style !== undefined) profilesTableSpecificUpdates.bowling_style = profileUpdates.bowling_style;
+  
+  let authUserToReturn: User | null = null;
+  const { data: { user: initialAuthUser } } = await supabase.auth.getUser();
+  authUserToReturn = initialAuthUser;
+
+  if (Object.keys(authMetaDataUpdates).length > 0) {
+    const { data, error: authError } = await supabase.auth.updateUser({ data: authMetaDataUpdates });
+    if (authError) return { user: authUserToReturn, profile: null, error: authError };
+    authUserToReturn = data.user; // Use the updated auth user
+  }
+
+  const allProfilesTableUpdates = { ...profilesTableSpecificUpdates, ...profilesTableSharedUpdates };
+
+  if (Object.keys(allProfilesTableUpdates).length > 0) {
+    const { error: dbError } = await supabase
+      .from('profiles')
+      .upsert({ ...allProfilesTableUpdates, user_id: userId }, { onConflict: 'user_id' })
+      .select() 
+      .single();
+
+    if (dbError) return { user: authUserToReturn, profile: null, error: dbError };
+  }
+  
+  const updatedFullProfile = await getFullUserProfile(userId);
+  return { user: authUserToReturn, profile: updatedFullProfile, error: null };
+};
+
+export const uploadProfilePicture = async (userId: string, file: File): Promise<string | null> => {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${userId}_${Date.now()}.${fileExt}`; // Ensure uniqueness to avoid caching issues sometimes
+  const filePath = `avatars/${fileName}`;
+
+  // Check if a previous file exists with a similar pattern for this user to delete it
+  // This is a simplified example; a more robust solution might involve querying metadata
+  // or storing the exact filePath in the user's profile to delete the old one.
+  // For now, let's assume direct upload/overwrite via upsert logic or new unique names.
+  
+  const { error: uploadError } = await supabase.storage
+    .from('avatars')
+    .upload(filePath, file, {
+      cacheControl: '3600', // Cache for 1 hour
+      upsert: true // If a file with the same name exists, it will be overwritten.
+                   // Consider if you need to delete old file if names change scheme.
+    });
+
+  if (uploadError) {
+    console.error('Error uploading profile picture:', uploadError);
+    throw uploadError;
+  }
+
+  const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+  if (!data || !data.publicUrl) {
+    console.error('Could not get public URL for uploaded image.');
+    return null; 
+  }
+  return data.publicUrl;
+};
+
+export const getCurrentUserProfile = async (): Promise<UserProfile | null> => {
+  const userId = await getUserId();
+  if (!userId) return null;
+  return getFullUserProfile(userId);
+};
+
 export const mockTeamNamesForSelection: string[] = [];
