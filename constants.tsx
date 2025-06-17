@@ -3,7 +3,7 @@ import React from 'react';
 export const APP_NAME = "Bat 'n' Ball";
 
 export const COLORS = {
-  accentRed: "#d32f2f",
+  accentRed: "#991b1b", // Updated to Tailwind red-800 for a maroon shade
   darkText: "#1a202c", 
   lightText: "#f7fafc", 
 };

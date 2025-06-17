@@ -154,7 +154,7 @@ const ScoringPage: React.FC = () => {
   if (!matchDetails) return <div className="text-center p-8 text-xl text-gray-300">Match details not loaded. <Link to="/matches" className="text-slate-400 hover:underline">Go to Matches</Link></div>;
 
   if (showTossModal && matchDetails) {
-    const inputClass = "w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500 text-gray-100 placeholder-gray-400";
+    const inputClass = "w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 text-gray-100 placeholder-gray-400"; // Updated focus ring
     const labelClass = "block text-sm font-medium text-gray-200 mb-1";
 
     return (

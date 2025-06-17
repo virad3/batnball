@@ -1,7 +1,8 @@
 
 import { Match, Tournament, UserProfile, MatchFormat, TournamentFormat } from '../types';
+// Supabase client might be used here in the future to fetch extended profile data
+// import { supabase } from './supabaseClient';
 
-// Mock Data Removed: mockPlayers, mockTeams
 
 let mockMatches: Match[] = [
   { 
@@ -60,7 +61,7 @@ let mockTournaments: Tournament[] = [
     endDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(), 
     teamNames: ['Titans CC', 'Warriors XI', 'Kings Club', 'United Strikers'],
     logoUrl: 'https://picsum.photos/seed/citychamp/400/200',
-    matches: [mockMatches[0], mockMatches[2]] // Simplified matches
+    matches: [mockMatches[0], mockMatches[2]] 
   },
   { 
     id: 'tourney2', 
@@ -73,17 +74,19 @@ let mockTournaments: Tournament[] = [
   },
 ];
 
-const mockUserProfile: UserProfile = {
-  id: 'user123',
-  username: 'CricketFanUser',
-  email: 'user@example.com',
+// This mock user profile is now less relevant for the Header, 
+// as Header will use Supabase auth user.
+// It might still be used if ProfilePage falls back or for testing createTournament organizer.
+const mockStaticUserProfile: UserProfile = {
+  id: 'user123_static_mock', // Different ID to distinguish
+  username: 'StaticMockUser',
+  email: 'static_user@example.com',
   profileType: 'Fan',
-  profilePicUrl: 'https://picsum.photos/seed/user123profile/150/150',
-  achievements: ["Dedicated Fan Award 2023", "Top Supporter"],
+  profilePicUrl: 'https://picsum.photos/seed/staticmockuser/150/150',
+  achievements: ["Static Achievement 1", "Static Achievement 2"],
 };
 
 
-// Simulate API calls
 const simulateApiCall = <T,>(data: T, delay: number = 300): Promise<T> => {
   return new Promise(resolve => setTimeout(() => resolve(JSON.parse(JSON.stringify(data))), delay));
 };
@@ -105,9 +108,6 @@ export const getMatchesByTournamentId = (tournamentId: string): Promise<Match[]>
     if(tournament && tournament.matches) {
         return simulateApiCall(tournament.matches);
     }
-    // Fallback: This logic might need adjustment based on how matches are associated post-simplification
-    // For now, if a tournament has teamNames, we can filter matches that include those names.
-    // This is a simplified approach.
     if (tournament) {
         return simulateApiCall(mockMatches.filter(m => 
             tournament.teamNames.includes(m.teamAName) || tournament.teamNames.includes(m.teamBName)
@@ -120,11 +120,13 @@ export const getMatchesByTournamentId = (tournamentId: string): Promise<Match[]>
 export const createTournament = (data: Omit<Tournament, 'id' | 'matches' | 'organizerName'>): Promise<Tournament> => {
   return new Promise(resolve => {
     setTimeout(() => {
+      // In a real app, organizerName would come from the logged-in user's profile
+      // For now, it could use a static mock or be undefined
       const newTournament: Tournament = {
         ...data,
         id: `tourney${Date.now()}`,
-        matches: [], // Initially no matches
-        organizerName: mockUserProfile.username, // Assume current user is organizer
+        matches: [], 
+        organizerName: "Organiser (from Supabase user)", // Placeholder
       };
       mockTournaments.push(newTournament);
       resolve(JSON.parse(JSON.stringify(newTournament)));
@@ -132,12 +134,31 @@ export const createTournament = (data: Omit<Tournament, 'id' | 'matches' | 'orga
   });
 };
 
+// getCurrentUserProfile will need to be re-thought with Supabase.
+// It should ideally fetch from a 'profiles' table using the authenticated user's ID.
+// For now, this mock is a fallback and ProfilePage.tsx uses auth.user directly.
+export const getCurrentUserProfile = (): Promise<UserProfile> => {
+  console.warn("dataService.getCurrentUserProfile is using a static mock. Integrate with Supabase user for actual data.");
+  // In a real scenario with Supabase:
+  // const { data: { user } } = await supabase.auth.getUser();
+  // if (user) {
+  //   // Fetch from your 'profiles' table where id === user.id
+  //   // const { data: profileData, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+  //   // if (profileData) return profileData as UserProfile;
+  //   // Fallback to construct from auth.user if no 'profiles' table entry
+  //   return simulateApiCall({
+  //      id: user.id,
+  //      username: user.user_metadata?.username || user.email,
+  //      email: user.email,
+  //      profileType: user.user_metadata?.profile_type || 'Fan',
+  //      profilePicUrl: user.user_metadata?.profile_pic_url,
+  //      achievements: user.user_metadata?.achievements || []
+  //   });
+  // }
+  return simulateApiCall(mockStaticUserProfile); 
+};
 
-export const getCurrentUserProfile = (): Promise<UserProfile> => simulateApiCall(mockUserProfile);
 
-// Player specific functions removed: getAllPlayers, getPlayerById
-
-// Add a function to update match (used by scoring)
 export const updateMatch = (updatedMatch: Match): Promise<Match> => {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
@@ -152,7 +173,6 @@ export const updateMatch = (updatedMatch: Match): Promise<Match> => {
   });
 };
 
-// Mock teams for selection in CreateTournamentPage (simplified to just names)
 export const mockTeamNamesForSelection: string[] = [
     "Gladiators", "Ninjas", "Spartans", "Vikings", "Raptors", "Cobras"
 ];

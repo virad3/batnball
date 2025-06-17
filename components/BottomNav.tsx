@@ -12,7 +12,7 @@ const BottomNav: React.FC = () => {
             to={item.path}
             className={({ isActive }) =>
               `flex flex-col items-center justify-center p-3 w-1/5 text-xs transition-colors duration-200 ease-in-out
-               ${isActive ? 'text-white bg-slate-700' : 'hover:bg-gray-800 hover:text-gray-200'}`
+               ${isActive ? 'text-white bg-red-800' : 'hover:bg-gray-800 hover:text-gray-200'}` // Changed active bg from slate to red
             }
           >
             {item.icon}

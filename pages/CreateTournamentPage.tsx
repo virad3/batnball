@@ -61,7 +61,7 @@ const CreateTournamentPage: React.FC = () => {
   };
   
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
-  const inputFocusClass = "focus:ring-slate-500 focus:border-slate-500";
+  const inputFocusClass = "focus:ring-red-500 focus:border-red-500"; // Updated focus ring
   const inputClass = `${inputBaseClass} ${inputFocusClass}`;
   const labelClass = "block text-sm font-medium text-gray-200";
 
@@ -104,12 +104,12 @@ const CreateTournamentPage: React.FC = () => {
           <p className="text-xs text-gray-400 mt-0.5">Select from suggestions or add custom team names.</p>
           <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto p-2 border border-gray-600 rounded-md bg-gray-700">
             {availableTeamNamesForSelection.map(name => (
-              <label key={name} className={`flex items-center space-x-2 p-2.5 rounded-md cursor-pointer transition-colors ${selectedTeamNames.includes(name) ? 'bg-slate-600 text-white' : 'bg-gray-650 hover:bg-slate-700 text-gray-200'}`}>
+              <label key={name} className={`flex items-center space-x-2 p-2.5 rounded-md cursor-pointer transition-colors ${selectedTeamNames.includes(name) ? 'bg-red-700 text-white' : 'bg-gray-650 hover:bg-red-600 text-gray-200'}`}> {/* Updated selected bg and hover */}
                 <input 
                   type="checkbox" 
                   checked={selectedTeamNames.includes(name)} 
                   onChange={() => handleTeamSelection(name)}
-                  className="form-checkbox h-4 w-4 text-slate-500 border-gray-500 rounded focus:ring-slate-400 bg-gray-500 checked:bg-slate-500 focus:ring-offset-gray-700"
+                  className="form-checkbox h-4 w-4 text-red-700 border-gray-500 rounded focus:ring-red-500 bg-gray-500 checked:bg-red-700 focus:ring-offset-gray-700" // Updated checkbox colors
                 />
                 <span className="text-sm font-medium">{name}</span>
               </label>

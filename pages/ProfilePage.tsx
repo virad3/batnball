@@ -1,30 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { UserProfile } from '../types'; 
-import { getCurrentUserProfile } from '../services/dataService';
+import React from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
+import { useAuth } from '../contexts/AuthContext'; // Import useAuth
 
 const ProfilePage: React.FC = () => {
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading: authLoading, userProfileType } = useAuth(); // Get user and loading state from AuthContext
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      setLoading(true);
-      try {
-        const profile = await getCurrentUserProfile();
-        setUserProfile(profile);
-      } catch (error) {
-        console.error("Failed to fetch profile:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProfile();
-  }, []);
+  if (authLoading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
+  if (!user) return <div className="text-center p-8 text-xl text-red-400">Please login to view your profile.</div>;
 
-  if (loading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
-  if (!userProfile) return <div className="text-center p-8 text-xl text-red-400">Could not load profile.</div>;
+  // Attempt to get username from metadata, fallback to email part
+  const usernameDisplay = user.user_metadata?.username || user.email?.split('@')[0] || "User";
+  const emailDisplay = user.email || "No email provided";
+  const profilePic = user.user_metadata?.profile_pic_url || `https://picsum.photos/seed/${user.id}/150/150`;
+  // Achievements would need to be fetched from a separate 'profiles' table linked to the user.id
+  // For now, this will be empty or use a placeholder.
+  const achievements: string[] = user.user_metadata?.achievements || []; 
+  const profileTypeDisplay = userProfileType || user.user_metadata?.profile_type || "Registered User";
 
 
   return (
@@ -32,26 +24,26 @@ const ProfilePage: React.FC = () => {
       <section className="bg-gray-800 p-6 sm:p-8 rounded-xl shadow-xl border border-gray-700">
         <div className="flex flex-col sm:flex-row items-center sm:items-start space-y-4 sm:space-y-0 sm:space-x-6">
           <img 
-            src={userProfile.profilePicUrl || `https://picsum.photos/seed/${userProfile.id}/150/150`} 
-            alt={userProfile.username}
+            src={profilePic}
+            alt={usernameDisplay}
             className="w-32 h-32 sm:w-40 sm:h-40 rounded-full object-cover border-4 border-gray-600 shadow-md flex-shrink-0"
           />
           <div className="text-center sm:text-left flex-grow mt-2 sm:mt-0">
-            <h1 className="text-3xl sm:text-4xl font-bold text-gray-50">{userProfile.username}</h1>
-            <p className="text-md text-gray-300 capitalize mt-1">{userProfile.profileType}</p>
-            {userProfile.email && <p className="text-sm text-gray-400 mt-1">{userProfile.email}</p>}
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-50">{usernameDisplay}</h1>
+            <p className="text-md text-gray-300 capitalize mt-1">{profileTypeDisplay}</p>
+            <p className="text-sm text-gray-400 mt-1">{emailDisplay}</p>
             <div className="mt-5">
-                <Button variant="outline" size="sm" onClick={() => alert("Edit profile functionality coming soon!")}>Edit Profile</Button>
+                <Button variant="outline" size="sm" onClick={() => alert("Edit profile functionality (e.g., updating Supabase user_metadata or a profiles table) coming soon!")}>Edit Profile</Button>
             </div>
           </div>
         </div>
       </section>
 
-      {userProfile.achievements && userProfile.achievements.length > 0 && (
+      {achievements && achievements.length > 0 && (
         <section className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
           <h2 className="text-xl font-semibold text-gray-100 mb-4">Achievements & Badges</h2>
           <div className="flex flex-wrap gap-3">
-            {userProfile.achievements.map((achievement, idx) => (
+            {achievements.map((achievement, idx) => (
               <span key={idx} className="px-3 py-1.5 bg-red-600 text-white text-xs sm:text-sm font-medium rounded-full shadow-md">
                 🏆 {achievement}
               </span>
