@@ -45,7 +45,7 @@ const LoginPage: React.FC = () => {
     <div className="min-h-[calc(100vh-150px)] flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 p-8 sm:p-10 bg-gray-800 rounded-xl shadow-2xl border border-gray-700">
         <div>
-          <img className="mx-auto h-16 w-auto" src="assets/logo.png" alt={`${APP_NAME} logo`} />
+          <img className="mx-auto h-16 w-auto" src="/logo.png" alt={`${APP_NAME} logo`} />
           <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-50">
             Login to {APP_NAME}
           </h2>
