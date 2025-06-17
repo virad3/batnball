@@ -140,8 +140,24 @@ const CreateTournamentPage: React.FC = () => {
           <input type="url" id="logoUrl" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" className={`${inputClass} mt-1`} />
         </div>
 
-        <div className="pt-2">
-          <Button type="submit" isLoading={loading} disabled={loading} className="w-full text-lg" variant="primary" size="lg">
+        <div className="pt-2 flex flex-col sm:flex-row sm:justify-end sm:space-x-3 space-y-3 sm:space-y-0">
+          <Button 
+            type="button" 
+            onClick={() => navigate('/tournaments')} 
+            variant="outline" 
+            size="lg"
+            className="w-full sm:w-auto"
+          >
+            Cancel
+          </Button>
+          <Button 
+            type="submit" 
+            isLoading={loading} 
+            disabled={loading} 
+            className="w-full sm:w-auto text-lg" 
+            variant="primary" 
+            size="lg"
+          >
             {loading ? 'Creating Tournament...' : 'Create Tournament'}
           </Button>
         </div>

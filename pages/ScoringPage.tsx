@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Match, BallEvent, Score } from '../types';
@@ -149,6 +150,12 @@ const ScoringPage: React.FC = () => {
       bowlingTeamName: bowlingTeamName,
   } : null;
 
+  const handleCloseTossModal = () => {
+    setShowTossModal(false);
+    if (matchId === "newmatch") {
+        navigate('/matches');
+    }
+  };
 
   if (loading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
   if (!matchDetails) return <div className="text-center p-8 text-xl text-gray-300">Match details not loaded. <Link to="/matches" className="text-slate-400 hover:underline">Go to Matches</Link></div>;
@@ -159,7 +166,16 @@ const ScoringPage: React.FC = () => {
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
-        <div className="bg-gray-800 p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
+        <div className="relative bg-gray-800 p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
+          <button
+            onClick={handleCloseTossModal}
+            aria-label="Close toss modal"
+            className="absolute top-3 right-3 text-gray-400 hover:text-gray-200 transition-colors p-1 rounded-full hover:bg-gray-700"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
           <h2 className="text-2xl font-bold text-gray-50 mb-6 text-center">Match Toss</h2>
           {matchId === "newmatch" && (
             <div className="mb-4 space-y-3">
