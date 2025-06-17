@@ -122,7 +122,7 @@ const Header: React.FC = () => {
           </div>
 
           <Link to="/home" className="flex items-center ml-3 sm:ml-4">
-            <img src="assets/logo.png" alt="Bat 'n' Ball Logo" className="h-12 w-auto mr-2" />
+            <img src="/logo.png" alt="Bat 'n' Ball Logo" className="h-12 w-auto mr-2" />
             <span className="font-graduate text-2xl sm:text-3xl font-normal tracking-wider text-gray-50 [text-shadow:1px_1px_1px_rgba(0,0,0,0.7)]">
               {APP_NAME}
             </span>
