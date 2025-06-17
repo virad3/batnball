@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 const LoadingSpinner: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'md' }) => {
@@ -11,7 +10,7 @@ const LoadingSpinner: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'md' }
   return (
     <div className="flex justify-center items-center">
       <div
-        className={`animate-spin rounded-full border-4 border-[#004d40] border-t-transparent ${sizeClasses[size]}`}
+        className={`animate-spin rounded-full border-4 border-gray-500 border-t-transparent ${sizeClasses[size]}`}
       ></div>
     </div>
   );

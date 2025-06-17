@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -19,13 +18,13 @@ const Button: React.FC<ButtonProps> = ({
   className = '',
   ...props
 }) => {
-  const baseStyles = "font-semibold rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-150 ease-in-out inline-flex items-center justify-center";
+  const baseStyles = "font-semibold rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 transition-colors duration-150 ease-in-out inline-flex items-center justify-center";
 
   const variantStyles = {
-    primary: "bg-[#004d40] text-white hover:bg-[#00382e] focus:ring-[#004d40]",
-    secondary: "bg-[#f9fbe7] text-[#004d40] border border-[#004d40] hover:bg-gray-200 focus:ring-[#004d40]",
-    danger: "bg-[#d32f2f] text-white hover:bg-[#b71c1c] focus:ring-[#d32f2f]",
-    outline: "bg-transparent text-[#004d40] border border-[#004d40] hover:bg-[#004d40] hover:text-white focus:ring-[#004d40]",
+    primary: "bg-slate-700 text-white hover:bg-slate-600 focus:ring-slate-500",
+    secondary: "bg-gray-600 text-gray-200 hover:bg-gray-500 focus:ring-gray-400",
+    danger: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500",
+    outline: "bg-transparent text-gray-300 border border-gray-600 hover:bg-gray-700 hover:text-white focus:ring-slate-500", 
   };
 
   const sizeStyles = {

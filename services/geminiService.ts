@@ -2,10 +2,6 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { BallEvent, GeneratedCommentary } from '../types';
 
-// Ensure API_KEY is available in the environment.
-// The user MUST NOT be prompted for this. It's assumed to be pre-configured.
-// In a real CRA/Vite app, this would be process.env.REACT_APP_GEMINI_API_KEY or process.env.VITE_GEMINI_API_KEY
-// For this environment, we directly use process.env.API_KEY as per instructions.
 const API_KEY = process.env.API_KEY;
 
 if (!API_KEY) {
@@ -20,14 +16,18 @@ export const generateCommentaryForBall = async (ballEvent: BallEvent): Promise<G
     return { ballByBall: "Automated commentary unavailable." };
   }
 
-  const { runs, isWicket, extraType, batsman, bowler } = ballEvent;
+  const { runs, isWicket, extraType, wicketType } = ballEvent; // Removed batsman, bowler
   
-  let eventDescription = `${batsman.name} facing ${bowler.name}. `;
+  let eventDescription = "";
   if (isWicket) {
-    eventDescription += `WICKET! ${batsman.name} is out.`;
-    // TODO: Add wicket type if available
+    eventDescription += `WICKET!`;
+    if (wicketType) {
+        eventDescription += ` Type: ${wicketType}.`;
+    } else {
+        eventDescription += ` A batsman is out.`;
+    }
   } else {
-    eventDescription += `${batsman.name} scores ${runs} run(s).`;
+    eventDescription += `Scored ${runs} run(s).`;
   }
   if (extraType) {
     eventDescription += ` (${extraType})`;
@@ -36,13 +36,13 @@ export const generateCommentaryForBall = async (ballEvent: BallEvent): Promise<G
   const prompt = `
     You are a cricket commentator for a local T20 match.
     Describe the following event in an exciting and engaging way, suitable for a live feed. Keep it brief (1-2 sentences).
-    Event: ${eventDescription}
-    Focus on the key action and its impact.
+    Event: A ball was bowled. Result: ${eventDescription}
+    Focus on the key action and its impact. Be generic if player names are not available.
   `;
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-04-17", // Correct model name
+      model: "gemini-2.5-flash-preview-04-17",
       contents: prompt,
       // For low latency if needed: config: { thinkingConfig: { thinkingBudget: 0 } }
     });
@@ -52,7 +52,6 @@ export const generateCommentaryForBall = async (ballEvent: BallEvent): Promise<G
 
   } catch (error) {
     console.error("Error generating commentary with Gemini:", error);
-    // Provide a fallback or indicate an error
     return { ballByBall: `(Automated commentary generation failed: ${eventDescription})` };
   }
 };

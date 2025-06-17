@@ -1,63 +1,72 @@
-
 import React from 'react';
-import { Score, Team, Player } from '../types';
+import { Score } from '../types'; 
 
 interface ScoreDisplayProps {
-  score: Score | null;
+  score: Score | null; 
   target?: number | null;
   currentInnings: 1 | 2;
+  totalOvers?: number; 
 }
 
-const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ score, target, currentInnings }) => {
+const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ score, target, currentInnings, totalOvers }) => {
   if (!score) {
     return (
-      <div className="p-4 bg-white rounded-lg shadow text-center text-gray-500">
+      <div className="p-4 bg-gray-800 rounded-lg shadow text-center text-gray-400">
         Waiting for score update...
       </div>
     );
   }
 
-  const { runs, wickets, overs, ballsThisOver, battingTeam, currentStriker, currentNonStriker, currentBowler } = score;
+  const { runs, wickets, overs, ballsThisOver, battingTeamName } = score;
+
+  const calculateRemainingBalls = () => {
+    if (!totalOvers || currentInnings !== 2 || !target) return null;
+    const maxBalls = totalOvers * 6;
+    const ballsBowled = overs * 6 + ballsThisOver;
+    return maxBalls - ballsBowled;
+  };
+
+  const remainingBalls = calculateRemainingBalls();
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-xl text-[#004d40] space-y-4">
+    <div className="bg-gray-800 p-6 rounded-xl shadow-xl space-y-4 border border-gray-700">
       <div className="flex justify-between items-center">
         <div className="flex items-center space-x-2">
-          <img src={battingTeam.logoUrl || `https://picsum.photos/seed/${battingTeam.id}/40/40`} alt={battingTeam.name} className="w-10 h-10 rounded-full object-cover"/>
-          <h2 className="text-2xl font-bold">{battingTeam.name}</h2>
+          <h2 className="text-2xl font-bold text-gray-100">{battingTeamName}</h2>
         </div>
         <div className="text-right">
-          <p className="text-4xl font-bold transition-all duration-300">
-            {runs}<span className="text-3xl">/{wickets}</span>
+          <p className="text-4xl font-bold transition-all duration-300 text-gray-50">
+            {runs}<span className="text-3xl text-gray-300">/{wickets}</span>
           </p>
-          <p className="text-lg">
+          <p className="text-lg text-gray-300">
             Overs: {overs}.{ballsThisOver}
           </p>
         </div>
       </div>
 
       {currentInnings === 2 && target && (
-        <div className="text-center border-t border-gray-200 pt-3">
-            <p className="text-md">Target: <span className="font-bold">{target}</span></p>
-            <p className="text-md">{battingTeam.name} need <span className="font-bold">{target - runs}</span> runs to win from <span className="font-bold">{ ( (score.overs || 0) * 6 + (score.ballsThisOver || 0) ) - ( ( (score.overs||0) * 6) + (score.ballsThisOver||0) ) /* TODO: Fix remaining balls calculation */ }</span> balls remaining.</p>
+        <div className="text-center border-t border-gray-700 pt-4 mt-2">
+            <p className="text-md text-gray-200">Target: <span className="font-bold text-gray-50">{target}</span></p>
+            {target - runs > 0 && remainingBalls !== null && remainingBalls > 0 && (
+                 <p className="text-md text-gray-200">{battingTeamName} need <span className="font-bold text-gray-50">{target - runs}</span> runs to win from <span className="font-bold text-gray-50">{remainingBalls}</span> balls remaining.</p>
+            )}
+             {target - runs <= 0 && <p className="text-md font-bold text-green-400">{battingTeamName} won!</p>}
+             {remainingBalls !== null && remainingBalls === 0 && target - runs > 0 && <p className="text-md font-bold text-red-500">Bowling team won!</p>} {/* Use a slightly different red if needed */}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-700 mt-2">
         <div>
-          <p className="text-xs uppercase text-gray-500">Striker</p>
-          <p className="font-semibold">{currentStriker?.name || 'N/A'}</p>
-          {/* <p className="text-sm">Runs: 0 (0)</p> */}
+          <p className="text-xs uppercase text-gray-400">Current Batsmen</p>
+          <p className="font-semibold text-gray-200">N/A</p>
         </div>
         <div>
-          <p className="text-xs uppercase text-gray-500">Non-Striker</p>
-          <p className="font-semibold">{currentNonStriker?.name || 'N/A'}</p>
-          {/* <p className="text-sm">Runs: 0 (0)</p> */}
+          <p className="text-xs uppercase text-gray-400">Current Bowler</p>
+          <p className="font-semibold text-gray-200">N/A</p>
         </div>
-        <div>
-          <p className="text-xs uppercase text-gray-500">Bowler</p>
-          <p className="font-semibold">{currentBowler?.name || 'N/A'}</p>
-          {/* <p className="text-sm">O-M-R-W: 0-0-0-0</p> */}
+         <div>
+          <p className="text-xs uppercase text-gray-400">Status</p>
+          <p className="font-semibold text-gray-200">{wickets >= 10 ? "All Out" : "Batting"}</p>
         </div>
       </div>
     </div>

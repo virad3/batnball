@@ -29,7 +29,7 @@ const TournamentsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-center">
-        <h1 className="text-3xl font-bold text-[#004d40] mb-4 sm:mb-0">Tournaments</h1>
+        <h1 className="text-3xl font-bold text-gray-50 mb-4 sm:mb-0">Tournaments</h1>
         <Link to="/tournaments/new">
           <Button variant="primary">Create New Tournament</Button>
         </Link>
@@ -44,7 +44,7 @@ const TournamentsPage: React.FC = () => {
           ))}
         </div>
       ) : (
-        <p className="text-center text-gray-600 py-8">No tournaments found. Why not <Link to="/tournaments/new" className="text-[#d32f2f] hover:underline">create one</Link>?</p>
+        <p className="text-center text-gray-400 py-8">No tournaments found. Why not <Link to="/tournaments/new" className="text-slate-400 hover:underline">create one</Link>?</p>
       )}
     </div>
   );

@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { Tournament, Match, Team } from '../types';
+import { useParams, Link } from 'react-router-dom'; 
+import { Tournament, Match } from '../types'; 
 import { getTournamentById, getMatchesByTournamentId } from '../services/dataService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import MatchCard from '../components/MatchCard';
@@ -23,7 +22,10 @@ const TournamentDetailPage: React.FC = () => {
         const tournamentDetails = await getTournamentById(tournamentId);
         setTournament(tournamentDetails);
         if (tournamentDetails) {
-          const tournamentMatches = await getMatchesByTournamentId(tournamentDetails.id);
+          // Prefer matches array from tournament object if available
+          const tournamentMatches = tournamentDetails.matches && tournamentDetails.matches.length > 0 
+            ? tournamentDetails.matches 
+            : await getMatchesByTournamentId(tournamentDetails.id);
           setMatches(tournamentMatches);
         }
       } catch (error) {
@@ -36,12 +38,13 @@ const TournamentDetailPage: React.FC = () => {
   }, [tournamentId]);
 
   if (loading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
-  if (!tournament) return <div className="text-center p-8 text-xl text-[#d32f2f]">Tournament not found.</div>;
+  if (!tournament) return <div className="text-center p-8 text-xl text-red-400">Tournament not found. <Link to="/tournaments" className="text-slate-400 hover:underline">Go to Tournaments</Link></div>;
 
   const TabButton: React.FC<{tabKey: 'fixtures' | 'teams' | 'standings', label: string}> = ({ tabKey, label }) => (
     <Button
         variant={activeTab === tabKey ? 'primary' : 'outline'}
         onClick={() => setActiveTab(tabKey)}
+        size="sm"
     >
         {label}
     </Button>
@@ -49,26 +52,26 @@ const TournamentDetailPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <section className="bg-white p-6 rounded-xl shadow-lg">
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+      <section className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
             <img 
                 src={tournament.logoUrl || `https://picsum.photos/seed/${tournament.id}/150/150`} 
-                alt={tournament.name} 
-                className="w-24 h-24 md:w-32 md:h-32 rounded-lg object-cover border-2 border-[#004d40]"
+                alt={`${tournament.name} logo`} 
+                className="w-24 h-24 md:w-32 md:h-32 rounded-lg object-cover border-2 border-gray-600 flex-shrink-0"
             />
-            <div>
-                <h1 className="text-3xl md:text-4xl font-bold text-[#004d40]">{tournament.name}</h1>
-                <p className="text-md text-gray-600">Format: {tournament.format}</p>
-                <p className="text-md text-gray-600">
+            <div className="text-gray-200 flex-grow">
+                <h1 className="text-3xl md:text-4xl font-bold text-gray-50">{tournament.name}</h1>
+                <p className="text-md text-gray-300 mt-1">Format: {tournament.format}</p>
+                <p className="text-md text-gray-300">
                 Dates: {new Date(tournament.startDate).toLocaleDateString()} - {new Date(tournament.endDate).toLocaleDateString()}
                 </p>
-                <p className="text-md text-gray-600">Teams: {tournament.teams.length}</p>
-                 {tournament.organizer && <p className="text-sm text-gray-500 mt-1">Organized by: {tournament.organizer.username}</p>}
+                <p className="text-md text-gray-300">Teams: {tournament.teamNames?.length || 0}</p>
+                 {tournament.organizerName && <p className="text-sm text-gray-400 mt-1">Organized by: {tournament.organizerName}</p>}
             </div>
         </div>
       </section>
 
-      <div className="flex space-x-2 border-b border-gray-300 pb-2 mb-4">
+      <div className="flex space-x-2 border-b border-gray-700 pb-2 mb-4">
         <TabButton tabKey="fixtures" label="Fixtures/Results" />
         <TabButton tabKey="teams" label="Teams" />
         <TabButton tabKey="standings" label="Standings" />
@@ -76,68 +79,49 @@ const TournamentDetailPage: React.FC = () => {
 
       {activeTab === 'fixtures' && (
         <section>
-          <h2 className="text-2xl font-bold text-[#004d40] mb-4">Fixtures & Results</h2>
+          <h2 className="text-2xl font-bold text-gray-100 mb-4">Fixtures & Results</h2>
           {matches.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {matches.map(match => <MatchCard key={match.id} match={match} />)}
             </div>
           ) : (
-            <p className="text-gray-600">No matches scheduled for this tournament yet.</p>
+            <p className="text-gray-400">No matches scheduled for this tournament yet.</p>
           )}
         </section>
       )}
 
       {activeTab === 'teams' && (
         <section>
-          <h2 className="text-2xl font-bold text-[#004d40] mb-4">Participating Teams</h2>
-          {tournament.teams.length > 0 ? (
+          <h2 className="text-2xl font-bold text-gray-100 mb-4">Participating Teams</h2>
+          {tournament.teamNames && tournament.teamNames.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {tournament.teams.map(team => (
-                <div key={team.id} className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow">
-                  <img src={team.logoUrl || `https://picsum.photos/seed/${team.id}/80/80`} alt={team.name} className="w-16 h-16 rounded-full mx-auto mb-2 object-cover bg-gray-200"/>
-                  <p className="font-semibold text-center text-[#004d40]">{team.name}</p>
+              {tournament.teamNames.map((teamName, index) => (
+                <div key={index} className="bg-gray-800 p-4 rounded-lg shadow hover:shadow-md transition-shadow border border-gray-700">
+                  <div className="w-16 h-16 rounded-full mx-auto mb-3 bg-gray-700 flex items-center justify-center text-xl text-gray-200 font-semibold shadow-inner">
+                    {teamName.substring(0,2).toUpperCase()}
+                  </div>
+                  <p className="font-semibold text-center text-gray-200 truncate">{teamName}</p>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-gray-600">No teams registered for this tournament yet.</p>
+            <p className="text-gray-400">No teams registered for this tournament yet.</p>
           )}
         </section>
       )}
 
       {activeTab === 'standings' && (
         <section>
-          <h2 className="text-2xl font-bold text-[#004d40] mb-4">Points Table / Standings</h2>
-          {/* Mock Standings Table */}
-          <div className="overflow-x-auto bg-white rounded-lg shadow">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Played</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Won</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lost</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NR/Tied</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Points</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NRR</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {tournament.teams.slice(0,4).map((team, idx) => ( // Displaying first 4 teams as mock
-                  <tr key={team.id} className={idx % 2 === 0 ? undefined : "bg-gray-50"}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-[#004d40]">{team.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{Math.floor(Math.random() * 5) +1}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{Math.floor(Math.random() * 4)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{Math.floor(Math.random() * 3)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{Math.floor(Math.random() * 2)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-[#004d40]">{Math.floor(Math.random() * 10)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">+{Math.random().toFixed(3)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <h2 className="text-2xl font-bold text-gray-100 mb-4">Points Table / Standings</h2>
+          <div className="bg-gray-800 rounded-lg shadow p-4 border border-gray-700 min-h-[150px]">
+            <p className="text-gray-300">Standings feature is simplified. Detailed points table based on match results will be available in a future update.</p>
+            {tournament.teamNames && tournament.teamNames.length > 0 && (
+                <ul className="list-disc list-inside pl-1 mt-4 space-y-1">
+                    {tournament.teamNames.map((name, idx) => <li key={idx} className="text-gray-300">{name}</li>)}
+                </ul>
+            )}
+            {(!tournament.teamNames || tournament.teamNames.length === 0) && <p className="text-gray-400 mt-4">No teams to display standings for.</p>}
           </div>
-           {tournament.teams.length === 0 && <p className="text-gray-600 mt-4">Standings will appear here once matches are played.</p>}
         </section>
       )}
     </div>

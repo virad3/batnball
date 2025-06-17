@@ -11,15 +11,14 @@ import TournamentDetailPage from './pages/TournamentDetailPage';
 import CreateTournamentPage from './pages/CreateTournamentPage';
 import StatsPage from './pages/StatsPage';
 import ProfilePage from './pages/ProfilePage';
-import MyTeamsPage from './pages/MyTeamsPage';
-import MyPerformancePage from './pages/MyPerformancePage';
+// MyTeamsPage and MyPerformancePage imports removed
 import { MatchProvider } from './contexts/MatchContext';
 
 const App: React.FC = () => {
   return (
     <HashRouter>
       <MatchProvider>
-        <div className="flex flex-col min-h-screen bg-[#f9fbe7]">
+        <div className="flex flex-col min-h-screen bg-gray-900">
           <Header />
           <main className="flex-grow container mx-auto p-4 mb-16 sm:mb-0">
             <Routes>
@@ -32,8 +31,7 @@ const App: React.FC = () => {
               <Route path="/tournaments/:tournamentId" element={<TournamentDetailPage />} />
               <Route path="/stats" element={<StatsPage />} />
               <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/profile/my-teams" element={<MyTeamsPage />} />
-              <Route path="/profile/my-performance" element={<MyPerformancePage />} />
+              {/* Routes for /profile/my-teams and /profile/my-performance removed */}
             </Routes>
           </main>
           <BottomNav />

@@ -35,13 +35,13 @@ const MatchesPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-center">
-        <h1 className="text-3xl font-bold text-[#004d40] mb-4 sm:mb-0">Matches</h1>
-        <Link to="/matches/newmatch/score"> {/* This path needs to be unique if we want a generic "start new match" page */}
+        <h1 className="text-3xl font-bold text-gray-50 mb-4 sm:mb-0">Matches</h1>
+        <Link to="/matches/newmatch/score"> 
             <Button variant="primary">Start New Match</Button>
         </Link>
       </div>
       
-      <div className="flex space-x-2 mb-6 pb-2 border-b border-gray-300">
+      <div className="flex space-x-2 mb-6 pb-2 border-b border-gray-700">
         {(['all', 'live', 'upcoming', 'completed'] as const).map(f => (
           <Button 
             key={f}
@@ -64,7 +64,7 @@ const MatchesPage: React.FC = () => {
           ))}
         </div>
       ) : (
-        <p className="text-center text-gray-600 py-8">No matches found for the selected filter.</p>
+        <p className="text-center text-gray-400 py-8">No matches found for the selected filter.</p>
       )}
     </div>
   );

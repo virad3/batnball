@@ -1,18 +1,14 @@
 
 import React, { createContext, useState, useContext, useCallback, ReactNode } from 'react';
-import { Match, Team, Player, BallEvent, Innings, MatchState, MatchContextType } from '../types';
-import { mockTeams, mockPlayers } from '../services/dataService'; // Assuming these are exported
+import { Match, BallEvent, Innings, MatchState, MatchContextType } from '../types';
 
 const initialMatchState: MatchState = {
   matchId: null,
   innings1: null,
   innings2: null,
   currentInnings: 1,
-  battingTeam: null,
-  bowlingTeam: null,
-  striker: null,
-  nonStriker: null,
-  bowler: null,
+  battingTeamName: null,
+  bowlingTeamName: null,
   target: null,
   matchDetails: null,
 };
@@ -30,28 +26,24 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }));
   }, []);
   
-  const startMatch = useCallback((matchId: string, tossWinner: Team, electedTo: "Bat" | "Bowl", matchInfo: Match) => {
-    const battingFirstTeam = electedTo === "Bat" ? tossWinner : (tossWinner.id === matchInfo.teamA.id ? matchInfo.teamB : matchInfo.teamA);
-    const bowlingFirstTeam = electedTo === "Bowl" ? tossWinner : (tossWinner.id === matchInfo.teamA.id ? matchInfo.teamB : matchInfo.teamA);
+  const startMatch = useCallback((matchId: string, tossWinnerName: string, electedTo: "Bat" | "Bowl", matchInfo: Match) => {
+    const battingFirstTeamName = electedTo === "Bat" ? tossWinnerName : (tossWinnerName === matchInfo.teamAName ? matchInfo.teamBName : matchInfo.teamAName);
+    const bowlingFirstTeamName = electedTo === "Bowl" ? tossWinnerName : (tossWinnerName === matchInfo.teamAName ? matchInfo.teamBName : matchInfo.teamAName);
 
     setMatchState({
       ...initialMatchState,
       matchId,
       matchDetails: matchInfo,
-      battingTeam: battingFirstTeam,
-      bowlingTeam: bowlingFirstTeam,
-      innings1: { team: battingFirstTeam, score: 0, wickets: 0, overs: 0, balls: 0, timeline: [] },
+      battingTeamName: battingFirstTeamName,
+      bowlingTeamName: bowlingFirstTeamName,
+      innings1: { teamName: battingFirstTeamName, score: 0, wickets: 0, overs: 0, balls: 0, timeline: [] },
       currentInnings: 1,
-      // Initialize with placeholder players if available, or prompt scorer to select
-      striker: battingFirstTeam.players?.[0] || mockPlayers[0], 
-      nonStriker: battingFirstTeam.players?.[1] || mockPlayers[1],
-      bowler: bowlingFirstTeam.players?.[0] || mockPlayers[2],
     });
   }, []);
 
   const addBall = useCallback((event: BallEvent) => {
     setMatchState(prevState => {
-      if (!prevState.battingTeam || !prevState.bowlingTeam) return prevState;
+      if (!prevState.battingTeamName || !prevState.bowlingTeamName) return prevState;
 
       const currentInningsState = prevState.currentInnings === 1 ? prevState.innings1 : prevState.innings2;
       if (!currentInningsState) return prevState;
@@ -62,58 +54,41 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       let newBalls = currentInningsState.balls + (event.extraType === "Wide" || event.extraType === "NoBall" ? 0 : 1);
       
       const oversCompleted = Math.floor(newBalls / 6);
-      const ballsThisOver = newBalls % 6;
+      // const ballsThisOver = newBalls % 6; // This is part of Score type, calculated there or in ScoreDisplay
 
       const updatedInnings: Innings = {
         ...currentInningsState,
         score: newScore,
         wickets: newWickets,
         overs: oversCompleted,
-        balls: newBalls,
+        balls: newBalls, // total balls in innings
         timeline: newTimeline,
       };
       
-      let newStriker = prevState.striker;
-      let newNonStriker = prevState.nonStriker;
-
-      // Basic rotation logic (simplified)
-      if (event.runs % 2 !== 0 && (event.extraType !== "Wide" && event.extraType !== "NoBall")) { // Odd runs
-        [newStriker, newNonStriker] = [newNonStriker, newStriker];
-      }
-      if (ballsThisOver === 0 && newBalls > 0 && (event.extraType !== "Wide" && event.extraType !== "NoBall")) { // End of over
-        [newStriker, newNonStriker] = [newNonStriker, newStriker];
-        // TODO: Prompt for new bowler
-      }
-      if(event.isWicket) {
-        // TODO: Prompt for new batsman
-      }
-
+      // Player specific logic (striker rotation, new batsman) removed.
 
       if (prevState.currentInnings === 1) {
-        return { ...prevState, innings1: updatedInnings, striker: newStriker, nonStriker: newNonStriker };
+        return { ...prevState, innings1: updatedInnings };
       } else {
-        return { ...prevState, innings2: updatedInnings, striker: newStriker, nonStriker: newNonStriker };
+        return { ...prevState, innings2: updatedInnings };
       }
     });
   }, []);
 
   const switchInnings = useCallback(() => {
     setMatchState(prevState => {
-      if (prevState.currentInnings === 2 || !prevState.innings1 || !prevState.battingTeam || !prevState.bowlingTeam || !prevState.matchDetails) return prevState;
+      if (prevState.currentInnings === 2 || !prevState.innings1 || !prevState.battingTeamName || !prevState.bowlingTeamName || !prevState.matchDetails) return prevState;
       
-      const newBattingTeam = prevState.bowlingTeam;
-      const newBowlingTeam = prevState.battingTeam;
+      const newBattingTeamName = prevState.bowlingTeamName;
+      const newBowlingTeamName = prevState.battingTeamName;
 
       return {
         ...prevState,
         currentInnings: 2,
-        battingTeam: newBattingTeam,
-        bowlingTeam: newBowlingTeam,
+        battingTeamName: newBattingTeamName,
+        bowlingTeamName: newBowlingTeamName,
         target: (prevState.innings1?.score || 0) + 1,
-        innings2: { team: newBattingTeam, score: 0, wickets: 0, overs: 0, balls: 0, timeline: [] },
-        striker: newBattingTeam.players?.[0] || mockPlayers[0], // Reset players
-        nonStriker: newBattingTeam.players?.[1] || mockPlayers[1],
-        bowler: newBowlingTeam.players?.[0] || mockPlayers[2],
+        innings2: { teamName: newBattingTeamName, score: 0, wickets: 0, overs: 0, balls: 0, timeline: [] },
       };
     });
   }, []);

@@ -1,14 +1,11 @@
-
 import React from 'react';
 
-export const APP_NAME = "Bat&Ball";
+export const APP_NAME = "Bat 'n' Ball";
 
 export const COLORS = {
-  primaryGreen: "#004d40",
   accentRed: "#d32f2f",
-  lightCream: "#f9fbe7",
-  darkText: "#1a202c", // A bit softer than pure black
-  lightText: "#f7fafc", // A bit softer than pure white
+  darkText: "#1a202c", 
+  lightText: "#f7fafc", 
 };
 
 export const NAV_ITEMS = [

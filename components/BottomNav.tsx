@@ -1,11 +1,10 @@
-
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { NAV_ITEMS, COLORS } from '../constants';
+import { NAV_ITEMS } from '../constants';
 
 const BottomNav: React.FC = () => {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-[#004d40] text-[#f9fbe7] shadow-t-lg border-t border-[#00382e] sm:hidden z-40">
+    <nav className="fixed bottom-0 left-0 right-0 bg-gray-900 text-gray-400 shadow-t-lg border-t border-gray-700 sm:hidden z-40">
       <div className="container mx-auto flex justify-around">
         {NAV_ITEMS.map((item) => (
           <NavLink
@@ -13,7 +12,7 @@ const BottomNav: React.FC = () => {
             to={item.path}
             className={({ isActive }) =>
               `flex flex-col items-center justify-center p-3 w-1/5 text-xs transition-colors duration-200 ease-in-out
-               ${isActive ? 'text-white bg-[#d32f2f]' : 'hover:bg-[#00382e]'}`
+               ${isActive ? 'text-white bg-slate-700' : 'hover:bg-gray-800 hover:text-gray-200'}`
             }
           >
             {item.icon}
