@@ -4,75 +4,9 @@ import { Match, Tournament, UserProfile, MatchFormat, TournamentFormat } from '.
 // import { supabase } from './supabaseClient';
 
 
-let mockMatches: Match[] = [
-  { 
-    id: 'match1', 
-    teamAName: 'Titans CC', 
-    teamBName: 'Warriors XI', 
-    date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), 
-    venue: 'City Ground', 
-    format: MatchFormat.T20, 
-    status: 'Upcoming',
-    overs: 20,
-  },
-  { 
-    id: 'match2', 
-    teamAName: 'Kings Club', 
-    teamBName: 'United Strikers', 
-    date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), 
-    venue: 'North Park', 
-    format: MatchFormat.ODI, 
-    status: 'Completed', 
-    result: 'Kings Club won by 25 runs',
-    overs: 50,
-    currentScore: { runs: 280, wickets: 7, overs: 50, ballsThisOver:0, battingTeamName: 'Kings Club', bowlingTeamName: 'United Strikers' }
-  },
-  { 
-    id: 'match3', 
-    teamAName: 'Titans CC', 
-    teamBName: 'United Strikers', 
-    date: new Date().toISOString(), 
-    venue: 'South Stadium', 
-    format: MatchFormat.T20, 
-    status: 'Live',
-    overs: 20,
-    tossWinnerName: 'Titans CC',
-    electedTo: "Bat",
-    currentScore: { runs: 85, wickets: 2, overs: 10, ballsThisOver: 3, battingTeamName: 'Titans CC', bowlingTeamName: 'United Strikers' }
-  },
-   { 
-    id: 'match4', 
-    teamAName: 'Warriors XI', 
-    teamBName: 'Kings Club', 
-    date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), 
-    venue: 'East Arena', 
-    format: MatchFormat.T20, 
-    status: 'Upcoming',
-    overs: 20,
-  },
-];
+let mockMatches: Match[] = [];
 
-let mockTournaments: Tournament[] = [
-  { 
-    id: 'tourney1', 
-    name: 'City T20 Championship', 
-    format: TournamentFormat.LEAGUE, 
-    startDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), 
-    endDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(), 
-    teamNames: ['Titans CC', 'Warriors XI', 'Kings Club', 'United Strikers'],
-    logoUrl: 'https://picsum.photos/seed/citychamp/400/200',
-    matches: [mockMatches[0], mockMatches[2]] 
-  },
-  { 
-    id: 'tourney2', 
-    name: 'Weekend Cup', 
-    format: TournamentFormat.KNOCKOUT, 
-    startDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), 
-    endDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), 
-    teamNames: ['Team Alpha', 'Team Beta', 'Team Gamma', 'Team Delta'],
-    logoUrl: 'https://picsum.photos/seed/weekendcup/400/200',
-  },
-];
+let mockTournaments: Tournament[] = [];
 
 // This mock user profile is now less relevant for the Header, 
 // as Header will use Supabase auth user.
@@ -109,6 +43,8 @@ export const getMatchesByTournamentId = (tournamentId: string): Promise<Match[]>
         return simulateApiCall(tournament.matches);
     }
     if (tournament) {
+        // This logic might be less relevant now with empty mockMatches
+        // but kept for structure if matches were dynamically associated
         return simulateApiCall(mockMatches.filter(m => 
             tournament.teamNames.includes(m.teamAName) || tournament.teamNames.includes(m.teamBName)
         ));
@@ -121,7 +57,6 @@ export const createTournament = (data: Omit<Tournament, 'id' | 'matches' | 'orga
   return new Promise(resolve => {
     setTimeout(() => {
       // In a real app, organizerName would come from the logged-in user's profile
-      // For now, it could use a static mock or be undefined
       const newTournament: Tournament = {
         ...data,
         id: `tourney${Date.now()}`,
@@ -167,12 +102,23 @@ export const updateMatch = (updatedMatch: Match): Promise<Match> => {
         mockMatches[index] = { ...mockMatches[index], ...updatedMatch };
         resolve(JSON.parse(JSON.stringify(mockMatches[index])));
       } else {
-        reject(new Error("Match not found"));
+        // If it's a new match (e.g., id starts with temp-), add it
+        if (updatedMatch.id.startsWith("temp-")) {
+            const newMatchForSave = {...updatedMatch, id: `match${Date.now()}`}; // Give it a permanent-like ID
+            mockMatches.push(newMatchForSave);
+            resolve(JSON.parse(JSON.stringify(newMatchForSave)));
+        } else {
+            // If actual persistence is implemented, this would be an error.
+            // For mock, we can choose to add it or reject.
+            // Given the user wants to clear data, new matches will build up here.
+            const newMatchForSave = {...updatedMatch, id: updatedMatch.id || `match${Date.now()}`};
+            mockMatches.push(newMatchForSave);
+            resolve(JSON.parse(JSON.stringify(newMatchForSave)));
+            // reject(new Error("Match not found for update, and was not a new temporary match."));
+        }
       }
     }, 200);
   });
 };
 
-export const mockTeamNamesForSelection: string[] = [
-    "Gladiators", "Ninjas", "Spartans", "Vikings", "Raptors", "Cobras"
-];
+export const mockTeamNamesForSelection: string[] = [];

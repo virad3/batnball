@@ -54,7 +54,7 @@ const HomePage: React.FC = () => {
           <section>
             <h2 className="text-2xl font-bold text-gray-100 mb-4">Upcoming Matches</h2>
             {upcomingMatches.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                 {upcomingMatches.map(match => <MatchCard key={match.id} match={match} />)}
               </div>
             ) : (
@@ -65,7 +65,7 @@ const HomePage: React.FC = () => {
           <section>
             <h2 className="text-2xl font-bold text-gray-100 mb-4">Ongoing Tournaments</h2>
             {ongoingTournaments.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 {ongoingTournaments.map(tournament => <TournamentCard key={tournament.id} tournament={tournament} />)}
               </div>
             ) : (

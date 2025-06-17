@@ -25,6 +25,8 @@ export interface Match {
   overs?: number; // Max overs for limited over matches
   currentScore?: Score;
   result?: string; // e.g., "Team A won by 5 wickets"
+  teamASquad?: string[];
+  teamBSquad?: string[];
 }
 
 export interface Score {
