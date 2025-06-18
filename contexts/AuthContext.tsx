@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, AuthError } from 'firebase/auth';
 import { auth, db } from '../services/firebaseClient'; // Use Firebase client
@@ -50,20 +51,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // dbProfileData contains fields as stored in Firestore, potentially including Timestamps for dates
         const dbProfileData = profileDocSnap.exists() ? profileDocSnap.data() : {};
 
-        // Cast dbProfileData to what we expect from DB, allowing optional fields
-        // This makes dbProfile.username and dbProfile.profilePicUrl accessible if they exist
-        const dbProfile: Partial<Omit<UserProfile, 'id' | 'email'>> = dbProfileData as Partial<Omit<UserProfile, 'id' | 'email'>>;
-
         // Convert Firestore Timestamp for date_of_birth to ISO string if it exists
         let dobString: string | null = null;
-        if (dbProfile.date_of_birth) {
-            if (dbProfile.date_of_birth instanceof Timestamp) {
-                dobString = (dbProfile.date_of_birth as Timestamp).toDate().toISOString().split('T')[0];
-            } else if (typeof dbProfile.date_of_birth === 'string') {
+        const rawDob = dbProfileData.date_of_birth; // Access raw value, type is 'any' due to DocumentData
+
+        if (rawDob) { // Check if rawDob is truthy
+            if (rawDob instanceof Timestamp) { // This check is now valid
+                dobString = rawDob.toDate().toISOString().split('T')[0];
+            } else if (typeof rawDob === 'string') {
                 // If it's already a string, assume it's in correct format or handle as needed
-                dobString = dbProfile.date_of_birth;
+                dobString = rawDob;
             }
         }
+        
+        // Cast dbProfileData to what we expect from DB for other fields
+        // This makes dbProfile.username and dbProfile.profilePicUrl accessible if they exist
+        const dbProfile: Partial<Omit<UserProfile, 'id' | 'email'>> = dbProfileData as Partial<Omit<UserProfile, 'id' | 'email'>>;
         
         setUserProfile({
           id: firebaseUser.uid,
