@@ -13,6 +13,10 @@
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.2",
     "@google/genai": "^1.5.1",
+    "firebase/app": "^10.12.3",
+    "firebase/auth": "^10.12.3",
+    "firebase/firestore": "^10.12.3",
+    "firebase/storage": "^10.12.3",
     "@heroicons/react": "^2.2.0",
     "firebase": "^11.9.1"
   },
