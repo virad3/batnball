@@ -1,7 +1,7 @@
 
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, AuthError } from 'firebase/auth';
+import { User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, AuthError, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { auth, db } from '../services/firebaseClient'; // Use Firebase client
 import { doc, setDoc, getDoc, Timestamp } from 'firebase/firestore'; // Added Timestamp for profile date fields
 import { UserProfile } from '../types';
@@ -25,6 +25,7 @@ interface AuthContextType {
   error: AuthError | Error | null; // Can be Firebase AuthError or general Error
   loginWithPassword: (credentials: FirebaseLoginCredentials) => Promise<void>;
   signUpWithPassword: (credentials: FirebaseSignUpCredentials) => Promise<void>;
+  signInWithGoogle: () => Promise<void>; // Added Google Sign-In
   logout: () => Promise<void>;
   // userProfileType is now part of userProfile
 }
@@ -49,23 +50,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const profileDocSnap = await getDoc(profileDocRef);
         
         // dbProfileData contains fields as stored in Firestore, potentially including Timestamps for dates
-        const dbProfileData = profileDocSnap.exists() ? profileDocSnap.data() : {};
+        let dbProfileData = profileDocSnap.exists() ? profileDocSnap.data() : {};
 
+        // If profile doesn't exist and user signed in with Google, use Google's info for initial setup
+        if (!profileDocSnap.exists()) {
+            dbProfileData = { // Initialize with Google's data if available
+                username: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+                profilePicUrl: firebaseUser.photoURL,
+                profileType: 'Fan', // Default for new Google sign-ups
+            };
+            // Persist this initial profile data
+            await setDoc(profileDocRef, dbProfileData, { merge: true });
+        }
+        
         // Convert Firestore Timestamp for date_of_birth to ISO string if it exists
         let dobString: string | null = null;
-        const rawDob = dbProfileData.date_of_birth; // Access raw value, type is 'any' due to DocumentData
+        const rawDob = dbProfileData.date_of_birth; 
 
-        if (rawDob) { // Check if rawDob is truthy
-            if (rawDob instanceof Timestamp) { // This check is now valid
+        if (rawDob) { 
+            if (rawDob instanceof Timestamp) { 
                 dobString = rawDob.toDate().toISOString().split('T')[0];
             } else if (typeof rawDob === 'string') {
-                // If it's already a string, assume it's in correct format or handle as needed
                 dobString = rawDob;
             }
         }
         
-        // Cast dbProfileData to what we expect from DB for other fields
-        // This makes dbProfile.username and dbProfile.profilePicUrl accessible if they exist
         const dbProfile: Partial<Omit<UserProfile, 'id' | 'email'>> = dbProfileData as Partial<Omit<UserProfile, 'id' | 'email'>>;
         
         setUserProfile({
@@ -74,9 +83,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           username: firebaseUser.displayName || dbProfile.username || firebaseUser.email?.split('@')[0] || 'User',
           profileType: dbProfile.profileType || 'Fan',
           profilePicUrl: firebaseUser.photoURL || dbProfile.profilePicUrl,
-          // Spread other fields, ensuring date_of_birth uses the processed string
           location: dbProfile.location ?? null,
-          date_of_birth: dobString, // Use the processed string
+          date_of_birth: dobString, 
           mobile_number: dbProfile.mobile_number ?? null,
           player_role: dbProfile.player_role ?? null,
           batting_style: dbProfile.batting_style ?? null,
@@ -99,7 +107,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       if (!credentials.password) throw new Error("Password is required for login.");
       await signInWithEmailAndPassword(auth, credentials.email, credentials.password);
-      // User state will be updated by onAuthStateChanged
     } catch (e:any) {
       setError(e as AuthError);
       console.error("Login error:", e);
@@ -117,31 +124,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const firebaseUser = userCredential.user;
 
       if (firebaseUser) {
-        // Update Firebase Auth profile (displayName)
         const displayName = credentials.options?.data?.username;
         if (displayName) {
           await updateProfile(firebaseUser, { displayName });
         }
 
-        // Create a document in Firestore 'profiles' collection
-        // Note: UserProfile type allows date_of_birth as string (YYYY-MM-DD),
-        // dataService.updateUserProfile converts to Timestamp before saving.
-        // Here, for initial creation, we don't have date_of_birth, so it's fine.
         const profileDataToSave: Partial<UserProfile> = {
-          // id: firebaseUser.uid, // Not needed, doc ID is UID
           username: displayName || firebaseUser.email?.split('@')[0] || 'User',
-          email: firebaseUser.email || '', // Store email in profile for consistency if needed, though auth has it
+          email: firebaseUser.email || '', 
           profileType: credentials.options?.data?.profileType || 'Fan',
-          // profilePicUrl will be initially null or from auth if set by provider
-          // Other fields like location, dob will be undefined initially
         };
         const profileDocRef = doc(db, 'profiles', firebaseUser.uid);
-        await setDoc(profileDocRef, profileDataToSave, { merge: true }); // Use merge to be safe
+        await setDoc(profileDocRef, profileDataToSave, { merge: true }); 
       }
-      // User state will be updated by onAuthStateChanged
     } catch (e:any) {
       setError(e as AuthError);
       console.error("Sign up error:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      // User state and profile creation/update will be handled by onAuthStateChanged
+    } catch (e: any) {
+      setError(e as AuthError);
+      console.error("Google sign-in error:", e);
     } finally {
       setLoading(false);
     }
@@ -152,7 +165,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setError(null);
     try {
       await signOut(auth);
-      // User state will be cleared by onAuthStateChanged
     } catch (e:any) {
       setError(e as AuthError);
       console.error("Logout error:", e);
@@ -163,11 +175,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const value = {
     user,
-    userProfile, // Provide the combined UserProfile
+    userProfile, 
     loading,
     error,
     loginWithPassword,
     signUpWithPassword,
+    signInWithGoogle, // Added
     logout,
   };
 

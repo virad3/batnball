@@ -1,12 +1,22 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
 import { APP_NAME } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
 
+const GoogleIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
+    <path d="M17.6402 9.20455C17.6402 8.56818 17.5818 7.95455 17.4773 7.36364H9V10.8409H13.8409C13.6364 11.9091 13.0045 12.8182 12.0818 13.4545V15.6136H14.8091C16.5364 14.0455 17.6402 11.8636 17.6402 9.20455Z" fill="#4285F4"/>
+    <path d="M9 18C11.4318 18 13.4864 17.1818 14.8091 15.6136L12.0818 13.4545C11.2364 14.0227 10.2182 14.3636 9 14.3636C6.81818 14.3636 4.96818 12.9545 4.30909 10.9773H1.47727V13.2273C2.78636 15.9318 5.65455 18 9 18Z" fill="#34A853"/>
+    <path d="M4.30909 10.9773C4.12273 10.4545 4.00909 9.88636 4.00909 9.29545C4.00909 8.70455 4.12273 8.13636 4.30909 7.61364V5.36364H1.47727C0.522727 7.22727 0.522727 11.3636 1.47727 13.2273L4.30909 10.9773Z" fill="#FBBC05"/>
+    <path d="M9 4.22727C10.3364 4.22727 11.3318 4.72727 11.9182 5.27273L14.8636 2.5C13.4727 1.25 11.4318 0.5 9 0.5C5.65455 0.5 2.78636 2.65909 1.47727 5.36364L4.30909 7.61364C4.96818 5.63636 6.81818 4.22727 9 4.22727Z" fill="#EA4335"/>
+  </svg>
+);
+
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { loginWithPassword, loading: authLoading, error: authErrorHook, user } = useAuth();
+  const { loginWithPassword, signInWithGoogle, loading: authLoading, error: authErrorHook, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
@@ -19,7 +29,7 @@ const LoginPage: React.FC = () => {
   
   useEffect(() => {
     if (authErrorHook) {
-      setLocalError(authErrorHook.message || "Login failed. Please check your credentials.");
+      setLocalError(authErrorHook.message || "Login failed. Please check your credentials or try again.");
     }
   }, [authErrorHook]);
 
@@ -31,10 +41,12 @@ const LoginPage: React.FC = () => {
       setLocalError("Please enter both email and password.");
       return;
     }
-    // loginWithPassword now takes an object { email, password }
     await loginWithPassword({ email, password });
-    // Navigation or further actions will be handled by the effect watching `user`
-    // or by Firebase's onAuthStateChanged triggering a re-render.
+  };
+
+  const handleGoogleSignIn = async () => {
+    setLocalError(null);
+    await signInWithGoogle();
   };
 
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
@@ -51,7 +63,7 @@ const LoginPage: React.FC = () => {
             Login to {APP_NAME}
           </h2>
         </div>
-        {(localError) && ( // Display only localError, authErrorHook is used to set it
+        {(localError) && (
           <div className="bg-red-800 bg-opacity-40 border border-red-700 text-red-300 px-4 py-3 rounded-md text-sm">
             {localError}
           </div>
@@ -101,6 +113,29 @@ const LoginPage: React.FC = () => {
             </Button>
           </div>
         </form>
+
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center" aria-hidden="true">
+            <div className="w-full border-t border-gray-600" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-gray-800 text-gray-400">Or continue with</span>
+          </div>
+        </div>
+
+        <div>
+          <Button
+            type="button"
+            onClick={handleGoogleSignIn}
+            isLoading={authLoading}
+            disabled={authLoading}
+            className="w-full bg-white text-gray-700 hover:bg-gray-100 focus:ring-blue-500 border border-gray-300"
+            size="lg"
+          >
+            <GoogleIcon />
+            Sign in with Google
+          </Button>
+        </div>
 
         <p className="mt-8 text-center text-sm text-gray-400">
           Don't have an account?{' '}

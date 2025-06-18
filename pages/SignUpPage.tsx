@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
@@ -5,10 +6,18 @@ import { APP_NAME } from '../constants';
 import { UserProfile } from '../types'; 
 import { useAuth } from '../contexts/AuthContext';
 
+const GoogleIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
+    <path d="M17.6402 9.20455C17.6402 8.56818 17.5818 7.95455 17.4773 7.36364H9V10.8409H13.8409C13.6364 11.9091 13.0045 12.8182 12.0818 13.4545V15.6136H14.8091C16.5364 14.0455 17.6402 11.8636 17.6402 9.20455Z" fill="#4285F4"/>
+    <path d="M9 18C11.4318 18 13.4864 17.1818 14.8091 15.6136L12.0818 13.4545C11.2364 14.0227 10.2182 14.3636 9 14.3636C6.81818 14.3636 4.96818 12.9545 4.30909 10.9773H1.47727V13.2273C2.78636 15.9318 5.65455 18 9 18Z" fill="#34A853"/>
+    <path d="M4.30909 10.9773C4.12273 10.4545 4.00909 9.88636 4.00909 9.29545C4.00909 8.70455 4.12273 8.13636 4.30909 7.61364V5.36364H1.47727C0.522727 7.22727 0.522727 11.3636 1.47727 13.2273L4.30909 10.9773Z" fill="#FBBC05"/>
+    <path d="M9 4.22727C10.3364 4.22727 11.3318 4.72727 11.9182 5.27273L14.8636 2.5C13.4727 1.25 11.4318 0.5 9 0.5C5.65455 0.5 2.78636 2.65909 1.47727 5.36364L4.30909 7.61364C4.96818 5.63636 6.81818 4.22727 9 4.22727Z" fill="#EA4335"/>
+  </svg>
+);
+
 const SignUpPage: React.FC = () => {
   const navigate = useNavigate();
-  // Renamed authError to authErrorHook to avoid conflict with localError state if needed for clarity
-  const { signUpWithPassword, loading: authLoading, error: authErrorHook, user } = useAuth();
+  const { signUpWithPassword, signInWithGoogle, loading: authLoading, error: authErrorHook, user } = useAuth();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,17 +27,18 @@ const SignUpPage: React.FC = () => {
   const [signupSuccess, setSignupSuccess] = useState(false);
 
   useEffect(() => {
-    // With Firebase, onAuthStateChanged handles user state. 
-    // Navigation post-signup might depend on email verification flow.
-    // If auto-login happens, user object will be set.
     if (user && !authErrorHook) {
+      // User is signed in (either via email/pass or Google), navigate them
       // navigate('/home'); // Or to a "please verify email page"
+      // Setting signupSuccess to true to show appropriate message
+      setSignupSuccess(true); 
     }
   }, [user, navigate, authErrorHook]);
   
   useEffect(() => {
     if (authErrorHook) {
       setLocalError(authErrorHook.message || "Sign up failed. Please try again.");
+      setSignupSuccess(false);
     }
   }, [authErrorHook]);
 
@@ -50,7 +60,6 @@ const SignUpPage: React.FC = () => {
         return;
     }
 
-    // AuthContext's signUpWithPassword now handles Firebase
     await signUpWithPassword({ 
       email, 
       password,
@@ -58,19 +67,18 @@ const SignUpPage: React.FC = () => {
         data: {
           username: username.trim(),
           profileType: profileType,
-          // This data is used by AuthContext to update Firebase Auth profile (displayName)
-          // and create a Firestore 'profiles' document.
         }
       }
     });
 
-    // Check if error was set in context after attempt
-    // Needs a slight delay for context to update if an error occurred during signUpWithPassword
-    setTimeout(() => {
-        if (!authErrorHook && !localError) { // Re-check hook and local error
-            setSignupSuccess(true); // Assuming success if no error is caught by this point
-        }
-    }, 250); // Small delay
+    // Success and error handling is now mostly driven by useEffect hooks watching `user` and `authErrorHook`
+  };
+
+  const handleGoogleSignUp = async () => {
+    setLocalError(null);
+    setSignupSuccess(false);
+    await signInWithGoogle();
+     // Success and error handling is now mostly driven by useEffect hooks watching `user` and `authErrorHook`
   };
   
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
@@ -92,9 +100,11 @@ const SignUpPage: React.FC = () => {
             {localError}
           </div>
         )}
-        {signupSuccess && !authErrorHook && ( // Check hook again
+        {signupSuccess && !authErrorHook && (
             <div className="bg-green-800 bg-opacity-50 border border-green-700 text-green-300 px-4 py-3 rounded-md text-sm">
-                Sign up successful! If email verification is enabled, please check your email to confirm your account.
+                Sign up successful! Welcome to {APP_NAME}. You can now{' '}
+                <Link to="/login" className="font-semibold hover:underline">login</Link>.
+                {/* Firebase typically auto-logs in user post-signup unless email verification is strictly enforced before login */}
             </div>
         )}
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -149,6 +159,29 @@ const SignUpPage: React.FC = () => {
             </Button>
           </div>
         </form>
+        
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center" aria-hidden="true">
+            <div className="w-full border-t border-gray-600" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-gray-800 text-gray-400">Or sign up with</span>
+          </div>
+        </div>
+
+        <div>
+          <Button
+            type="button"
+            onClick={handleGoogleSignUp}
+            isLoading={authLoading}
+            disabled={authLoading || signupSuccess}
+            className="w-full bg-white text-gray-700 hover:bg-gray-100 focus:ring-blue-500 border border-gray-300"
+            size="lg"
+          >
+            <GoogleIcon />
+            Sign up with Google
+          </Button>
+        </div>
 
         <p className="mt-8 text-center text-sm text-gray-400">
           Already have an account?{' '}
