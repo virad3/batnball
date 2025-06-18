@@ -18,7 +18,7 @@ const BottomNav: React.FC = () => {
             }
           >
             {item.icon}
-            <span className="mt-1">{item.name}</span>
+            <span className="mt-1 whitespace-nowrap">{item.name}</span>
           </NavLink>
         ))}
       </div>

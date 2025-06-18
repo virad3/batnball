@@ -33,7 +33,8 @@ export const NAV_ITEMS = [
     path: "/my-cricket",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M10.269 3.498L3.498 10.27m0 0L2.75 11l.723-.722.027-.027.027.027.722.722-1.444 1.444a1.06 1.06 0 000 1.5l3.916 3.916a1.06 1.06 0 001.5 0l1.444-1.444-.722-.722-.027-.027-.027.027-.722-.722L13.73 6.502l6.77 6.771-3.236 3.236a2.25 2.25 0 000 3.182l1.962 1.962a2.25 2.25 0 003.182 0l3.236-3.236-6.77-6.771-2.923-2.923-3.626-3.626zM7.5 16.5c0 .966.784 1.75 1.75 1.75H11m5-5c.966 0 1.75-.784 1.75-1.75V8.5" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 2.25L7.5 9l-1.5 1.5L8.25 12l1.5-1.5 6.75-6.75-1.5-1.5zM7.5 9L3 13.5l1.5 1.5L9 10.5" /> {/* Bat */}
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 15a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" /> {/* Ball */}
       </svg>
     ),
   },
