@@ -1,7 +1,8 @@
-import { Match, Tournament, UserProfile } from '../types';
+
+import { Match, Tournament, UserProfile, Team } from '../types';
 import { db, auth, storage } from './firebaseClient';
 import { 
-  collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, Timestamp, writeBatch 
+  collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, Timestamp, writeBatch, DocumentData
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { User, updateProfile as updateFirebaseUserProfile } from 'firebase/auth';
@@ -109,16 +110,12 @@ export const getOngoingTournaments = async (count: number = 2): Promise<Tourname
     tournamentsCol,
     where('user_id', '==', userId),
     where('startDate', '<=', currentDate), 
-    // Firestore doesn't support range filters on different fields. 
-    // This needs to be filtered client-side or by restructuring data (e.g. an 'isOngoing' flag updated by a function).
-    // For now, we'll fetch based on start date and filter end date client-side.
     orderBy('startDate', 'asc') 
-    // limit(count) // Apply limit after client-side filtering
   );
   const querySnapshot = await getDocs(q);
   const ongoing = querySnapshot.docs
     .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Tournament))
-    .filter(t => t.endDate && Timestamp.fromDate(new Date(t.endDate)) >= currentDate)
+    .filter(t => t.endDate && Timestamp.fromDate(new Date(t.endDate as string)) >= currentDate) // Ensure endDate is treated as string for Date constructor
     .slice(0, count);
   return ongoing;
 };
@@ -150,14 +147,76 @@ export const createTournament = async (tournamentData: Omit<Tournament, 'id' | '
     ...tournamentData,
     user_id: userId,
     organizerName: organizerName,
-    startDate: tournamentData.startDate ? Timestamp.fromDate(new Date(tournamentData.startDate)) : Timestamp.now(),
-    endDate: tournamentData.endDate ? Timestamp.fromDate(new Date(tournamentData.endDate)) : Timestamp.now(),
+    startDate: tournamentData.startDate ? Timestamp.fromDate(new Date(tournamentData.startDate as string)) : Timestamp.now(), // Ensure string for Date constructor
+    endDate: tournamentData.endDate ? Timestamp.fromDate(new Date(tournamentData.endDate as string)) : Timestamp.now(), // Ensure string for Date constructor
   };
 
   const tournamentsCol = collection(db, 'tournaments');
   const docRef = await addDoc(tournamentsCol, tournamentToInsert);
   return { id: docRef.id, ...tournamentToInsert } as Tournament;
 };
+
+// --- Teams ---
+export const createTeam = async (teamData: Pick<Team, 'name' | 'players' | 'logoUrl'>): Promise<Team> => {
+  const userId = getUserId();
+  if (!userId) throw new Error("User must be logged in to create a team.");
+
+  const teamToInsert = {
+    ...teamData,
+    user_id: userId,
+    createdAt: Timestamp.now(),
+  };
+  const teamsCol = collection(db, 'teams');
+  const docRef = await addDoc(teamsCol, teamToInsert);
+  return { id: docRef.id, ...teamToInsert } as Team;
+};
+
+export const getTeamsByUserId = async (): Promise<Team[]> => {
+  const userId = getUserId();
+  if (!userId) return [];
+
+  const teamsCol = collection(db, 'teams');
+  const q = query(teamsCol, where('user_id', '==', userId), orderBy('createdAt', 'desc'));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Team));
+};
+
+export const getTeamById = async (id: string): Promise<Team | null> => {
+  const teamDocRef = doc(db, 'teams', id);
+  const docSnap = await getDoc(teamDocRef);
+  if (docSnap.exists()) {
+    const teamData = { id: docSnap.id, ...docSnap.data() } as Team;
+    const currentUserId = getUserId();
+    if (teamData.user_id === currentUserId) {
+      return teamData;
+    } else {
+      console.warn(`[dataService] User ${currentUserId} attempted to access team ${id} owned by ${teamData.user_id}. Access denied.`);
+      return null;
+    }
+  }
+  return null;
+};
+
+export const updateTeam = async (teamId: string, updates: Partial<Omit<Team, 'id' | 'user_id' | 'createdAt'>>): Promise<Team> => {
+  const teamDocRef = doc(db, 'teams', teamId);
+  // Ensure user_id and createdAt are not part of updates from client
+  const { user_id, createdAt, ...validUpdates } = updates as any; 
+  await updateDoc(teamDocRef, validUpdates);
+  const updatedDocSnap = await getDoc(teamDocRef);
+  if (!updatedDocSnap.exists()) throw new Error("Team not found after update.");
+  return { id: updatedDocSnap.id, ...updatedDocSnap.data() } as Team;
+};
+
+export const deleteTeam = async (teamId: string): Promise<void> => {
+  // Optional: Before deleting, verify ownership if not handled by security rules
+  const teamToDelete = await getTeamById(teamId);
+  if (!teamToDelete) {
+    throw new Error("Team not found or user does not have permission to delete.");
+  }
+  const teamDocRef = doc(db, 'teams', teamId);
+  await deleteDoc(teamDocRef);
+};
+
 
 // --- User Profile Functions ---
 
@@ -172,21 +231,37 @@ export const getFullUserProfile = async (userId: string): Promise<UserProfile | 
   const profileDocRef = doc(db, 'profiles', userId);
   const profileDocSnap = await getDoc(profileDocRef);
 
-  let dbProfileData: Partial<UserProfile> = {};
+  let firestoreRawData: DocumentData | undefined;
   if (profileDocSnap.exists()) {
-    dbProfileData = profileDocSnap.data() as Partial<UserProfile>;
+    firestoreRawData = profileDocSnap.data();
+  } else {
+    firestoreRawData = {}; // Initialize to empty object if no profile exists
   }
+  
+  // Cast known fields to Partial<UserProfile> for easier access, but handle Timestamp separately
+  const dbProfileData: Partial<UserProfile> = firestoreRawData as Partial<UserProfile>;
+
+  let dobString: string | null = null;
+  const rawDobFromFirestore = firestoreRawData?.date_of_birth; // Access original field from Firestore data
+
+  if (rawDobFromFirestore instanceof Timestamp) {
+    dobString = rawDobFromFirestore.toDate().toISOString().split('T')[0];
+  } else if (typeof rawDobFromFirestore === 'string') {
+    // It might be already a string if it was stored that way
+    dobString = rawDobFromFirestore;
+  }
+
 
   return {
     id: currentUser.uid,
-    email: currentUser.email || '',
+    email: currentUser.email || dbProfileData.email || '',
     username: currentUser.displayName || dbProfileData.username || currentUser.email?.split('@')[0] || 'User',
     profileType: dbProfileData.profileType || 'Fan', // Default to Fan if not set
-    profilePicUrl: currentUser.photoURL || dbProfileData.profilePicUrl,
-    achievements: dbProfileData.achievements || [], // Assuming achievements are only in Firestore
+    profilePicUrl: currentUser.photoURL || dbProfileData.profilePicUrl || null,
+    achievements: dbProfileData.achievements || [],
 
     location: dbProfileData.location ?? null,
-    date_of_birth: dbProfileData.date_of_birth ? (dbProfileData.date_of_birth as any instanceof Timestamp ? (dbProfileData.date_of_birth as any).toDate().toISOString().split('T')[0] : dbProfileData.date_of_birth) : null,
+    date_of_birth: dobString, // Use the converted/validated dobString
     mobile_number: dbProfileData.mobile_number ?? null,
     player_role: dbProfileData.player_role ?? null,
     batting_style: dbProfileData.batting_style ?? null,
@@ -203,9 +278,15 @@ export const updateUserProfile = async (
     return { user: currentUser, profile: null, error: new Error("User mismatch or not authenticated.") };
   }
 
-  const authProfileUpdates: { displayName?: string, photoURL?: string } = {};
-  if (profileUpdates.username !== undefined) authProfileUpdates.displayName = profileUpdates.username;
-  if (profileUpdates.profilePicUrl !== undefined) authProfileUpdates.photoURL = profileUpdates.profilePicUrl;
+  const authProfileUpdates: { displayName?: string, photoURL?: string | null } = {};
+  if (profileUpdates.username !== undefined && profileUpdates.username !== currentUser.displayName) {
+     authProfileUpdates.displayName = profileUpdates.username;
+  }
+  // Allow setting photoURL to null to remove it
+  if (profileUpdates.profilePicUrl !== undefined && profileUpdates.profilePicUrl !== currentUser.photoURL) {
+     authProfileUpdates.photoURL = profileUpdates.profilePicUrl;
+  }
+
 
   try {
     // Update Firebase Auth profile if there are changes
@@ -214,22 +295,38 @@ export const updateUserProfile = async (
     }
 
     // Prepare updates for Firestore "profiles" collection
-    // Exclude fields managed by Firebase Auth or not directly updatable here
-    const { id, email, achievements, ...firestoreProfileUpdates } = profileUpdates;
+    const { id, email, achievements, ...firestoreProfileUpdatesInput } = profileUpdates;
     
+    // Create a mutable copy for Firestore updates
+    const firestoreProfileUpdates: Partial<UserProfile> = { ...firestoreProfileUpdatesInput };
+
+
     if (firestoreProfileUpdates.date_of_birth && typeof firestoreProfileUpdates.date_of_birth === 'string') {
         firestoreProfileUpdates.date_of_birth = Timestamp.fromDate(new Date(firestoreProfileUpdates.date_of_birth)) as any;
+    } else if (firestoreProfileUpdates.date_of_birth === null || firestoreProfileUpdates.date_of_birth === '') {
+        firestoreProfileUpdates.date_of_birth = null;
     }
 
 
     if (Object.keys(firestoreProfileUpdates).length > 0) {
       const profileDocRef = doc(db, 'profiles', userId);
-      await setDoc(profileDocRef, firestoreProfileUpdates, { merge: true });
+      // Ensure specific fields that can be null are explicitly set to null if passed as such
+      const finalUpdatesForFirestore: any = {};
+      for (const key in firestoreProfileUpdates) {
+          if (Object.prototype.hasOwnProperty.call(firestoreProfileUpdates, key)) {
+              const typedKey = key as keyof Partial<UserProfile>;
+              if (firestoreProfileUpdates[typedKey] === undefined) {
+                  // This case should ideally not happen if profileUpdates is well-formed
+                  // We can choose to delete the field or ignore it. For merge: true, ignoring is fine.
+              } else {
+                  finalUpdatesForFirestore[typedKey] = firestoreProfileUpdates[typedKey];
+              }
+          }
+      }
+      await setDoc(profileDocRef, finalUpdatesForFirestore, { merge: true });
     }
     
-    // Refetch the potentially updated auth user (displayName, photoURL might have changed)
-    // and the full profile from Firestore.
-    await auth.currentUser?.reload(); // Ensure current user reflects auth changes
+    await auth.currentUser?.reload(); 
     const updatedFullProfile = await getFullUserProfile(userId);
     return { user: auth.currentUser, profile: updatedFullProfile, error: null };
 
@@ -246,12 +343,16 @@ export const uploadProfilePicture = async (userId: string, file: File): Promise<
   const storageRef = ref(storage, filePath);
 
   try {
+    // Optional: Delete old profile picture if one exists and you want to manage storage
+    // This would require storing the old picture's path or guessing it, which can be complex.
+    // For simplicity, this example doesn't delete the old picture.
+
     await uploadBytes(storageRef, file, { contentType: file.type });
     const downloadUrl = await getDownloadURL(storageRef);
     return downloadUrl;
   } catch (error) {
     console.error('Error uploading profile picture to Firebase Storage:', error);
-    throw error;
+    throw error; // Rethrow to be caught by the calling function in ProfilePage
   }
 };
 
@@ -260,6 +361,3 @@ export const getCurrentUserProfile = async (): Promise<UserProfile | null> => {
   if (!userId) return null;
   return getFullUserProfile(userId);
 };
-
-// Remove Supabase-specific client export if it existed
-// export { supabase }; // This line would be removed if it was for Supabase client

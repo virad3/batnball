@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import Header from './components/Header';
@@ -14,10 +13,11 @@ import ProfilePage from './pages/ProfilePage';
 import LoginPage from './pages/LoginPage';
 import SignUpPage from './pages/SignUpPage';
 import MyTeamsPage from './pages/MyTeamsPage'; 
+import TeamDetailsPage from './pages/TeamDetailsPage'; // New Import
 import MyPerformancePage from './pages/MyPerformancePage'; 
-import MyCricketPage from './pages/MyCricketPage'; // New Import
-import LookingPage from './pages/LookingPage'; // New Import
-import HighlightsPage from './pages/HighlightsPage'; // New Import
+import MyCricketPage from './pages/MyCricketPage'; 
+import LookingPage from './pages/LookingPage'; 
+import HighlightsPage from './pages/HighlightsPage'; 
 import { MatchProvider } from './contexts/MatchContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -63,10 +63,11 @@ const AppRoutes: React.FC = () => {
         <Route path="/stats" element={<StatsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/my-teams" element={<MyTeamsPage />} /> 
+        <Route path="/teams/:teamId" element={<TeamDetailsPage />} /> {/* New Route for Team Details */}
         <Route path="/my-performance" element={<MyPerformancePage />} /> 
-        <Route path="/my-cricket" element={<MyCricketPage />} /> {/* New Route */}
-        <Route path="/looking" element={<LookingPage />} /> {/* New Route */}
-        <Route path="/highlights" element={<HighlightsPage />} /> {/* New Route */}
+        <Route path="/my-cricket" element={<MyCricketPage />} /> 
+        <Route path="/looking" element={<LookingPage />} /> 
+        <Route path="/highlights" element={<HighlightsPage />} /> 
         {/* Catch-all for any other authenticated routes, redirects to /home */}
         <Route path="*" element={<Navigate to="/home" replace />} />
       </Route>

@@ -1,4 +1,3 @@
-
 import { Timestamp as FirebaseTimestamp } from 'firebase/firestore';
 
 export enum MatchFormat {
@@ -136,7 +135,7 @@ export interface UserProfile {
   username: string; // from user_metadata or profiles table
   email?: string; // from auth.users.email
   profileType: "Scorer" | "Organizer" | "Fan" | "Player"; // from user_metadata or profiles table
-  profilePicUrl?: string; // from user_metadata or profiles table
+  profilePicUrl?: string | null; // from user_metadata or profiles table
   achievements?: string[]; // from user_metadata or profiles table (example)
 
   // New fields for 'profiles' table
@@ -176,4 +175,13 @@ export interface MatchContextType extends MatchState {
   saveMatchState: () => Promise<void>; // Explicit save
   endMatch: (resultSummary: string) => Promise<void>;
   setPlayerRoles: (striker?: string, nonStriker?: string, bowler?: string) => void;
+}
+
+export interface Team {
+  id: string;
+  user_id: string;
+  name: string;
+  players: string[];
+  createdAt: FirebaseTimestamp;
+  logoUrl?: string | null;
 }

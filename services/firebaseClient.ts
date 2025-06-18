@@ -1,4 +1,5 @@
-import { initializeApp, getApp, getApps } from 'firebase/app';
+
+import firebase from 'firebase/app'; // Changed to default import
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
@@ -7,7 +8,7 @@ import { getStorage } from 'firebase/storage';
 // This file will get the initialized app instance.
 
 let app;
-if (!getApps().length) {
+if (!firebase.getApps().length) { // Used firebase.getApps()
     // This case should ideally not be hit if index.html initializes correctly
     // However, as a fallback or for environments where index.html script might not run first
     // (though unlikely for this project structure), we attempt initialization.
@@ -16,12 +17,12 @@ if (!getApps().length) {
     // @ts-ignore
     if (window.firebaseConfig) {
         // @ts-ignore
-        app = initializeApp(window.firebaseConfig);
+        app = firebase.initializeApp(window.firebaseConfig); // Used firebase.initializeApp()
     } else {
         throw new Error("Firebase configuration is missing. Initialize Firebase in index.html or ensure window.firebaseConfig is set.");
     }
 } else {
-    app = getApp();
+    app = firebase.getApp(); // Used firebase.getApp()
 }
 
 const auth = getAuth(app);
