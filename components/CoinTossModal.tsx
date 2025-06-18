@@ -7,31 +7,33 @@ interface CoinTossModalProps {
   onProceed: () => void;
 }
 
-// Simple SVG Coin (can be replaced with a more complex one or an image)
-const CoinIcon: React.FC<{ side?: 'Heads' | 'Tails' | 'Flipping' | null, isFlipping?: boolean }> = ({ side, isFlipping }) => {
+const CoinIcon: React.FC<{
+  side?: 'Heads' | 'Tails' | null;
+  isFlipping?: boolean;
+  logoUrl?: string;
+}> = ({ side, isFlipping, logoUrl = "/logo.png" }) => {
+  const coinBaseClasses = "w-24 h-24 sm:w-32 sm:h-32 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ease-in-out overflow-hidden";
+  // Adjust padding for the logo to fit well within the circle
+  const logoImageClasses = "w-full h-full object-contain p-3 sm:p-4"; 
+
   if (isFlipping) {
     return (
-      <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gray-600 flex items-center justify-center text-gray-300 animate-pulse">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12 animate-spin">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-        </svg>
+      <div className={`${coinBaseClasses} bg-gray-600`}>
+        <img src={logoUrl} alt="Flipping coin" className={`${logoImageClasses} animate-spin opacity-75`} />
       </div>
     );
   }
-  
-  let content = '?';
-  let bgColor = 'bg-yellow-500';
+
+  let bgColor = 'bg-yellow-500'; // Default for initial state 
   if (side === 'Heads') {
-    content = 'H';
     bgColor = 'bg-green-500';
   } else if (side === 'Tails') {
-    content = 'T';
     bgColor = 'bg-blue-500';
   }
 
   return (
-    <div className={`w-24 h-24 sm:w-32 sm:h-32 rounded-full ${bgColor} flex items-center justify-center text-white text-5xl sm:text-6xl font-bold shadow-lg transition-all duration-300 ease-in-out`}>
-      {content}
+    <div className={`${coinBaseClasses} ${bgColor}`}>
+      <img src={logoUrl} alt={`Coin side: ${side || 'Bat n Ball logo'}`} className={logoImageClasses} />
     </div>
   );
 };
@@ -87,7 +89,7 @@ const CoinTossModal: React.FC<CoinTossModalProps> = ({ isOpen, onClose, onProcee
         </div>
 
         <div className="flex justify-center items-center my-8 h-32">
-          <CoinIcon side={result} isFlipping={isFlipping} />
+          <CoinIcon side={result} isFlipping={isFlipping} logoUrl="/logo.png" />
         </div>
 
         {isFlipping && (
