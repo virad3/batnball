@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Tournament } from '../types';
-import { getAllTournaments } from '../services/dataService'; // Use Supabase via dataService
+import { getAllTournaments } from '../services/dataService'; // Now uses Firebase
 import TournamentCard from '../components/TournamentCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
@@ -15,11 +14,10 @@ const TournamentsPage: React.FC = () => {
     const fetchTournaments = async () => {
       setLoading(true);
       try {
-        const allTournamentsFromDB = await getAllTournaments(); // Fetches user-specific tournaments
+        const allTournamentsFromDB = await getAllTournaments(); // Fetches user-specific tournaments from Firebase
         setTournaments(allTournamentsFromDB);
       } catch (error) {
         console.error("Failed to fetch tournaments:", error);
-        // Handle error display
       } finally {
         setLoading(false);
       }

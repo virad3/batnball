@@ -1,15 +1,33 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Tournament } from '../types';
 import Button from './Button';
+import { Timestamp } from 'firebase/firestore'; // Import Timestamp
 
 interface TournamentCardProps {
   tournament: Tournament;
 }
 
 const TournamentCard: React.FC<TournamentCardProps> = ({ tournament }) => {
-  const startDate = new Date(tournament.startDate);
-  const endDate = new Date(tournament.endDate);
+  // Handle date conversion if it's a Firebase Timestamp or string
+  const convertTimestampToDate = (dateInput: string | Timestamp | undefined | null): Date => {
+    if (dateInput instanceof Timestamp) {
+      return dateInput.toDate();
+    }
+    // If it's already a Date object or string, new Date() handles it
+    // Add a check for null/undefined to avoid passing them to new Date()
+    if (dateInput) {
+        return new Date(dateInput as string | Date); 
+    }
+    // Fallback for unexpected or missing date
+    console.warn("Tournament date is in an unexpected format or missing:", dateInput);
+    return new Date(); // Return current date as fallback
+  };
+  
+  const startDate = convertTimestampToDate(tournament.startDate);
+  const endDate = convertTimestampToDate(tournament.endDate);
+
 
   return (
     <div className="bg-gray-800 rounded-xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl border border-gray-700">

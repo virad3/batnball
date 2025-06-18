@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { APP_NAME } from '../constants';
@@ -7,11 +6,12 @@ import { useAuth } from '../contexts/AuthContext';
 const Header: React.FC = () => {
   const [isMainMenuOpen, setIsMainMenuOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
-  const { user, logout, loading: authLoading, userProfileType } = useAuth(); 
+  // user is Firebase User, userProfile is our application's UserProfile
+  const { user, userProfile, logout, loading: authLoading } = useAuth(); 
   
   const mainMenuRef = useRef<HTMLDivElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
-  const userAvatarButtonRef = useRef<HTMLButtonElement>(null); // Ref for the avatar button
+  const userAvatarButtonRef = useRef<HTMLButtonElement>(null);
 
   const navigate = useNavigate();
 
@@ -37,12 +37,12 @@ const Header: React.FC = () => {
 
   const toggleMainMenu = () => {
     setIsMainMenuOpen(!isMainMenuOpen);
-    if (isUserDropdownOpen) setIsUserDropdownOpen(false); // Close user dropdown if open
+    if (isUserDropdownOpen) setIsUserDropdownOpen(false);
   };
 
   const toggleUserDropdown = () => {
     setIsUserDropdownOpen(!isUserDropdownOpen);
-    if (isMainMenuOpen) setIsMainMenuOpen(false); // Close main menu if open
+    if (isMainMenuOpen) setIsMainMenuOpen(false);
   };
 
   const handleLogout = async () => {
@@ -52,7 +52,6 @@ const Header: React.FC = () => {
     navigate('/login'); 
   };
 
-  // Navigation items for the main hamburger menu
   const mainMenuItems = [
     { name: 'My Matches', path: '/matches' },
     { name: 'My Tournaments', path: '/tournaments' },
@@ -62,9 +61,10 @@ const Header: React.FC = () => {
     { name: 'My Stats', path: '/stats' },
   ];
   
-  const displayName = user?.user_metadata?.username || user?.email?.split('@')[0] || "User";
-  const profileTypeDisplay = userProfileType || user?.user_metadata?.profile_type || (user ? "Registered" : "Guest");
-  const profilePic = user?.user_metadata?.profile_pic_url || `https://picsum.photos/seed/${user?.id || 'default'}/40/40`;
+  // Use userProfile for display details if available, fallback to Firebase user
+  const displayName = userProfile?.username || user?.displayName || user?.email?.split('@')[0] || "User";
+  const profileTypeDisplay = userProfile?.profileType || (user ? "Registered" : "Guest");
+  const profilePic = userProfile?.profilePicUrl || user?.photoURL || `https://picsum.photos/seed/${user?.uid || 'default'}/40/40`;
 
 
   return (
@@ -72,7 +72,6 @@ const Header: React.FC = () => {
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
         {/* Left Section: Hamburger Menu & App Logo/Name */}
         <div className="flex items-center">
-          {/* Main Hamburger Menu */}
           <div className="relative" ref={mainMenuRef}>
             <button
               onClick={toggleMainMenu}
@@ -86,7 +85,6 @@ const Header: React.FC = () => {
             </button>
             {isMainMenuOpen && (
               <div className="absolute left-0 mt-2 w-64 bg-gray-800 rounded-md shadow-xl py-2 z-50 border border-gray-700">
-                {/* Simplified: only show nav items if user logged in, or login/signup */}
                 {user && mainMenuItems.map((item) => (
                   <Link
                     key={item.name}
@@ -97,7 +95,7 @@ const Header: React.FC = () => {
                     {item.name}
                   </Link>
                 ))}
-                 {!user && (
+                 {!user && !authLoading && ( // Show login/signup if no user and not loading
                     <Link
                         to="/login" 
                         onClick={() => setIsMainMenuOpen(false)}
@@ -110,7 +108,6 @@ const Header: React.FC = () => {
             )}
           </div>
 
-          {/* App Logo and Name */}
           <Link to="/home" className="flex items-center ml-3 sm:ml-4">
             <img src="/logo.png" alt="Bat 'n' Ball Logo" className="h-10 sm:h-12 w-auto mr-2" />
             <span className="font-graduate text-xl sm:text-3xl font-normal tracking-wider text-gray-50 [text-shadow:1px_1px_1px_rgba(0,0,0,0.7)]">
@@ -121,7 +118,7 @@ const Header: React.FC = () => {
 
         {/* Right Section: User Profile Actions */}
         <div className="ml-auto flex items-center">
-          {user ? (
+          {user ? ( // Check Firebase user for existence
             <div className="relative" ref={userDropdownRef}>
               <button
                 ref={userAvatarButtonRef}
@@ -160,10 +157,9 @@ const Header: React.FC = () => {
               )}
             </div>
           ) : (
-            // If no user, this section is empty. Login/signup is in main menu.
-            // Alternatively, a "Login" button could be placed here:
-            // <Link to="/login"><Button variant="outline" size="sm">Login</Button></Link>
-            null 
+            // If no user and not loading, this section can be empty or show a login link
+            // Login/signup is also in main menu.
+            !authLoading && null 
           )}
         </div>
       </div>

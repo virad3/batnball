@@ -3,6 +3,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Match, InningsRecord } from '../types'; 
 import Button from './Button';
+import { Timestamp } from 'firebase/firestore'; // Import Timestamp
 
 interface MatchCardProps {
   match: Match;
@@ -16,24 +17,31 @@ const TeamDisplaySimple: React.FC<{ teamName: string, score?: string }> = ({ tea
 );
 
 const MatchCard: React.FC<MatchCardProps> = ({ match }) => {
-  const matchDate = new Date(match.date);
+  // Handle date conversion if it's a Firebase Timestamp or string
+  let matchDateObject: Date;
+  if (match.date instanceof Timestamp) {
+    matchDateObject = match.date.toDate();
+  } else if (typeof match.date === 'string') {
+    matchDateObject = new Date(match.date);
+  } else {
+    // Fallback or error handling if date format is unexpected (e.g. null/undefined)
+    matchDateObject = new Date(); // Should not happen with proper data handling
+    console.warn("Match date is in an unexpected format:", match.date);
+  }
+
 
   const getTeamScoreDisplay = (teamNameToDisplay: string): string | undefined => {
     let inningsToUse: InningsRecord | null | undefined = null;
 
     if (match.status === "Live") {
       if (match.current_batting_team === teamNameToDisplay) {
-        // This team is currently batting
         if (match.innings1Record && match.innings1Record.teamName === match.current_batting_team) {
           inningsToUse = match.innings1Record;
         } else if (match.innings2Record && match.innings2Record.teamName === match.current_batting_team) {
           inningsToUse = match.innings2Record;
         }
       }
-      // If not currently batting, we don't show live score for them in this card's team line for simplicity.
-      // The overall score might be handled differently or this implies they are bowling.
     } else if (match.status === "Completed") {
-      // For completed matches, show final score for the team if available
       if (match.innings1Record && match.innings1Record.teamName === teamNameToDisplay) {
         inningsToUse = match.innings1Record;
       } else if (match.innings2Record && match.innings2Record.teamName === teamNameToDisplay) {
@@ -42,10 +50,8 @@ const MatchCard: React.FC<MatchCardProps> = ({ match }) => {
     }
 
     if (inningsToUse) {
-      // inningsToUse.totalOversBowled is already in format like 19.5 for 19 overs 5 balls
       return `${inningsToUse.totalRuns}/${inningsToUse.totalWickets} (${inningsToUse.totalOversBowled} Ov)`;
     }
-
     return undefined;
   };
 
@@ -70,7 +76,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match }) => {
         <div className="flex justify-between items-center">
           <span className={`text-xs font-semibold uppercase tracking-wider ${statusStyles.text}`}>{match.format} - {match.status}</span>
           <span className={`text-xs ${statusStyles.text} opacity-90`}>
-            {matchDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            {matchDateObject.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
           </span>
         </div>
       </div>

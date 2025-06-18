@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
@@ -8,7 +7,8 @@ import { useAuth } from '../contexts/AuthContext';
 
 const SignUpPage: React.FC = () => {
   const navigate = useNavigate();
-  const { signUpWithPassword, loading: authLoading, error: authError, user } = useAuth();
+  // Renamed authError to authErrorHook to avoid conflict with localError state if needed for clarity
+  const { signUpWithPassword, loading: authLoading, error: authErrorHook, user } = useAuth();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,18 +18,19 @@ const SignUpPage: React.FC = () => {
   const [signupSuccess, setSignupSuccess] = useState(false);
 
   useEffect(() => {
-    if (user && !authError) { // If user object exists after potential signup and no error
-      // This might indicate auto-login or that the user was already logged in.
-      // Or if email verification is off.
-      // navigate('/home'); // Decided to let user manually login after sign up confirmation
+    // With Firebase, onAuthStateChanged handles user state. 
+    // Navigation post-signup might depend on email verification flow.
+    // If auto-login happens, user object will be set.
+    if (user && !authErrorHook) {
+      // navigate('/home'); // Or to a "please verify email page"
     }
-  }, [user, navigate, authError]);
+  }, [user, navigate, authErrorHook]);
   
   useEffect(() => {
-    if (authError) {
-      setLocalError(authError.message || "Sign up failed. Please try again.");
+    if (authErrorHook) {
+      setLocalError(authErrorHook.message || "Sign up failed. Please try again.");
     }
-  }, [authError]);
+  }, [authErrorHook]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,32 +50,27 @@ const SignUpPage: React.FC = () => {
         return;
     }
 
+    // AuthContext's signUpWithPassword now handles Firebase
     await signUpWithPassword({ 
       email, 
       password,
       options: {
         data: {
           username: username.trim(),
-          profile_type: profileType,
-          // Supabase stores this in `raw_user_meta_data` on the auth.users table by default.
-          // You might also want a trigger to copy this to a separate `profiles` table.
+          profileType: profileType,
+          // This data is used by AuthContext to update Firebase Auth profile (displayName)
+          // and create a Firestore 'profiles' document.
         }
       }
     });
 
-    // Check if there was no authError after the attempt.
-    // authError is updated asynchronously by the context.
-    // A slight delay or checking a ref might be needed for instant feedback.
-    // For now, if no immediate error is set by this component's logic, assume success message is safe.
-    // The actual user object creation might depend on email verification.
-    if (!authError && !localError) { // Check localError again because it might be set above
-         // Check if authError in the context became non-null after a brief moment
-        setTimeout(() => {
-            if (!authError) { // Re-check authError from context
-                 setSignupSuccess(true);
-            }
-        }, 200); // Small delay to allow context to update
-    }
+    // Check if error was set in context after attempt
+    // Needs a slight delay for context to update if an error occurred during signUpWithPassword
+    setTimeout(() => {
+        if (!authErrorHook && !localError) { // Re-check hook and local error
+            setSignupSuccess(true); // Assuming success if no error is caught by this point
+        }
+    }, 250); // Small delay
   };
   
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
@@ -96,9 +92,9 @@ const SignUpPage: React.FC = () => {
             {localError}
           </div>
         )}
-        {signupSuccess && !authError && (
+        {signupSuccess && !authErrorHook && ( // Check hook again
             <div className="bg-green-800 bg-opacity-50 border border-green-700 text-green-300 px-4 py-3 rounded-md text-sm">
-                Sign up successful! Please check your email to confirm your account.
+                Sign up successful! If email verification is enabled, please check your email to confirm your account.
             </div>
         )}
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>

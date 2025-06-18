@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Match, Tournament } from '../types';
-import { getUpcomingMatches, getOngoingTournaments } from '../services/dataService'; // Uses Supabase
+import { getUpcomingMatches, getOngoingTournaments } from '../services/dataService'; // Now uses Firebase
 import MatchCard from '../components/MatchCard';
 import TournamentCard from '../components/TournamentCard';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -18,8 +17,8 @@ const HomePage: React.FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const matches = await getUpcomingMatches(3); // Fetches user-specific matches
-        const tournaments = await getOngoingTournaments(2); // Fetches user-specific tournaments
+        const matches = await getUpcomingMatches(3); // Fetches user-specific matches from Firebase
+        const tournaments = await getOngoingTournaments(2); // Fetches user-specific tournaments from Firebase
         setUpcomingMatches(matches);
         setOngoingTournaments(tournaments);
       } catch (error) {
@@ -72,7 +71,6 @@ const HomePage: React.FC = () => {
           </section>
         </>
       )}
-      {/* Quick Actions section removed */}
     </div>
   );
 };

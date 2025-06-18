@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
@@ -7,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { loginWithPassword, loading: authLoading, error: authError, user } = useAuth();
+  const { loginWithPassword, loading: authLoading, error: authErrorHook, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
@@ -19,10 +18,10 @@ const LoginPage: React.FC = () => {
   }, [user, navigate]);
   
   useEffect(() => {
-    if (authError) {
-      setLocalError(authError.message || "Login failed. Please check your credentials.");
+    if (authErrorHook) {
+      setLocalError(authErrorHook.message || "Login failed. Please check your credentials.");
     }
-  }, [authError]);
+  }, [authErrorHook]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,9 +31,10 @@ const LoginPage: React.FC = () => {
       setLocalError("Please enter both email and password.");
       return;
     }
+    // loginWithPassword now takes an object { email, password }
     await loginWithPassword({ email, password });
     // Navigation or further actions will be handled by the effect watching `user`
-    // or by Supabase's onAuthStateChange triggering a re-render.
+    // or by Firebase's onAuthStateChanged triggering a re-render.
   };
 
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
@@ -51,9 +51,9 @@ const LoginPage: React.FC = () => {
             Login to {APP_NAME}
           </h2>
         </div>
-        {(localError || authError) && (
+        {(localError) && ( // Display only localError, authErrorHook is used to set it
           <div className="bg-red-800 bg-opacity-40 border border-red-700 text-red-300 px-4 py-3 rounded-md text-sm">
-            {localError || authError?.message}
+            {localError}
           </div>
         )}
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>

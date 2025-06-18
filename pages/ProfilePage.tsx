@@ -1,13 +1,12 @@
-
 import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
 import { useAuth } from '../contexts/AuthContext';
 import { UserProfile } from '../types';
-import { getCurrentUserProfile, updateUserProfile, uploadProfilePicture } from '../services/dataService';
+import { getCurrentUserProfile, updateUserProfile, uploadProfilePicture } from '../services/dataService'; // Now uses Firebase
 
 const ProfilePage: React.FC = () => {
-  const { user: authUser, loading: authLoading } = useAuth();
+  const { user: authUserHook, userProfile: authContextProfile, loading: authLoading } = useAuth(); // Use userProfile from context
   const [profileData, setProfileData] = useState<Partial<UserProfile>>({});
   const [initialProfileData, setInitialProfileData] = useState<Partial<UserProfile>>({});
   const [pageLoading, setPageLoading] = useState(true);
@@ -19,22 +18,27 @@ const ProfilePage: React.FC = () => {
 
   useEffect(() => {
     const loadProfile = async () => {
-      if (authUser?.id) {
-        setPageLoading(true);
+      setPageLoading(true);
+      if (authContextProfile) { // Prioritize profile from AuthContext if available
+        setProfileData(authContextProfile);
+        setInitialProfileData(authContextProfile);
+        setProfilePicPreview(authContextProfile.profilePicUrl || null);
+        setPageLoading(false);
+      } else if (authUserHook?.uid && !authLoading) { // Fallback to fetch if context profile not ready but user exists
         try {
-          const fullProfile = await getCurrentUserProfile(); // Uses getFullUserProfile internally
+          const fullProfile = await getCurrentUserProfile(); // Fetches from Firebase
           if (fullProfile) {
             setProfileData(fullProfile);
-            setInitialProfileData(fullProfile); // Store initial for comparison
+            setInitialProfileData(fullProfile);
             setProfilePicPreview(fullProfile.profilePicUrl || null);
           } else {
-            // Initialize with authUser data if no DB profile yet
+             // Basic init if nothing found, should be rare if context is working.
             const initial: Partial<UserProfile> = {
-              id: authUser.id,
-              username: authUser.user_metadata?.username || authUser.email?.split('@')[0] || '',
-              email: authUser.email || '',
-              profileType: authUser.user_metadata?.profile_type || 'Fan',
-              profilePicUrl: authUser.user_metadata?.profile_pic_url || `https://picsum.photos/seed/${authUser.id}/150/150`,
+                id: authUserHook.uid,
+                username: authUserHook.displayName || authUserHook.email?.split('@')[0] || '',
+                email: authUserHook.email || '',
+                profileType: 'Fan', // Default
+                profilePicUrl: authUserHook.photoURL || `https://picsum.photos/seed/${authUserHook.uid}/150/150`,
             };
             setProfileData(initial);
             setInitialProfileData(initial);
@@ -42,20 +46,20 @@ const ProfilePage: React.FC = () => {
           }
         } catch (err: any) {
           setError(err.message || "Failed to load profile data.");
-          console.error("Error loading profile:", err); // Log full error
+          console.error("Error loading profile:", err);
         } finally {
           setPageLoading(false);
         }
-      } else if (!authLoading) { // If auth is done loading and no authUser
+      } else if (!authLoading) {
         setPageLoading(false);
-        setError("User not authenticated.");
+        setError("User not authenticated or profile context not ready.");
       }
     };
 
     if (!authLoading) {
         loadProfile();
     }
-  }, [authUser, authLoading]);
+  }, [authUserHook, authContextProfile, authLoading]);
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -76,7 +80,7 @@ const ProfilePage: React.FC = () => {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!authUser?.id) {
+    if (!authUserHook?.uid) {
       setError("User not authenticated.");
       return;
     }
@@ -85,9 +89,9 @@ const ProfilePage: React.FC = () => {
     setSuccessMessage(null);
 
     try {
-      let updatedPicUrl = profileData.profilePicUrl;
+      let updatedPicUrl = profileData.profilePicUrl; // Start with current or potentially cleared URL
       if (profilePicFile) {
-        const uploadedUrl = await uploadProfilePicture(authUser.id, profilePicFile);
+        const uploadedUrl = await uploadProfilePicture(authUserHook.uid, profilePicFile); // Uses Firebase Storage
         if (uploadedUrl) {
           updatedPicUrl = uploadedUrl;
         } else {
@@ -96,38 +100,29 @@ const ProfilePage: React.FC = () => {
       }
       
       const updatesToSave: Partial<UserProfile> = {};
-      // Compare with initialProfileData to send only changed fields
       (Object.keys(profileData) as Array<keyof UserProfile>).forEach(<K extends keyof UserProfile>(key: K) => {
         if (profileData[key] !== initialProfileData[key]) {
           updatesToSave[key] = profileData[key]; 
         }
       });
       
-      // Ensure the potentially new profilePicUrl is part of the updates if it changed or if a new file was uploaded
       if (updatedPicUrl !== initialProfileData.profilePicUrl || (profilePicFile && updatedPicUrl)) {
          updatesToSave.profilePicUrl = updatedPicUrl;
       }
 
+      if (Object.keys(updatesToSave).length > 0) {
+        console.log("Attempting to save updates (Firebase):", updatesToSave); 
+        // updateUserProfile now interacts with Firebase Auth and Firestore
+        const { profile: newProfileData, error: updateError } = await updateUserProfile(authUserHook.uid, updatesToSave);
 
-      if (Object.keys(updatesToSave).length > 0 || profilePicFile) {
-        console.log("Attempting to save updates:", updatesToSave); 
-        const { profile: newProfileData, error: updateError, user: updatedAuthUser } = await updateUserProfile(authUser.id, {
-          ...updatesToSave, 
-          profilePicUrl: updatedPicUrl, // Ensure this is the most current URL
-        });
-
-        if (updateError) throw updateError; // This will be caught by the catch block
+        if (updateError) throw updateError;
         
-        // Successfully updated
         if (newProfileData) {
           setProfileData(newProfileData); 
           setInitialProfileData(newProfileData); 
           if (newProfileData.profilePicUrl) setProfilePicPreview(newProfileData.profilePicUrl);
+          // AuthContext will update its internal user/userProfile via onAuthStateChanged or by manual refresh if needed
         }
-        // Also update authUser in context if metadata changed (e.g. username, profile_pic_url)
-        // This is now implicitly handled by onAuthStateChange listener in AuthContext,
-        // as supabase.auth.updateUser() should trigger it.
-
         setProfilePicFile(null); 
         setSuccessMessage("Profile updated successfully!");
       } else {
@@ -135,17 +130,9 @@ const ProfilePage: React.FC = () => {
       }
 
     } catch (err: any) {
-      console.error("Detailed error updating profile:", err); // Log the full error object
+      console.error("Detailed error updating profile (Firebase):", err);
       let errorMessage = "Failed to update profile. Please check console for details.";
-      if (err.message) {
-        errorMessage = `Failed to update profile: ${err.message}`;
-      }
-      if (err.details) { // Supabase errors often have a 'details' property
-        errorMessage += ` Details: ${err.details}`;
-      }
-      if (err.hint) { // And a 'hint'
-         errorMessage += ` Hint: ${err.hint}`;
-      }
+      if (err.message) errorMessage = `Failed to update profile: ${err.message}`;
       setError(errorMessage);
     } finally {
       setSaving(false);
@@ -154,6 +141,8 @@ const ProfilePage: React.FC = () => {
 
   if (pageLoading || authLoading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
   if (error && !profileData.id && !pageLoading) return <div className="text-center p-8 text-xl text-red-400">{error}</div>;
+  if (!authUserHook && !authLoading) return <div className="text-center p-8 text-xl text-gray-300">Please log in to view your profile.</div>;
+
 
   const inputClass = "block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-100 placeholder-gray-400";
   const labelClass = "block text-sm font-medium text-gray-300";
@@ -168,7 +157,7 @@ const ProfilePage: React.FC = () => {
       <form onSubmit={handleSubmit} className="space-y-6 bg-gray-800 p-6 sm:p-8 rounded-xl shadow-xl border border-gray-700">
         <div className="flex flex-col items-center space-y-4">
           <img
-            src={profilePicPreview || `https://picsum.photos/seed/${authUser?.id || 'default'}/150/150`}
+            src={profilePicPreview || `https://picsum.photos/seed/${authUserHook?.uid || 'default'}/150/150`}
             alt="Profile"
             className="w-32 h-32 sm:w-40 sm:h-40 rounded-full object-cover border-4 border-gray-600 shadow-md"
           />
@@ -242,7 +231,6 @@ const ProfilePage: React.FC = () => {
         </div>
         
         <style>{`.dark-date-picker::-webkit-calendar-picker-indicator { filter: invert(0.8); }`}</style>
-
 
         {profileData.achievements && profileData.achievements.length > 0 && (
             <div className="mt-6">

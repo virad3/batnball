@@ -1,321 +1,265 @@
-
 import { Match, Tournament, UserProfile } from '../types';
-import { supabase } from './supabaseClient';
-import { AuthError, User }  from '@supabase/supabase-js';
+import { db, auth, storage } from './firebaseClient';
+import { 
+  collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, Timestamp, writeBatch 
+} from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { User, updateProfile as updateFirebaseUserProfile } from 'firebase/auth';
 
 // Helper to get current user ID
-const getUserId = async (): Promise<string | null> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  return user?.id || null;
+const getUserId = (): string | null => {
+  return auth.currentUser?.uid || null;
 };
 
-// Matches
+// --- Matches ---
 export const getAllMatches = async (): Promise<Match[]> => {
-  const userId = await getUserId();
-  if (!userId) return []; 
-
-  const { data, error } = await supabase
-    .from('matches')
-    .select('*')
-    .eq('user_id', userId)
-    .order('date', { ascending: false });
-  if (error) {
-    console.error('Error fetching matches:', error);
-    throw error;
-  }
-  return data || [];
-};
-
-export const getUpcomingMatches = async (limit: number = 3): Promise<Match[]> => {
-  const userId = await getUserId();
+  const userId = getUserId();
   if (!userId) return [];
 
-  const { data, error } = await supabase
-    .from('matches')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('status', 'Upcoming')
-    .order('date', { ascending: true })
-    .limit(limit);
-  if (error) {
-    console.error('Error fetching upcoming matches:', error);
-    throw error;
-  }
-  return data || [];
+  const matchesCol = collection(db, 'matches');
+  const q = query(matchesCol, where('user_id', '==', userId), orderBy('date', 'desc'));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Match));
+};
+
+export const getUpcomingMatches = async (count: number = 3): Promise<Match[]> => {
+  const userId = getUserId();
+  if (!userId) return [];
+
+  const matchesCol = collection(db, 'matches');
+  const q = query(
+    matchesCol,
+    where('user_id', '==', userId),
+    where('status', '==', 'Upcoming'),
+    orderBy('date', 'asc'),
+    limit(count)
+  );
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Match));
 };
 
 export const getMatchById = async (id: string): Promise<Match | null> => {
   if (id === 'newmatch') {
-    console.log('[dataService] getMatchById: "newmatch" ID encountered, returning null without DB query.');
-    return null; // "newmatch" is a client-side signal, not a valid DB ID.
+    console.log('[dataService] getMatchById: "newmatch" ID encountered, returning null.');
+    return null;
   }
-
-  // RLS will handle if the user has access to this specific match ID.
-  // No explicit userId check needed here for fetching a specific ID if RLS is properly configured.
-  const { data, error } = await supabase
-    .from('matches')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (error) {
-    console.error(`[dataService] Error fetching match by ID (${id}):`, error.message);
-    if (error.code === 'PGRST116') { // Standard "Not found"
-      console.log(`[dataService] Match with ID (${id}) not found in DB.`);
-      return null;
+  const matchDocRef = doc(db, 'matches', id);
+  const docSnap = await getDoc(matchDocRef);
+  if (docSnap.exists()) {
+    // Basic RLS check - ensure user owns this match
+    const matchData = { id: docSnap.id, ...docSnap.data() } as Match;
+    const currentUserId = getUserId();
+    if (matchData.user_id === currentUserId) {
+      return matchData;
+    } else {
+      console.warn(`[dataService] User ${currentUserId} attempted to access match ${id} owned by ${matchData.user_id}. Access denied.`);
+      return null; // Or throw error
     }
-    throw error; // Other unexpected errors
   }
-  console.log(`[dataService] Successfully fetched match with ID (${id}):`, data);
-  return data;
+  console.log(`[dataService] Match with ID (${id}) not found in Firestore.`);
+  return null;
 };
 
 export const createMatch = async (matchData: Partial<Match>): Promise<Match> => {
-  const userId = await getUserId();
+  const userId = getUserId();
   if (!userId) throw new Error("User must be logged in to create a match.");
 
   const matchToInsert = {
     ...matchData,
     user_id: userId,
+    date: matchData.date ? Timestamp.fromDate(new Date(matchData.date)) : Timestamp.now(),
     innings1Record: matchData.innings1Record || null,
     innings2Record: matchData.innings2Record || null,
   };
-
-  const { data, error } = await supabase
-    .from('matches')
-    .insert(matchToInsert)
-    .select()
-    .single();
-  
-  if (error) {
-    console.error('Error creating match:', error);
-    throw error;
-  }
-  if (!data) throw new Error("Match creation did not return data.");
-  return data;
+  const matchesCol = collection(db, 'matches');
+  const docRef = await addDoc(matchesCol, matchToInsert);
+  return { id: docRef.id, ...matchToInsert } as Match; // Return with ID
 };
 
 export const updateMatch = async (matchId: string, updates: Partial<Match>): Promise<Match> => {
-  const { data, error } = await supabase
-    .from('matches')
-    .update(updates)
-    .eq('id', matchId)
-    .select()
-    .single();
-  
-  if (error) {
-    console.error('Error updating match:', error);
-    throw error;
+  const matchDocRef = doc(db, 'matches', matchId);
+  // Convert date string back to Timestamp if present in updates
+  if (updates.date && typeof updates.date === 'string') {
+    updates.date = Timestamp.fromDate(new Date(updates.date)) as any; // Firestore expects Timestamp
   }
-  if (!data) throw new Error("Match update did not return data.");
-  return data;
+  await updateDoc(matchDocRef, updates);
+  const updatedDocSnap = await getDoc(matchDocRef);
+  if (!updatedDocSnap.exists()) throw new Error("Match not found after update.");
+  return { id: updatedDocSnap.id, ...updatedDocSnap.data() } as Match;
 };
 
-
-// Tournaments
+// --- Tournaments ---
 export const getAllTournaments = async (): Promise<Tournament[]> => {
-  const userId = await getUserId();
+  const userId = getUserId();
   if (!userId) return [];
 
-  const { data, error } = await supabase
-    .from('tournaments')
-    .select('*')
-    .eq('user_id', userId)
-    .order('startDate', { ascending: false });
-  if (error) {
-    console.error('Error fetching tournaments:', error);
-    throw error;
-  }
-  return data || [];
+  const tournamentsCol = collection(db, 'tournaments');
+  const q = query(tournamentsCol, where('user_id', '==', userId), orderBy('startDate', 'desc'));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Tournament));
 };
 
-export const getOngoingTournaments = async (limit: number = 2): Promise<Tournament[]> => {
-    const userId = await getUserId();
-    if (!userId) return [];
-    
-    const currentDate = new Date().toISOString();
-    const { data, error } = await supabase
-        .from('tournaments')
-        .select('*')
-        .eq('user_id', userId)
-        .lt('startDate', currentDate)
-        .gt('endDate', currentDate)
-        .order('startDate', { ascending: true })
-        .limit(limit);
+export const getOngoingTournaments = async (count: number = 2): Promise<Tournament[]> => {
+  const userId = getUserId();
+  if (!userId) return [];
 
-    if (error) {
-        console.error('Error fetching ongoing tournaments:', error);
-        throw error;
-    }
-    return data || [];
+  const tournamentsCol = collection(db, 'tournaments');
+  const currentDate = Timestamp.now();
+  const q = query(
+    tournamentsCol,
+    where('user_id', '==', userId),
+    where('startDate', '<=', currentDate), 
+    // Firestore doesn't support range filters on different fields. 
+    // This needs to be filtered client-side or by restructuring data (e.g. an 'isOngoing' flag updated by a function).
+    // For now, we'll fetch based on start date and filter end date client-side.
+    orderBy('startDate', 'asc') 
+    // limit(count) // Apply limit after client-side filtering
+  );
+  const querySnapshot = await getDocs(q);
+  const ongoing = querySnapshot.docs
+    .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Tournament))
+    .filter(t => t.endDate && Timestamp.fromDate(new Date(t.endDate)) >= currentDate)
+    .slice(0, count);
+  return ongoing;
 };
 
 export const getTournamentById = async (id: string): Promise<Tournament | null> => {
-  const { data, error } = await supabase
-    .from('tournaments')
-    .select('*')
-    .eq('id', id)
-    .single();
-  if (error) {
-    console.error('Error fetching tournament by ID:', error);
-    if (error.code === 'PGRST116') return null; // Not found
-    throw error;
+  const tournamentDocRef = doc(db, 'tournaments', id);
+  const docSnap = await getDoc(tournamentDocRef);
+  if (docSnap.exists()) {
+    const tournamentData = { id: docSnap.id, ...docSnap.data() } as Tournament;
+    const currentUserId = getUserId();
+     if (tournamentData.user_id === currentUserId) {
+      return tournamentData;
+    } else {
+      console.warn(`[dataService] User ${currentUserId} attempted to access tournament ${id} owned by ${tournamentData.user_id}. Access denied.`);
+      return null;
+    }
   }
-  return data;
+  return null;
 };
 
-export const createTournament = async (tournamentData: Omit<Tournament, 'id' | 'matches' | 'organizerName' | 'user_id'>): Promise<Tournament> => {
-  const userId = await getUserId();
+export const createTournament = async (tournamentData: Omit<Tournament, 'id' | 'matches' | 'user_id'>): Promise<Tournament> => {
+  const userId = getUserId();
   if (!userId) throw new Error("User must be logged in to create a tournament.");
 
-  const user = (await supabase.auth.getUser()).data.user;
-  const organizerName = user?.user_metadata?.username || user?.email || "Unknown Organizer";
+  const currentUser = auth.currentUser;
+  const organizerName = currentUser?.displayName || currentUser?.email || "Unknown Organizer";
 
   const tournamentToInsert = {
     ...tournamentData,
     user_id: userId,
     organizerName: organizerName,
+    startDate: tournamentData.startDate ? Timestamp.fromDate(new Date(tournamentData.startDate)) : Timestamp.now(),
+    endDate: tournamentData.endDate ? Timestamp.fromDate(new Date(tournamentData.endDate)) : Timestamp.now(),
   };
 
-  const { data, error } = await supabase
-    .from('tournaments')
-    .insert(tournamentToInsert)
-    .select()
-    .single();
-  if (error) {
-    console.error('Error creating tournament:', error);
-    throw error;
-  }
-  if (!data) throw new Error("Tournament creation did not return data.");
-  return data;
+  const tournamentsCol = collection(db, 'tournaments');
+  const docRef = await addDoc(tournamentsCol, tournamentToInsert);
+  return { id: docRef.id, ...tournamentToInsert } as Tournament;
 };
 
 // --- User Profile Functions ---
 
+// Fetches combined profile from Firebase Auth and Firestore "profiles" collection
 export const getFullUserProfile = async (userId: string): Promise<UserProfile | null> => {
-  const { data: { user: authUser } } = await supabase.auth.getUser(); 
-  if (!authUser || authUser.id !== userId) {
+  const currentUser = auth.currentUser;
+  if (!currentUser || currentUser.uid !== userId) {
     console.warn("Attempted to fetch profile for a different or non-authenticated user.");
     return null;
   }
 
-  let profileDataFromTable: Partial<UserProfile> = {};
-  const { data: dbProfile, error: dbError } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
+  const profileDocRef = doc(db, 'profiles', userId);
+  const profileDocSnap = await getDoc(profileDocRef);
 
-  if (dbError && dbError.code !== 'PGRST116') { 
-    console.error('Error fetching profile from DB:', dbError);
+  let dbProfileData: Partial<UserProfile> = {};
+  if (profileDocSnap.exists()) {
+    dbProfileData = profileDocSnap.data() as Partial<UserProfile>;
   }
-  if (dbProfile) {
-    profileDataFromTable = dbProfile;
-  }
-  
-  const combinedProfile: UserProfile = {
-    id: authUser.id,
-    email: authUser.email,
-    username: authUser.user_metadata?.username || profileDataFromTable?.username || authUser.email?.split('@')[0] || 'User',
-    profileType: authUser.user_metadata?.profile_type || profileDataFromTable?.profileType || 'Fan',
-    profilePicUrl: authUser.user_metadata?.profile_pic_url || profileDataFromTable?.profilePicUrl,
-    achievements: authUser.user_metadata?.achievements || [], 
 
-    location: profileDataFromTable?.location ?? null,
-    date_of_birth: profileDataFromTable?.date_of_birth ?? null,
-    mobile_number: profileDataFromTable?.mobile_number ?? null,
-    player_role: profileDataFromTable?.player_role ?? null,
-    batting_style: profileDataFromTable?.batting_style ?? null,
-    bowling_style: profileDataFromTable?.bowling_style ?? null,
+  return {
+    id: currentUser.uid,
+    email: currentUser.email || '',
+    username: currentUser.displayName || dbProfileData.username || currentUser.email?.split('@')[0] || 'User',
+    profileType: dbProfileData.profileType || 'Fan', // Default to Fan if not set
+    profilePicUrl: currentUser.photoURL || dbProfileData.profilePicUrl,
+    achievements: dbProfileData.achievements || [], // Assuming achievements are only in Firestore
+
+    location: dbProfileData.location ?? null,
+    date_of_birth: dbProfileData.date_of_birth ? (dbProfileData.date_of_birth as any instanceof Timestamp ? (dbProfileData.date_of_birth as any).toDate().toISOString().split('T')[0] : dbProfileData.date_of_birth) : null,
+    mobile_number: dbProfileData.mobile_number ?? null,
+    player_role: dbProfileData.player_role ?? null,
+    batting_style: dbProfileData.batting_style ?? null,
+    bowling_style: dbProfileData.bowling_style ?? null,
   };
-  return combinedProfile;
 };
 
 export const updateUserProfile = async (
   userId: string,
   profileUpdates: Partial<UserProfile>
 ): Promise<{ user: User | null, profile: UserProfile | null, error?: any }> => {
-  let authMetaDataUpdates: Record<string, any> = {};
-  let profilesTableSpecificUpdates: Omit<Partial<UserProfile>, 'id' | 'email' | 'achievements' | 'username' | 'profilePicUrl' | 'profileType'> = {};
-  let profilesTableSharedUpdates: Partial<Pick<UserProfile, 'username' | 'profilePicUrl' | 'profileType'>> = {};
-
-
-  if (profileUpdates.username !== undefined) {
-    authMetaDataUpdates.username = profileUpdates.username;
-    profilesTableSharedUpdates.username = profileUpdates.username;
-  }
-  if (profileUpdates.profilePicUrl !== undefined) { 
-    authMetaDataUpdates.profile_pic_url = profileUpdates.profilePicUrl;
-    profilesTableSharedUpdates.profilePicUrl = profileUpdates.profilePicUrl;
-  }
-  if (profileUpdates.profileType !== undefined) {
-    authMetaDataUpdates.profile_type = profileUpdates.profileType;
-    profilesTableSharedUpdates.profileType = profileUpdates.profileType;
+  const currentUser = auth.currentUser;
+  if (!currentUser || currentUser.uid !== userId) {
+    return { user: currentUser, profile: null, error: new Error("User mismatch or not authenticated.") };
   }
 
-  if (profileUpdates.location !== undefined) profilesTableSpecificUpdates.location = profileUpdates.location;
-  if (profileUpdates.date_of_birth !== undefined) profilesTableSpecificUpdates.date_of_birth = profileUpdates.date_of_birth;
-  if (profileUpdates.mobile_number !== undefined) profilesTableSpecificUpdates.mobile_number = profileUpdates.mobile_number;
-  if (profileUpdates.player_role !== undefined) profilesTableSpecificUpdates.player_role = profileUpdates.player_role;
-  if (profileUpdates.batting_style !== undefined) profilesTableSpecificUpdates.batting_style = profileUpdates.batting_style;
-  if (profileUpdates.bowling_style !== undefined) profilesTableSpecificUpdates.bowling_style = profileUpdates.bowling_style;
-  
-  let authUserToReturn: User | null = null;
-  const { data: { user: initialAuthUser } } = await supabase.auth.getUser();
-  authUserToReturn = initialAuthUser;
+  const authProfileUpdates: { displayName?: string, photoURL?: string } = {};
+  if (profileUpdates.username !== undefined) authProfileUpdates.displayName = profileUpdates.username;
+  if (profileUpdates.profilePicUrl !== undefined) authProfileUpdates.photoURL = profileUpdates.profilePicUrl;
 
-  if (Object.keys(authMetaDataUpdates).length > 0) {
-    const { data, error: authError } = await supabase.auth.updateUser({ data: authMetaDataUpdates });
-    if (authError) return { user: authUserToReturn, profile: null, error: authError };
-    authUserToReturn = data.user; 
+  try {
+    // Update Firebase Auth profile if there are changes
+    if (Object.keys(authProfileUpdates).length > 0) {
+      await updateFirebaseUserProfile(currentUser, authProfileUpdates);
+    }
+
+    // Prepare updates for Firestore "profiles" collection
+    // Exclude fields managed by Firebase Auth or not directly updatable here
+    const { id, email, achievements, ...firestoreProfileUpdates } = profileUpdates;
+    
+    if (firestoreProfileUpdates.date_of_birth && typeof firestoreProfileUpdates.date_of_birth === 'string') {
+        firestoreProfileUpdates.date_of_birth = Timestamp.fromDate(new Date(firestoreProfileUpdates.date_of_birth)) as any;
+    }
+
+
+    if (Object.keys(firestoreProfileUpdates).length > 0) {
+      const profileDocRef = doc(db, 'profiles', userId);
+      await setDoc(profileDocRef, firestoreProfileUpdates, { merge: true });
+    }
+    
+    // Refetch the potentially updated auth user (displayName, photoURL might have changed)
+    // and the full profile from Firestore.
+    await auth.currentUser?.reload(); // Ensure current user reflects auth changes
+    const updatedFullProfile = await getFullUserProfile(userId);
+    return { user: auth.currentUser, profile: updatedFullProfile, error: null };
+
+  } catch (e: any) {
+    console.error("Error updating profile in dataService:", e);
+    return { user: auth.currentUser, profile: null, error: e };
   }
-
-  const allProfilesTableUpdates = { ...profilesTableSpecificUpdates, ...profilesTableSharedUpdates };
-
-  if (Object.keys(allProfilesTableUpdates).length > 0) {
-    const { error: dbError } = await supabase
-      .from('profiles')
-      .upsert({ ...allProfilesTableUpdates, user_id: userId }, { onConflict: 'user_id' })
-      .select() 
-      .single();
-
-    if (dbError) return { user: authUserToReturn, profile: null, error: dbError };
-  }
-  
-  const updatedFullProfile = await getFullUserProfile(userId);
-  return { user: authUserToReturn, profile: updatedFullProfile, error: null };
 };
 
 export const uploadProfilePicture = async (userId: string, file: File): Promise<string | null> => {
   const fileExt = file.name.split('.').pop();
-  const fileName = `${userId}_${Date.now()}.${fileExt}`; 
+  const fileName = `${userId}_${Date.now()}.${fileExt}`;
   const filePath = `avatars/${fileName}`;
-  
-  const { error: uploadError } = await supabase.storage
-    .from('avatars')
-    .upload(filePath, file, {
-      cacheControl: '3600', 
-      upsert: true 
-    });
+  const storageRef = ref(storage, filePath);
 
-  if (uploadError) {
-    console.error('Error uploading profile picture:', uploadError);
-    throw uploadError;
+  try {
+    await uploadBytes(storageRef, file, { contentType: file.type });
+    const downloadUrl = await getDownloadURL(storageRef);
+    return downloadUrl;
+  } catch (error) {
+    console.error('Error uploading profile picture to Firebase Storage:', error);
+    throw error;
   }
-
-  const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
-  if (!data || !data.publicUrl) {
-    console.error('Could not get public URL for uploaded image.');
-    return null; 
-  }
-  return data.publicUrl;
 };
 
 export const getCurrentUserProfile = async (): Promise<UserProfile | null> => {
-  const userId = await getUserId();
+  const userId = getUserId();
   if (!userId) return null;
   return getFullUserProfile(userId);
 };
 
-export const mockTeamNamesForSelection: string[] = [];
-    
+// Remove Supabase-specific client export if it existed
+// export { supabase }; // This line would be removed if it was for Supabase client

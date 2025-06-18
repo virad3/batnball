@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { Match } from '../types';
-import { getAllMatches } from '../services/dataService'; // Use Supabase via dataService
+import { getAllMatches } from '../services/dataService'; // Now uses Firebase
 import MatchCard from '../components/MatchCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
@@ -17,11 +16,10 @@ const MatchesPage: React.FC = () => {
     const fetchMatches = async () => {
       setLoading(true);
       try {
-        const allMatchesFromDB = await getAllMatches(); // Fetches user-specific matches
+        const allMatchesFromDB = await getAllMatches(); // Fetches user-specific matches from Firebase
         setMatches(allMatchesFromDB);
       } catch (error) {
         console.error("Failed to fetch matches:", error);
-        // Handle error display to user if necessary
       } finally {
         setLoading(false);
       }
@@ -30,7 +28,6 @@ const MatchesPage: React.FC = () => {
   }, []);
 
   const handleCreateNewMatch = () => {
-    // Navigate to scoring page with a special ID that indicates a new match
     navigate('/matches/newmatch/score');
   };
 

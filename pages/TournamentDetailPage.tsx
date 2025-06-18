@@ -1,13 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom'; 
 import { Tournament, Match } from '../types'; 
-import { getTournamentById } from '../services/dataService'; // getMatchesByTournamentId might need rework
-// For now, matches associated with a tournament are not directly queryable in a simple way
-// if `matches` is not a field in the `tournaments` table or `tournament_id` in `matches` table.
-// We'll assume for now that tournament.matches might be populated if created that way, or we show none.
-// A proper implementation would query matches where tournament_id = current tournamentId.
-import { supabase } from '../services/supabaseClient'; // Direct Supabase for specific match query
+import { getTournamentById } from '../services/dataService'; // Now uses Firebase
+import { db } from '../services/firebaseClient'; // Direct Firestore client for specific query
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 
 import LoadingSpinner from '../components/LoadingSpinner';
 import MatchCard from '../components/MatchCard';
@@ -26,20 +22,19 @@ const TournamentDetailPage: React.FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const tournamentDetails = await getTournamentById(tournamentId);
+        const tournamentDetails = await getTournamentById(tournamentId); // Uses Firebase
         setTournament(tournamentDetails);
         if (tournamentDetails) {
-          // Fetch matches associated with this tournament_id
-          const { data: tournamentMatches, error: matchesError } = await supabase
-            .from('matches')
-            .select('*')
-            .eq('tournament_id', tournamentDetails.id);
-          
-          if (matchesError) {
-            console.error("Error fetching matches for tournament:", matchesError);
-          } else {
-            setMatches(tournamentMatches || []);
-          }
+          // Fetch matches associated with this tournament_id from Firestore
+          const matchesCol = collection(db, 'matches');
+          const q = query(
+            matchesCol, 
+            where('tournament_id', '==', tournamentDetails.id),
+            orderBy('date', 'asc') // Example ordering
+          );
+          const matchesSnapshot = await getDocs(q);
+          const tournamentMatches = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
+          setMatches(tournamentMatches);
         }
       } catch (error) {
         console.error("Failed to fetch tournament details:", error);
@@ -62,6 +57,17 @@ const TournamentDetailPage: React.FC = () => {
         {label}
     </Button>
   );
+  
+  const displayDate = (dateInput: any) => {
+    if (!dateInput) return 'N/A';
+    // Check if it's a Firebase Timestamp object
+    if (dateInput && typeof dateInput.toDate === 'function') {
+      return dateInput.toDate().toLocaleDateString();
+    }
+    // Assume it's an ISO string or a Date object already
+    return new Date(dateInput).toLocaleDateString();
+  };
+
 
   return (
     <div className="space-y-6">
@@ -76,7 +82,7 @@ const TournamentDetailPage: React.FC = () => {
                 <h1 className="text-3xl md:text-4xl font-bold text-gray-50">{tournament.name}</h1>
                 <p className="text-md text-gray-300 mt-1">Format: {tournament.format}</p>
                 <p className="text-md text-gray-300">
-                Dates: {new Date(tournament.startDate).toLocaleDateString()} - {new Date(tournament.endDate).toLocaleDateString()}
+                Dates: {displayDate(tournament.startDate)} - {displayDate(tournament.endDate)}
                 </p>
                 <p className="text-md text-gray-300">Teams: {tournament.teamNames?.length || 0}</p>
                  {tournament.organizerName && <p className="text-sm text-gray-400 mt-1">Organized by: {tournament.organizerName}</p>}
@@ -93,7 +99,10 @@ const TournamentDetailPage: React.FC = () => {
       {activeTab === 'fixtures' && (
         <section>
           <h2 className="text-2xl font-bold text-gray-100 mb-4">Fixtures & Results</h2>
-          {/* TODO: Add button to create a new match for this tournament */}
+          {/* TODO: Add button to create a new match FOR THIS TOURNAMENT */}
+          {/* <Link to={`/matches/newmatch/score?tournamentId=${tournament.id}`}>
+             <Button variant="secondary" size="sm" className="mb-4">Add Match to Tournament</Button>
+          </Link> */}
           {matches.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {matches.map(match => <MatchCard key={match.id} match={match} />)}
@@ -129,7 +138,6 @@ const TournamentDetailPage: React.FC = () => {
           <h2 className="text-2xl font-bold text-gray-100 mb-4">Points Table / Standings</h2>
           <div className="bg-gray-800 rounded-lg shadow p-4 border border-gray-700 min-h-[150px]">
             <p className="text-gray-300">Standings feature is simplified. Detailed points table based on match results will be available in a future update.</p>
-            {/* Logic for displaying standings would go here */}
             {(!tournament.teamNames || tournament.teamNames.length === 0) && <p className="text-gray-400 mt-4">No teams to display standings for.</p>}
           </div>
         </section>

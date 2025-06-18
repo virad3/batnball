@@ -1,25 +1,20 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Tournament, TournamentFormat } from '../types'; 
-import { createTournament } from '../services/dataService'; // Uses Supabase
+import { createTournament } from '../services/dataService'; // Now uses Firebase
 import Button from '../components/Button';
-// mockTeamNamesForSelection is removed from dataService, users add teams manually.
 
 const CreateTournamentPage: React.FC = () => {
   const navigate = useNavigate();
   const [tournamentName, setTournamentName] = useState('');
   const [format, setFormat] = useState<TournamentFormat>(TournamentFormat.LEAGUE);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState(''); // Store as YYYY-MM-DD string
+  const [endDate, setEndDate] = useState('');   // Store as YYYY-MM-DD string
   const [selectedTeamNames, setSelectedTeamNames] = useState<string[]>([]);
   const [customTeamName, setCustomTeamName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // No longer using mockTeamNamesForSelection from dataService.
-  // All teams are added manually.
 
   const handleAddCustomTeam = () => {
     if (customTeamName.trim() && !selectedTeamNames.includes(customTeamName.trim())) {
@@ -33,7 +28,6 @@ const CreateTournamentPage: React.FC = () => {
   const handleRemoveTeam = (teamNameToRemove: string) => {
     setSelectedTeamNames(prev => prev.filter(name => name !== teamNameToRemove));
   };
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,14 +46,14 @@ const CreateTournamentPage: React.FC = () => {
     const newTournamentData: Omit<Tournament, 'id' | 'matches' | 'organizerName' | 'user_id'> = {
       name: tournamentName,
       format,
-      startDate,
-      endDate,
+      startDate, // Pass as string, dataService will convert to Timestamp
+      endDate,   // Pass as string
       teamNames: selectedTeamNames,
-      logoUrl: logoUrl || undefined, // Send undefined if empty for Supabase
+      logoUrl: logoUrl || undefined,
     };
 
     try {
-      const createdTournament = await createTournament(newTournamentData); // dataService function now uses Supabase
+      const createdTournament = await createTournament(newTournamentData); // dataService function now uses Firebase
       setLoading(false);
       navigate(`/tournaments/${createdTournament.id}`);
     } catch (err: any) {

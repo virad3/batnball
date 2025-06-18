@@ -1,4 +1,6 @@
 
+import { Timestamp as FirebaseTimestamp } from 'firebase/firestore';
+
 export enum MatchFormat {
   T20 = "T20",
   ODI = "ODI",
@@ -69,7 +71,7 @@ export interface Match {
   user_id?: string; // UUID of the user who created the match
   teamAName: string;
   teamBName: string;
-  date: string; // ISO string
+  date: string | FirebaseTimestamp; // ISO string when in state/UI, Timestamp from Firestore
   venue: string;
   format: MatchFormat;
   status: "Upcoming" | "Live" | "Completed";
@@ -121,8 +123,8 @@ export interface Tournament {
   user_id?: string;
   name: string;
   format: TournamentFormat;
-  startDate: string;
-  endDate: string;
+  startDate: string | FirebaseTimestamp;
+  endDate: string | FirebaseTimestamp;
   teamNames: string[];
   matches?: Match[]; 
   organizerName?: string; 
@@ -154,7 +156,7 @@ export interface GeneratedCommentary {
 
 // Match context types
 export interface MatchState {
-  matchDetails: Match | null;
+  matchDetails: Match | null; // Note: matchDetails.date will be string after conversion in context
   // Live scoring specific state that might not be directly part of Match object until persisted
   currentStrikerName: string | null;
   currentNonStrikerName: string | null;
