@@ -1,7 +1,7 @@
 
 import React from 'react';
 
-export const APP_NAME = "Bat 'n' Ball";
+export const APP_NAME = "BAT 'n' BALL"; // Changed from "Bat 'n' Ball"
 
 export const COLORS = {
   accentRed: "#991b1b", // Updated to Tailwind red-800 for a maroon shade
