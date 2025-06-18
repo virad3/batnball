@@ -56,48 +56,60 @@ const ScoringPage: React.FC = () => {
 
 
   const initializePage = useCallback(async () => {
+    console.log('[ScoringPage] initializePage called. matchId:', matchId);
     setPageLoading(true);
-    if (!matchId) { navigate('/matches'); return; }
+    if (!matchId) { 
+      console.log('[ScoringPage] No matchId, navigating to /matches');
+      navigate('/matches'); 
+      return; 
+    }
 
     let loadedMatch = context.matchDetails && context.matchDetails.id === matchId ? context.matchDetails : await loadMatch(matchId);
+    console.log('[ScoringPage] loadedMatch after initial loadAttempt:', loadedMatch);
 
     if (matchId === "newmatch" && !loadedMatch) {
+      console.log('[ScoringPage] matchId is "newmatch" and no existing match loaded. Calling startNewMatch.');
       const tempMatchData: Partial<Match> = {
-        // id will be set by createMatch in context
         teamAName: "Team A", teamBName: "Team B", date: new Date().toISOString(),
         venue: "Local Ground", format: MatchFormat.T20, status: "Upcoming", overs_per_innings: 20,
         teamASquad: [], teamBSquad: [],
       };
       loadedMatch = await startNewMatch(tempMatchData);
-      if (loadedMatch) { // If startNewMatch now directly uses the created ID, no need to navigate
-          // navigate(`/matches/${loadedMatch.id}/score`, { replace: true }); // This might cause loop if not handled well
-          // For now, assume context handles the new match ID correctly
-      }
+      console.log('[ScoringPage] loadedMatch after startNewMatch call:', loadedMatch);
     }
 
     if (loadedMatch) {
+      console.log('[ScoringPage] Conditions Check: loadedMatch.id:', loadedMatch.id, 'status:', loadedMatch.status, 'tossWinnerName:', loadedMatch.tossWinnerName);
       if (loadedMatch.status === "Upcoming" && !loadedMatch.tossWinnerName) {
-        setTossWinnerNameState(loadedMatch.teamAName); // Default toss winner
+        console.log('[ScoringPage] CONDITION MET: Show Toss Modal.');
+        setTossWinnerNameState(loadedMatch.teamAName); 
         setShowTossModal(true);
       } else if (loadedMatch.status === "Live" && (!loadedMatch.teamASquad || loadedMatch.teamASquad.length < SQUAD_SIZE || !loadedMatch.teamBSquad || loadedMatch.teamBSquad.length < SQUAD_SIZE)) {
+        console.log('[ScoringPage] CONDITION MET: Show Squad Selection Modal.');
         setAvailableTeamAPlayers(loadedMatch.teamASquad || []);
         setSelectedTeamASquad(loadedMatch.teamASquad || []);
         setAvailableTeamBPlayers(loadedMatch.teamBSquad || []);
         setSelectedTeamBSquad(loadedMatch.teamBSquad || []);
         setShowSquadSelectionModal(true);
       } else if (loadedMatch.status === "Live" && (!currentStrikerName || !currentBowlerName)) {
-         // If live and roles not set (e.g. page reload)
+        console.log('[ScoringPage] CONDITION MET: Show Player Roles Modal.');
         setModalStriker(loadedMatch.current_striker_name || '');
         setModalNonStriker(loadedMatch.current_non_striker_name || '');
         setModalBowler(loadedMatch.current_bowler_name || '');
         setShowPlayerRolesModal(true);
+      } else {
+        console.log('[ScoringPage] No initial modal condition met for loadedMatch.');
       }
     } else if (matchId !== "newmatch") {
-      navigate('/matches'); // Match not found, redirect
+      console.log('[ScoringPage] Match not loaded and matchId is not "newmatch", navigating to /matches.');
+      navigate('/matches'); 
+    } else {
+      console.log('[ScoringPage] Critical: matchId is "newmatch" but loadedMatch is still null/undefined after trying to create it.');
     }
     setPageLoading(false);
+    console.log('[ScoringPage] initializePage finished.');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, navigate, loadMatch, startNewMatch]); // context.matchDetails removed to avoid loops
+  }, [matchId, navigate, loadMatch, startNewMatch]); // context.matchDetails removed, currentStrikerName, currentBowlerName also potentially cause re-runs but are needed for logic
 
   useEffect(() => {
     initializePage();
@@ -106,10 +118,10 @@ const ScoringPage: React.FC = () => {
 
   const handleTossSubmit = async () => {
     if (!matchDetails || !tossWinnerNameState || !electedToState) return;
+    console.log('[ScoringPage] handleTossSubmit called.');
     try {
       await updateTossAndStartInnings(tossWinnerNameState, electedToState);
       setShowTossModal(false);
-      // After toss, if squads are not set, show squad selection
       if (!matchDetails.teamASquad || matchDetails.teamASquad.length < SQUAD_SIZE || !matchDetails.teamBSquad || matchDetails.teamBSquad.length < SQUAD_SIZE) {
         setAvailableTeamAPlayers(matchDetails.teamASquad || []);
         setSelectedTeamASquad(matchDetails.teamASquad || []);
@@ -117,7 +129,6 @@ const ScoringPage: React.FC = () => {
         setSelectedTeamBSquad(matchDetails.teamBSquad || []);
         setShowSquadSelectionModal(true);
       } else {
-         // If squads are set, proceed to player roles selection
         setModalStriker(matchDetails.current_striker_name || '');
         setModalNonStriker(matchDetails.current_non_striker_name || '');
         setModalBowler(matchDetails.current_bowler_name || '');
@@ -156,6 +167,7 @@ const ScoringPage: React.FC = () => {
 
   const handleConfirmSquads = async () => {
     if (!matchDetails) return;
+    console.log('[ScoringPage] handleConfirmSquads called.');
     if (selectedTeamASquad.length !== SQUAD_SIZE || selectedTeamBSquad.length !== SQUAD_SIZE) {
         alert(`Please select ${SQUAD_SIZE} players for each team.`);
         return;
@@ -166,15 +178,14 @@ const ScoringPage: React.FC = () => {
         teamBSquad: selectedTeamBSquad,
     };
     try {
-        // contextSetMatchDetails(updatedMatchWithSquads); // Optimistic update
+        context.setMatchDetails(updatedMatchWithSquads); // Optimistic update to current context
         await saveMatchState(); // Save with current context state which should include squads
-        context.setMatchDetails(updatedMatchWithSquads); // update context after save
+        // context.setMatchDetails(updatedMatchWithSquads); // Re-set with potentially updated data from DB? Usually saveMatchState handles this.
         setShowSquadSelectionModal(false);
-        // Reset modal player roles for fresh selection after squad confirmation
         setModalStriker('');
         setModalNonStriker('');
         setModalBowler('');
-        setShowPlayerRolesModal(true); // Proceed to select opening players
+        setShowPlayerRolesModal(true); 
     } catch (error) {
         console.error("Error saving squads:", error);
         alert("Failed to save squads. Please try again.");
@@ -186,8 +197,8 @@ const ScoringPage: React.FC = () => {
         alert("Please select striker, non-striker, and bowler.");
         return;
     }
+    console.log('[ScoringPage] handlePlayerRolesSubmit called.');
     setPlayerRoles(modalStriker, modalNonStriker, modalBowler);
-    // Persist these roles to the match object
     if (matchDetails) {
         const updatedMatchData = {
             ...matchDetails,
@@ -195,24 +206,23 @@ const ScoringPage: React.FC = () => {
             current_non_striker_name: modalNonStriker,
             current_bowler_name: modalBowler,
         };
-        // context.setMatchDetails(updatedMatchData); // Optimistic
-        await saveMatchState(); // This will save the context's state which now has roles
-        context.setMatchDetails(updatedMatchData);
+        context.setMatchDetails(updatedMatchData); // Optimistic
+        await saveMatchState(); 
     }
     setShowPlayerRolesModal(false);
   };
 
   const handleWicketSubmit = async () => {
-    if (!currentStrikerName || !currentBowlerName) return; // Should not happen if wicket modal is up
-
+    if (!currentStrikerName || !currentBowlerName) return; 
+    console.log('[ScoringPage] handleWicketSubmit called.');
     const ballEvent: BallEvent = {
-        runs: 0, // Wicket ball typically is 0 unless runs are also scored (e.g. run out)
+        runs: 0, 
         isWicket: true,
         wicketType: wicketDetails.dismissalType,
-        batsmanOutName: wicketDetails.batsmanOut, // Current striker or non-striker
-        bowlerName: wicketDetails.bowler || currentBowlerName, // bowler involved, could be different from current bowler for run out
+        batsmanOutName: wicketDetails.batsmanOut, 
+        bowlerName: wicketDetails.bowler || currentBowlerName, 
         fielderName: wicketDetails.fielder,
-        strikerName: currentStrikerName, // Assume striker faced, adjust if non-striker run out
+        strikerName: currentStrikerName, 
     };
     await addBall(ballEvent);
     setShowWicketModal(false);
@@ -232,6 +242,7 @@ const ScoringPage: React.FC = () => {
         setShowPlayerRolesModal(true);
         return;
     }
+    console.log(`[ScoringPage] handleSimpleBallEvent: runs=${runs}, isWicket=${isWicket}, extraType=${extraType}, extraRuns=${extraRuns}`);
     if(isWicket) {
         setWicketDetails({ 
             batsmanOut: currentStrikerName, 

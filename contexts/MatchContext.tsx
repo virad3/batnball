@@ -20,12 +20,12 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [state, setState] = useState<MatchState>(initialMatchState);
 
   const setMatchDetails = useCallback((match: Match | null) => {
+    console.log('[MatchContext] setMatchDetails called with:', match);
     setState(prevState => ({
         ...prevState,
         matchDetails: match,
-        currentInningsNumber: match?.innings2Record ? 2 : 1, // Basic logic, needs refinement
+        currentInningsNumber: match?.innings2Record ? 2 : 1, 
         target: match?.innings1Record ? match.innings1Record.totalRuns + 1 : null,
-        // Reset player roles if match is reset or changed significantly
         currentStrikerName: match ? prevState.currentStrikerName : null, 
         currentNonStrikerName: match ? prevState.currentNonStrikerName : null,
         currentBowlerName: match ? prevState.currentBowlerName : null,
@@ -49,7 +49,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       totalOversBowled: 0,
       totalBallsBowled: 0,
       battingPerformances: squad.map((playerName, index) => ({
-        playerId: playerName, // Assuming playerName is unique ID for now
+        playerId: playerName, 
         playerName: playerName,
         runs: 0,
         ballsFaced: 0,
@@ -72,11 +72,12 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
   
   const loadMatch = useCallback(async (matchId: string): Promise<Match | null> => {
+    console.log('[MatchContext] loadMatch called for matchId:', matchId);
     try {
         const fetchedMatch = await getMatchById(matchId);
+        console.log('[MatchContext] fetchedMatch from dataService:', fetchedMatch);
         if (fetchedMatch) {
             setMatchDetails(fetchedMatch);
-             // Restore player roles if available in match data
             setState(prevState => ({
                 ...prevState,
                 currentStrikerName: fetchedMatch.current_striker_name || null,
@@ -97,6 +98,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, [setMatchDetails]);
 
   const startNewMatch = useCallback(async (partialMatchData: Partial<Match>): Promise<Match | null> => {
+    console.log('[MatchContext] startNewMatch called with partialMatchData:', partialMatchData);
     try {
         const newMatchData: Partial<Match> = {
             status: "Upcoming",
@@ -105,16 +107,22 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             ...partialMatchData,
         };
         const created = await createMatch(newMatchData);
-        setMatchDetails(created);
+        console.log('[MatchContext] Match CREATED by dataService in startNewMatch:', created);
+        if (created) {
+          setMatchDetails(created);
+        } else {
+          console.error('[MatchContext] createMatch returned null or undefined. Cannot set details.');
+        }
         return created;
     } catch (error) {
-        console.error("Error starting new match in context:", error);
+        console.error("[MatchContext] Error starting new match in context:", error);
         return null;
     }
   }, [setMatchDetails]);
 
   const updateTossAndStartInnings = useCallback(async (tossWinner: string, elected: "Bat" | "Bowl") => {
     if (!state.matchDetails) throw new Error("Match details not available");
+    console.log('[MatchContext] updateTossAndStartInnings. Toss Winner:', tossWinner, 'Elected:', elected);
 
     const match = state.matchDetails;
     const battingFirstTeam = elected === "Bat" ? tossWinner : (tossWinner === match.teamAName ? match.teamBName : match.teamAName);
@@ -140,7 +148,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         setState(prevState => ({
             ...prevState,
             currentInningsNumber: 1,
-            target: null, // Reset target for new first innings
+            target: null, 
         }));
     } catch (error) {
         console.error("Error updating toss and starting innings:", error);
@@ -154,6 +162,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         console.warn("Cannot add ball: Match details, striker, or bowler missing.");
         return;
     }
+    console.log('[MatchContext] addBall event:', event);
 
     let match = { ...state.matchDetails };
     let currentInningsRec = state.currentInningsNumber === 1 ? match.innings1Record : match.innings2Record;
@@ -163,57 +172,49 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         return;
     }
     
-    // Clone for modification
     currentInningsRec = JSON.parse(JSON.stringify(currentInningsRec));
-
     currentInningsRec.timeline = [...(currentInningsRec.timeline || []), event];
 
-    // Update bowler stats
     const bowlerStats = currentInningsRec.bowlingPerformances.find(p => p.playerName === state.currentBowlerName);
     if (bowlerStats) {
-        if (event.extraType !== "Wide" && event.extraType !== "NoBall") { // Legal delivery
+        if (event.extraType !== "Wide" && event.extraType !== "NoBall") { 
             bowlerStats.ballsBowled += 1;
-            // Overs conversion: 5 balls -> 0.5 overs, 6 balls -> 1.0 over
             const oversWhole = Math.floor(bowlerStats.ballsBowled / 6);
             const ballsRemainder = bowlerStats.ballsBowled % 6;
             bowlerStats.oversBowled = parseFloat(`${oversWhole}.${ballsRemainder}`);
         }
         bowlerStats.runsConceded += event.runs + (event.extraRuns || 0);
-        if (event.isWicket && event.bowlerName === state.currentBowlerName && event.wicketType !== DismissalType.RUN_OUT) { // Wicket attributed to bowler
+        if (event.isWicket && event.bowlerName === state.currentBowlerName && event.wicketType !== DismissalType.RUN_OUT) { 
             bowlerStats.wickets += 1;
         }
-        // Maiden over logic would require tracking runs in current over - complex for this step
     }
 
-    // Update batsman stats (striker)
     const strikerStats = currentInningsRec.battingPerformances.find(p => p.playerName === state.currentStrikerName);
     if (strikerStats) {
-        if (event.extraType !== "Wide") { // Batsman scores on NoBall, but doesn't count as ball faced for extras like Byes/LegByes
+        if (event.extraType !== "Wide") { 
              if (event.extraType !== "Byes" && event.extraType !== "LegByes") {
                 strikerStats.runs += event.runs;
                 if (event.runs === 4) strikerStats.fours += 1;
                 if (event.runs === 6) strikerStats.sixes += 1;
              }
         }
-        if (event.extraType !== "Wide" && event.extraType !== "NoBall") { // Ball faced unless it's a wide or no-ball that isn't hit
+        if (event.extraType !== "Wide" && event.extraType !== "NoBall") { 
             strikerStats.ballsFaced += 1;
         }
 
         if (event.isWicket && event.batsmanOutName === state.currentStrikerName) {
             strikerStats.status = event.wicketType || DismissalType.OTHER;
-            strikerStats.bowlerName = event.bowlerName; // if wicket involves bowler
-            strikerStats.fielderName = event.fielderName; // if wicket involves fielder
+            strikerStats.bowlerName = event.bowlerName; 
+            strikerStats.fielderName = event.fielderName; 
             currentInningsRec.totalWickets += 1;
         }
     }
     
-    // Update total score if not byes or legbyes (those are team extras)
     if (event.extraType !== "Byes" && event.extraType !== "LegByes") {
         currentInningsRec.totalRuns += event.runs;
     }
-    currentInningsRec.totalRuns += (event.extraRuns || 0); // Add all extra runs to team total
+    currentInningsRec.totalRuns += (event.extraRuns || 0); 
     
-    // Update total balls bowled for the innings (if not wide or no-ball that isn't a dismissal/run out)
     if (event.extraType !== "Wide" && event.extraType !== "NoBall") {
        currentInningsRec.totalBallsBowled +=1;
     }
@@ -228,34 +229,33 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         match.innings2Record = currentInningsRec;
     }
     
-    // Update striker if runs are odd or end of over rotation (simplified: for now, manual striker update via UI call to setPlayerRoles)
-
     setState(prevState => ({ ...prevState, matchDetails: match }));
-    await saveMatchState(match); // Auto-save on ball event
+    await saveMatchState(match); 
 
   }, [state]);
 
   const switchInnings = useCallback(async () => {
     if (!state.matchDetails || !state.matchDetails.innings1Record || state.currentInningsNumber !== 1) return;
+    console.log('[MatchContext] switchInnings called.');
     
     const match = { ...state.matchDetails };
     const newTarget = match.innings1Record.totalRuns + 1;
 
     const battingSecondTeam = match.current_batting_team === match.teamAName ? match.teamBName : match.teamAName;
-    const bowlingSecondTeam = match.current_batting_team!; // Should be the team that just batted
+    const bowlingSecondTeam = match.current_batting_team!; 
 
     const battingSquad = battingSecondTeam === match.teamAName ? match.teamASquad : match.teamBSquad;
     const bowlingSquad = bowlingSecondTeam === match.teamAName ? match.teamASquad : match.teamBSquad;
 
     match.innings2Record = initializeInningsRecord(battingSecondTeam, battingSquad, bowlingSquad);
-    match.current_batting_team = battingSecondTeam; // Update current batting team
+    match.current_batting_team = battingSecondTeam; 
 
     setState(prevState => ({
         ...prevState,
         matchDetails: match,
         currentInningsNumber: 2,
         target: newTarget,
-        currentStrikerName: null, // Reset for UI selection
+        currentStrikerName: null, 
         currentNonStrikerName: null,
         currentBowlerName: null,
     }));
@@ -265,8 +265,8 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const saveMatchState = useCallback(async (matchToSave?: Match | null) => {
     const matchDataToSave = matchToSave || state.matchDetails;
     if (!matchDataToSave) return;
+    console.log('[MatchContext] saveMatchState called for match ID:', matchDataToSave.id);
 
-    // Persist current player roles to the match object before saving
     const finalMatchData = {
         ...matchDataToSave,
         current_striker_name: state.currentStrikerName,
@@ -276,8 +276,6 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     try {
         const saved = await updateMatch(finalMatchData.id, finalMatchData);
-        // Update context with potentially modified data from Supabase (e.g. updated_at)
-        // Only update if it's the current match being operated on
         if (state.matchDetails && saved.id === state.matchDetails.id) {
            setState(prevState => ({...prevState, matchDetails: saved}));
         }
@@ -289,6 +287,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const endMatch = useCallback(async (resultSummary: string) => {
     if (!state.matchDetails) return;
+    console.log('[MatchContext] endMatch called. Result:', resultSummary);
     const match = { ...state.matchDetails, status: "Completed", result_summary: resultSummary } as Match;
     setState(prevState => ({ ...prevState, matchDetails: match }));
     await saveMatchState(match);
