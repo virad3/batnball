@@ -118,6 +118,9 @@ const ScoringPage: React.FC = () => {
         setShowSquadSelectionModal(true);
       } else {
          // If squads are set, proceed to player roles selection
+        setModalStriker(matchDetails.current_striker_name || '');
+        setModalNonStriker(matchDetails.current_non_striker_name || '');
+        setModalBowler(matchDetails.current_bowler_name || '');
         setShowPlayerRolesModal(true);
       }
     } catch (error) {
@@ -167,6 +170,10 @@ const ScoringPage: React.FC = () => {
         await saveMatchState(); // Save with current context state which should include squads
         context.setMatchDetails(updatedMatchWithSquads); // update context after save
         setShowSquadSelectionModal(false);
+        // Reset modal player roles for fresh selection after squad confirmation
+        setModalStriker('');
+        setModalNonStriker('');
+        setModalBowler('');
         setShowPlayerRolesModal(true); // Proceed to select opening players
     } catch (error) {
         console.error("Error saving squads:", error);
@@ -209,15 +216,13 @@ const ScoringPage: React.FC = () => {
     };
     await addBall(ballEvent);
     setShowWicketModal(false);
-    // After wicket, potentially show player roles modal to select new batsman
-    // This needs logic to determine who is out and if innings ended
+    
     const currentInningsData = currentInningsNumber === 1 ? matchDetails?.innings1Record : matchDetails?.innings2Record;
-    if (currentInningsData && currentInningsData.totalWickets < SQUAD_SIZE -1) { // -1 because 10 wickets means 11th batsman can't bat
-        // Reset modal states for new batsman selection. Pre-fill bowler.
-        setModalStriker(''); // Let user pick new striker
-        setModalNonStriker(wicketDetails.batsmanOut === currentStrikerName ? currentNonStrikerName! : currentStrikerName!); // Other batsman remains
+    if (currentInningsData && currentInningsData.totalWickets < SQUAD_SIZE -1) { 
+        setModalStriker(''); 
+        setModalNonStriker(wicketDetails.batsmanOut === currentStrikerName ? currentNonStrikerName! : currentStrikerName!); 
         setModalBowler(currentBowlerName!);
-        setShowPlayerRolesModal(true); // To select new batsman
+        setShowPlayerRolesModal(true); 
     }
   };
   
@@ -228,10 +233,9 @@ const ScoringPage: React.FC = () => {
         return;
     }
     if(isWicket) {
-        // Show wicket modal
         setWicketDetails({ 
-            batsmanOut: currentStrikerName, // Default to striker, can be changed in modal
-            dismissalType: DismissalType.BOWLED, // Default, change in modal
+            batsmanOut: currentStrikerName, 
+            dismissalType: DismissalType.BOWLED, 
             bowler: currentBowlerName,
             fielder: ''
         });
@@ -260,7 +264,6 @@ const ScoringPage: React.FC = () => {
   } : null;
 
 
-  // Render functions for modals (Squad, PlayerRoles, Wicket) - similar structure to previous version
   const renderSquadSelectionSection = (
     teamType: 'A' | 'B',
     availablePlayers: string[],
@@ -317,7 +320,14 @@ const ScoringPage: React.FC = () => {
       <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
         <div className="relative bg-gray-800 p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
           <button onClick={() => {setShowTossModal(false); if(matchId==="newmatch") navigate('/matches')}} aria-label="Close toss modal" className="absolute top-3 right-3 text-gray-400 hover:text-gray-200 p-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
-          <h2 className="text-2xl font-bold text-gray-50 mb-6 text-center">Match Toss</h2>
+          <h2 className="text-2xl font-bold text-gray-50 mb-6 text-center">
+            {matchId === "newmatch" ? "Setup New Match & Toss" : "Match Toss"}
+          </h2>
+          {matchId === "newmatch" && (
+            <p className="text-sm text-gray-400 text-center -mt-4 mb-6">
+              Name your teams and decide who bats first.
+            </p>
+          )}
           {matchId === "newmatch" && (
             <div className="mb-4 space-y-3">
                  <div>
@@ -384,7 +394,6 @@ const ScoringPage: React.FC = () => {
     const currentBattingTeamSquad = matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamASquad : matchDetails.teamBSquad;
     const currentBowlingTeamSquad = matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamBSquad : matchDetails.teamASquad;
 
-    // Filter out batsmen who are already out (simplified: assumes PlayerBattingStats exists and status is NOT_OUT)
     const activeInningsRecord = currentInningsNumber === 1 ? matchDetails.innings1Record : matchDetails.innings2Record;
     const availableBatsmen = currentBattingTeamSquad?.filter(pName => {
         const pStat = activeInningsRecord?.battingPerformances.find(bp => bp.playerName === pName);
@@ -449,8 +458,7 @@ const ScoringPage: React.FC = () => {
                             {Object.values(DismissalType).filter(dt => dt !== DismissalType.NOT_OUT).map(type => <option key={type} value={type}>{type}</option>)}
                         </select>
                     </div>
-                     {/* Conditional fields for bowler/fielder based on dismissal type */}
-                    {(wicketDetails.dismissalType === DismissalType.CAUGHT || wicketDetails.dismissalType === DismissalType.STUMPED || wicketDetails.dismissalType === DismissalType.RUN_OUT) && (
+                     {(wicketDetails.dismissalType === DismissalType.CAUGHT || wicketDetails.dismissalType === DismissalType.STUMPED || wicketDetails.dismissalType === DismissalType.RUN_OUT) && (
                         <div>
                             <label className="text-sm text-gray-300">Fielder:</label>
                             <select value={wicketDetails.fielder} onChange={e => setWicketDetails(s => ({...s, fielder: e.target.value}))}  className="w-full mt-1 p-2 bg-gray-700 rounded">
@@ -459,7 +467,6 @@ const ScoringPage: React.FC = () => {
                             </select>
                         </div>
                     )}
-                    {/* Assume bowler is current bowler unless run out etc. Could add explicit selection if needed. */}
                 </div>
                 <div className="mt-6 flex justify-end space-x-2">
                     <Button variant="outline" onClick={() => setShowWicketModal(false)}>Cancel</Button>
@@ -522,8 +529,8 @@ const ScoringPage: React.FC = () => {
         <div className="flex space-x-2">
             {(["Wide", "NoBall", "Byes", "LegByes"] as BallEvent['extraType'][]).map(type => 
                 <ExtraButton key={type} type={type} onClick={() => {
-                    const extraRunsValue = type === "Wide" || type === "NoBall" ? 1 : promptForExtraRuns(type); // Prompt for byes/legbyes
-                    if (extraRunsValue === null) return; // User cancelled prompt
+                    const extraRunsValue = type === "Wide" || type === "NoBall" ? 1 : promptForExtraRuns(type); 
+                    if (extraRunsValue === null) return; 
                     handleSimpleBallEvent(0, false, type, extraRunsValue); 
                 }} />
             )}
@@ -535,7 +542,6 @@ const ScoringPage: React.FC = () => {
           {currentInningsNumber === 1 && currentMatchInningsData && (currentMatchInningsData.totalWickets >= SQUAD_SIZE -1 || (matchDetails.overs_per_innings && currentMatchInningsData.totalOversBowled >= matchDetails.overs_per_innings)) && (
             <Button onClick={switchInnings} variant="primary" className="w-full mb-3">End Innings & Start 2nd Innings</Button>
           )}
-          {/* Add End Match Button condition */}
           <Button onClick={async () => { await saveMatchState(); navigate('/matches');}} variant="outline" className="w-full">Save & Exit to Matches</Button>
       </div>
 
@@ -554,10 +560,10 @@ const ScoringPage: React.FC = () => {
     </div>
   );
 };
-// Helper function to prompt for Bye/LegBye runs
+
 const promptForExtraRuns = (type: string): number | null => {
     const runsStr = prompt(`Enter ${type} runs (0-6):`);
-    if (runsStr === null) return null; // User cancelled
+    if (runsStr === null) return null; 
     const runs = parseInt(runsStr, 10);
     if (isNaN(runs) || runs < 0 || runs > 6) {
         alert("Invalid number of runs. Please enter a value between 0 and 6.");
@@ -567,4 +573,3 @@ const promptForExtraRuns = (type: string): number | null => {
 };
 
 export default ScoringPage;
-
