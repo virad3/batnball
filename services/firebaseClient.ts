@@ -1,5 +1,5 @@
 
-import firebase from 'firebase/app'; // Changed to default import
+import { firebase } from 'firebase/app'; // Changed to default import
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
