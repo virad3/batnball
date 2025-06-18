@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
@@ -7,7 +8,7 @@ import { UserProfile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
 const GoogleIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
+  <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
     <path d="M17.6402 9.20455C17.6402 8.56818 17.5818 7.95455 17.4773 7.36364H9V10.8409H13.8409C13.6364 11.9091 13.0045 12.8182 12.0818 13.4545V15.6136H14.8091C16.5364 14.0455 17.6402 11.8636 17.6402 9.20455Z" fill="#4285F4"/>
     <path d="M9 18C11.4318 18 13.4864 17.1818 14.8091 15.6136L12.0818 13.4545C11.2364 14.0227 10.2182 14.3636 9 14.3636C6.81818 14.3636 4.96818 12.9545 4.30909 10.9773H1.47727V13.2273C2.78636 15.9318 5.65455 18 9 18Z" fill="#34A853"/>
     <path d="M4.30909 10.9773C4.12273 10.4545 4.00909 9.88636 4.00909 9.29545C4.00909 8.70455 4.12273 8.13636 4.30909 7.61364V5.36364H1.47727C0.522727 7.22727 0.522727 11.3636 1.47727 13.2273L4.30909 10.9773Z" fill="#FBBC05"/>
@@ -27,18 +28,23 @@ const SignUpPage: React.FC = () => {
   const [signupSuccess, setSignupSuccess] = useState(false);
 
   useEffect(() => {
+    // If user exists AND there's no auth error, it means login/signup was successful.
     if (user && !authErrorHook) {
-      // User is signed in (either via email/pass or Google), navigate them
-      // navigate('/home'); // Or to a "please verify email page"
-      // Setting signupSuccess to true to show appropriate message
-      setSignupSuccess(true); 
+        setSignupSuccess(true); 
+        // Delay navigation to allow user to see success message
+        const timer = setTimeout(() => {
+            navigate('/home');
+        }, 2000); // 2 seconds delay
+        return () => clearTimeout(timer);
     }
-  }, [user, navigate, authErrorHook]);
+  }, [user, authErrorHook, navigate]);
   
   useEffect(() => {
     if (authErrorHook) {
       setLocalError(authErrorHook.message || "Sign up failed. Please try again.");
-      setSignupSuccess(false);
+      setSignupSuccess(false); // Ensure success message is hidden if an error occurs
+    } else {
+      setLocalError(null); // Clear previous errors if authErrorHook becomes null
     }
   }, [authErrorHook]);
 
@@ -49,6 +55,10 @@ const SignUpPage: React.FC = () => {
 
     if (!username.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
       setLocalError("Please fill in all fields.");
+      return;
+    }
+    if (password.length < 6) {
+      setLocalError("Password must be at least 6 characters long.");
       return;
     }
     if (password !== confirmPassword) {
@@ -70,15 +80,14 @@ const SignUpPage: React.FC = () => {
         }
       }
     });
-
-    // Success and error handling is now mostly driven by useEffect hooks watching `user` and `authErrorHook`
+    // Success/error handling is driven by useEffect hooks watching `user` and `authErrorHook`
   };
 
   const handleGoogleSignUp = async () => {
     setLocalError(null);
     setSignupSuccess(false);
     await signInWithGoogle();
-     // Success and error handling is now mostly driven by useEffect hooks watching `user` and `authErrorHook`
+    // Success/error handling is driven by useEffect hooks watching `user` and `authErrorHook`
   };
   
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
@@ -96,30 +105,29 @@ const SignUpPage: React.FC = () => {
           </h2>
         </div>
         {localError && (
-          <div className="bg-red-800 bg-opacity-40 border border-red-700 text-red-300 px-4 py-3 rounded-md text-sm">
+          <div role="alert" className="bg-red-800 bg-opacity-40 border border-red-700 text-red-300 px-4 py-3 rounded-md text-sm">
             {localError}
           </div>
         )}
-        {signupSuccess && !authErrorHook && (
-            <div className="bg-green-800 bg-opacity-50 border border-green-700 text-green-300 px-4 py-3 rounded-md text-sm">
-                Sign up successful! Welcome to {APP_NAME}. You can now{' '}
-                <Link to="/login" className="font-semibold hover:underline">login</Link>.
-                {/* Firebase typically auto-logs in user post-signup unless email verification is strictly enforced before login */}
+        {signupSuccess && !authErrorHook && ( // Show success only if no auth error
+            <div role="alert" className="bg-green-800 bg-opacity-50 border border-green-700 text-green-300 px-4 py-3 rounded-md text-sm">
+                Sign up successful! Welcome to {APP_NAME}. Redirecting you...
             </div>
         )}
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit} aria-labelledby="signup-heading">
+          <h3 id="signup-heading" className="sr-only">Sign Up Form</h3>
           <div>
             <label htmlFor="username" className={labelClass}>
               Username <span className="text-red-400">*</span>
             </label>
-            <input id="username" name="username" type="text" required value={username} onChange={(e) => setUsername(e.target.value)} className={`${inputClass} mt-1`} placeholder="YourUsername" />
+            <input id="username" name="username" type="text" required aria-required="true" value={username} onChange={(e) => setUsername(e.target.value)} className={`${inputClass} mt-1`} placeholder="YourUsername" />
           </div>
 
           <div>
             <label htmlFor="email" className={labelClass}>
               Email address <span className="text-red-400">*</span>
             </label>
-            <input id="email" name="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={`${inputClass} mt-1`} placeholder="you@example.com" />
+            <input id="email" name="email" type="email" autoComplete="email" required aria-required="true" value={email} onChange={(e) => setEmail(e.target.value)} className={`${inputClass} mt-1`} placeholder="you@example.com" />
           </div>
           
           <div>
@@ -129,7 +137,8 @@ const SignUpPage: React.FC = () => {
                 name="profileType" 
                 value={profileType} 
                 onChange={(e) => setProfileType(e.target.value as UserProfile['profileType'])} 
-                required 
+                required
+                aria-required="true" 
                 className={`${inputClass} mt-1 text-gray-100`}
             >
                 <option value="Fan" className="bg-gray-700">Fan</option>
@@ -143,14 +152,14 @@ const SignUpPage: React.FC = () => {
             <label htmlFor="password" className={labelClass}>
               Password <span className="text-red-400">*</span> (min. 6 characters)
             </label>
-            <input id="password" name="password" type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} className={`${inputClass} mt-1`} placeholder="••••••••" />
+            <input id="password" name="password" type="password" autoComplete="new-password" required aria-required="true" value={password} onChange={(e) => setPassword(e.target.value)} className={`${inputClass} mt-1`} placeholder="••••••••" />
           </div>
 
           <div>
             <label htmlFor="confirmPassword" className={labelClass}>
               Confirm Password <span className="text-red-400">*</span>
             </label>
-            <input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={`${inputClass} mt-1`} placeholder="••••••••" />
+            <input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" required aria-required="true" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={`${inputClass} mt-1`} placeholder="••••••••" />
           </div>
 
           <div>
@@ -173,10 +182,11 @@ const SignUpPage: React.FC = () => {
           <Button
             type="button"
             onClick={handleGoogleSignUp}
-            isLoading={authLoading}
+            isLoading={authLoading && !localError} // Show loading state specific to Google action
             disabled={authLoading || signupSuccess}
-            className="w-full bg-white text-gray-700 hover:bg-gray-100 focus:ring-blue-500 border border-gray-300"
+            className="w-full bg-white text-gray-700 hover:bg-gray-100 focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500 border border-gray-300"
             size="lg"
+            aria-label="Sign up with Google"
           >
             <GoogleIcon />
             Sign up with Google

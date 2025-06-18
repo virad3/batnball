@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
@@ -6,7 +7,7 @@ import { APP_NAME } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
 
 const GoogleIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
+  <svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
     <path d="M17.6402 9.20455C17.6402 8.56818 17.5818 7.95455 17.4773 7.36364H9V10.8409H13.8409C13.6364 11.9091 13.0045 12.8182 12.0818 13.4545V15.6136H14.8091C16.5364 14.0455 17.6402 11.8636 17.6402 9.20455Z" fill="#4285F4"/>
     <path d="M9 18C11.4318 18 13.4864 17.1818 14.8091 15.6136L12.0818 13.4545C11.2364 14.0227 10.2182 14.3636 9 14.3636C6.81818 14.3636 4.96818 12.9545 4.30909 10.9773H1.47727V13.2273C2.78636 15.9318 5.65455 18 9 18Z" fill="#34A853"/>
     <path d="M4.30909 10.9773C4.12273 10.4545 4.00909 9.88636 4.00909 9.29545C4.00909 8.70455 4.12273 8.13636 4.30909 7.61364V5.36364H1.47727C0.522727 7.22727 0.522727 11.3636 1.47727 13.2273L4.30909 10.9773Z" fill="#FBBC05"/>
@@ -30,6 +31,8 @@ const LoginPage: React.FC = () => {
   useEffect(() => {
     if (authErrorHook) {
       setLocalError(authErrorHook.message || "Login failed. Please check your credentials or try again.");
+    } else {
+      setLocalError(null); // Clear previous errors on successful state change from AuthContext
     }
   }, [authErrorHook]);
 
@@ -47,6 +50,7 @@ const LoginPage: React.FC = () => {
   const handleGoogleSignIn = async () => {
     setLocalError(null);
     await signInWithGoogle();
+    // Navigation and error handling will be managed by useEffect hooks watching `user` and `authErrorHook`
   };
 
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
@@ -64,11 +68,12 @@ const LoginPage: React.FC = () => {
           </h2>
         </div>
         {(localError) && (
-          <div className="bg-red-800 bg-opacity-40 border border-red-700 text-red-300 px-4 py-3 rounded-md text-sm">
+          <div role="alert" className="bg-red-800 bg-opacity-40 border border-red-700 text-red-300 px-4 py-3 rounded-md text-sm">
             {localError}
           </div>
         )}
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit} aria-labelledby="login-heading">
+          <h3 id="login-heading" className="sr-only">Login Form</h3>
           <div>
             <label htmlFor="email" className={labelClass}>
               Email <span className="text-red-400">*</span>
@@ -80,6 +85,7 @@ const LoginPage: React.FC = () => {
                 type="email"
                 autoComplete="email"
                 required
+                aria-required="true"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className={inputClass}
@@ -99,6 +105,7 @@ const LoginPage: React.FC = () => {
                 type="password"
                 autoComplete="current-password"
                 required
+                aria-required="true"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className={inputClass}
@@ -127,10 +134,11 @@ const LoginPage: React.FC = () => {
           <Button
             type="button"
             onClick={handleGoogleSignIn}
-            isLoading={authLoading}
+            isLoading={authLoading && !localError} // Show loading only if Google sign-in is in progress without other errors
             disabled={authLoading}
-            className="w-full bg-white text-gray-700 hover:bg-gray-100 focus:ring-blue-500 border border-gray-300"
+            className="w-full bg-white text-gray-700 hover:bg-gray-100 focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500 border border-gray-300"
             size="lg"
+            aria-label="Sign in with Google"
           >
             <GoogleIcon />
             Sign in with Google
