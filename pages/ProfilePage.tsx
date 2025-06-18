@@ -42,7 +42,7 @@ const ProfilePage: React.FC = () => {
           }
         } catch (err: any) {
           setError(err.message || "Failed to load profile data.");
-          console.error(err);
+          console.error("Error loading profile:", err); // Log full error
         } finally {
           setPageLoading(false);
         }
@@ -103,41 +103,57 @@ const ProfilePage: React.FC = () => {
         }
       });
       
-      // Ensure the potentially new profilePicUrl is part of the updates if it changed
-      if (updatedPicUrl !== initialProfileData.profilePicUrl) {
+      // Ensure the potentially new profilePicUrl is part of the updates if it changed or if a new file was uploaded
+      if (updatedPicUrl !== initialProfileData.profilePicUrl || (profilePicFile && updatedPicUrl)) {
          updatesToSave.profilePicUrl = updatedPicUrl;
       }
 
 
-      if (Object.keys(updatesToSave).length > 0 || profilePicFile) { // Check if there's anything to save
-        const { profile: newProfileData, error: updateError } = await updateUserProfile(authUser.id, {
-          ...updatesToSave, // Send only changed fields
-          profilePicUrl: updatedPicUrl, // Always send the latest pic URL (new or old)
+      if (Object.keys(updatesToSave).length > 0 || profilePicFile) {
+        console.log("Attempting to save updates:", updatesToSave); 
+        const { profile: newProfileData, error: updateError, user: updatedAuthUser } = await updateUserProfile(authUser.id, {
+          ...updatesToSave, 
+          profilePicUrl: updatedPicUrl, // Ensure this is the most current URL
         });
 
-        if (updateError) throw updateError;
+        if (updateError) throw updateError; // This will be caught by the catch block
         
+        // Successfully updated
         if (newProfileData) {
-          setProfileData(newProfileData); // Update local state with merged data from DB
-          setInitialProfileData(newProfileData); // Reset initial data to new saved state
+          setProfileData(newProfileData); 
+          setInitialProfileData(newProfileData); 
           if (newProfileData.profilePicUrl) setProfilePicPreview(newProfileData.profilePicUrl);
         }
-        setProfilePicFile(null); // Clear file after successful upload
+        // Also update authUser in context if metadata changed (e.g. username, profile_pic_url)
+        // This is now implicitly handled by onAuthStateChange listener in AuthContext,
+        // as supabase.auth.updateUser() should trigger it.
+
+        setProfilePicFile(null); 
         setSuccessMessage("Profile updated successfully!");
       } else {
         setSuccessMessage("No changes to save.");
       }
 
     } catch (err: any) {
-      setError(err.message || "Failed to update profile.");
-      console.error(err);
+      console.error("Detailed error updating profile:", err); // Log the full error object
+      let errorMessage = "Failed to update profile. Please check console for details.";
+      if (err.message) {
+        errorMessage = `Failed to update profile: ${err.message}`;
+      }
+      if (err.details) { // Supabase errors often have a 'details' property
+        errorMessage += ` Details: ${err.details}`;
+      }
+      if (err.hint) { // And a 'hint'
+         errorMessage += ` Hint: ${err.hint}`;
+      }
+      setError(errorMessage);
     } finally {
       setSaving(false);
     }
   };
 
   if (pageLoading || authLoading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
-  if (error && !profileData.id) return <div className="text-center p-8 text-xl text-red-400">{error}</div>; // Show error if critical like user not found
+  if (error && !profileData.id && !pageLoading) return <div className="text-center p-8 text-xl text-red-400">{error}</div>;
 
   const inputClass = "block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-100 placeholder-gray-400";
   const labelClass = "block text-sm font-medium text-gray-300";
@@ -146,7 +162,7 @@ const ProfilePage: React.FC = () => {
     <div className="max-w-3xl mx-auto space-y-8 p-4">
       <h1 className="text-3xl font-bold text-gray-50 text-center">My Profile</h1>
       
-      {error && <p className="mb-4 text-center text-sm text-red-300 bg-red-800 bg-opacity-50 p-3 rounded-md border border-red-700">{error}</p>}
+      {error && <p className="mb-4 text-center text-sm text-red-300 bg-red-800 bg-opacity-50 p-3 rounded-md border border-red-700 whitespace-pre-wrap">{error}</p>}
       {successMessage && <p className="mb-4 text-center text-sm text-green-300 bg-green-800 bg-opacity-50 p-3 rounded-md border border-green-700">{successMessage}</p>}
 
       <form onSubmit={handleSubmit} className="space-y-6 bg-gray-800 p-6 sm:p-8 rounded-xl shadow-xl border border-gray-700">

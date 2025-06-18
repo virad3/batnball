@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 export const APP_NAME = "Bat 'n' Ball";
@@ -19,20 +20,21 @@ export const NAV_ITEMS = [
     ),
   },
   {
-    name: "Matches",
-    path: "/matches",
+    name: "Looking",
+    path: "/looking",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
       </svg>
     ),
   },
   {
-    name: "Tournaments",
-    path: "/tournaments",
+    name: "My Cricket",
+    path: "/my-cricket",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-4.5A3.375 3.375 0 0012.75 9.75H11.25A3.375 3.375 0 007.5 13.125V18.75m9 0h-9M12 6.375a3.375 3.375 0 110 6.75 3.375 3.375 0 010-6.75z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 7.5l3.75-3.75m0 0L12 5.25m-1.5-1.5L12 2.25m0 0V5.25m0 16.5V18m0 0a2.25 2.25 0 00-2.25-2.25H7.5A2.25 2.25 0 005.25 18v.75m13.5-.75A2.25 2.25 0 0016.5 18h-2.25a2.25 2.25 0 00-2.25 2.25v.75m0 0H7.5m9 0h3.375c.621 0 1.125-.504 1.125-1.125V18a2.25 2.25 0 00-2.25-2.25H16.5m-9 3.75h9m-9 0H6"/>
+        <circle cx="17" cy="6" r="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     ),
   },

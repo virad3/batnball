@@ -1,6 +1,8 @@
+
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { NAV_ITEMS } from '../constants';
+import { HomeIcon, MagnifyingGlassIcon, UserCircleIcon, ChartBarIcon, CogIcon } from '@heroicons/react/24/outline'; // Added for type-checking/compilation, though NAV_ITEMS provide actual icons.
 
 const BottomNav: React.FC = () => {
   return (
