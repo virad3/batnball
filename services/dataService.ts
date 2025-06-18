@@ -45,19 +45,28 @@ export const getUpcomingMatches = async (limit: number = 3): Promise<Match[]> =>
 };
 
 export const getMatchById = async (id: string): Promise<Match | null> => {
-  const userId = await getUserId();
-  if (!userId && id !== 'newmatch') return null; 
+  if (id === 'newmatch') {
+    console.log('[dataService] getMatchById: "newmatch" ID encountered, returning null without DB query.');
+    return null; // "newmatch" is a client-side signal, not a valid DB ID.
+  }
 
+  // RLS will handle if the user has access to this specific match ID.
+  // No explicit userId check needed here for fetching a specific ID if RLS is properly configured.
   const { data, error } = await supabase
     .from('matches')
     .select('*')
     .eq('id', id)
     .single();
+
   if (error) {
-    console.error('Error fetching match by ID:', error.message);
-    if (error.code === 'PGRST116') return null; // Not found
-    throw error;
+    console.error(`[dataService] Error fetching match by ID (${id}):`, error.message);
+    if (error.code === 'PGRST116') { // Standard "Not found"
+      console.log(`[dataService] Match with ID (${id}) not found in DB.`);
+      return null;
+    }
+    throw error; // Other unexpected errors
   }
+  console.log(`[dataService] Successfully fetched match with ID (${id}):`, data);
   return data;
 };
 
@@ -186,10 +195,6 @@ export const createTournament = async (tournamentData: Omit<Tournament, 'id' | '
 export const getFullUserProfile = async (userId: string): Promise<UserProfile | null> => {
   const { data: { user: authUser } } = await supabase.auth.getUser(); 
   if (!authUser || authUser.id !== userId) {
-    // If the currently authenticated user is not the one we're asking for,
-    // this implies a potential issue or an attempt to fetch another user's full profile
-    // which should be generally restricted by RLS on 'profiles' table anyway.
-    // For simplicity, we only allow fetching the current authenticated user's full profile.
     console.warn("Attempted to fetch profile for a different or non-authenticated user.");
     return null;
   }
@@ -239,7 +244,7 @@ export const updateUserProfile = async (
     authMetaDataUpdates.username = profileUpdates.username;
     profilesTableSharedUpdates.username = profileUpdates.username;
   }
-  if (profileUpdates.profilePicUrl !== undefined) { // Check for actual change if it's for clearing
+  if (profileUpdates.profilePicUrl !== undefined) { 
     authMetaDataUpdates.profile_pic_url = profileUpdates.profilePicUrl;
     profilesTableSharedUpdates.profilePicUrl = profileUpdates.profilePicUrl;
   }
@@ -262,7 +267,7 @@ export const updateUserProfile = async (
   if (Object.keys(authMetaDataUpdates).length > 0) {
     const { data, error: authError } = await supabase.auth.updateUser({ data: authMetaDataUpdates });
     if (authError) return { user: authUserToReturn, profile: null, error: authError };
-    authUserToReturn = data.user; // Use the updated auth user
+    authUserToReturn = data.user; 
   }
 
   const allProfilesTableUpdates = { ...profilesTableSpecificUpdates, ...profilesTableSharedUpdates };
@@ -283,20 +288,14 @@ export const updateUserProfile = async (
 
 export const uploadProfilePicture = async (userId: string, file: File): Promise<string | null> => {
   const fileExt = file.name.split('.').pop();
-  const fileName = `${userId}_${Date.now()}.${fileExt}`; // Ensure uniqueness to avoid caching issues sometimes
+  const fileName = `${userId}_${Date.now()}.${fileExt}`; 
   const filePath = `avatars/${fileName}`;
-
-  // Check if a previous file exists with a similar pattern for this user to delete it
-  // This is a simplified example; a more robust solution might involve querying metadata
-  // or storing the exact filePath in the user's profile to delete the old one.
-  // For now, let's assume direct upload/overwrite via upsert logic or new unique names.
   
   const { error: uploadError } = await supabase.storage
     .from('avatars')
     .upload(filePath, file, {
-      cacheControl: '3600', // Cache for 1 hour
-      upsert: true // If a file with the same name exists, it will be overwritten.
-                   // Consider if you need to delete old file if names change scheme.
+      cacheControl: '3600', 
+      upsert: true 
     });
 
   if (uploadError) {
@@ -319,3 +318,4 @@ export const getCurrentUserProfile = async (): Promise<UserProfile | null> => {
 };
 
 export const mockTeamNamesForSelection: string[] = [];
+    
