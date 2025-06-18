@@ -36,8 +36,8 @@ const HomePage: React.FC = () => {
       <section className="text-center p-6 bg-gray-800 rounded-xl shadow-lg border border-gray-700">
         <p className="text-lg text-gray-300 mb-6">Track scores, manage tournaments, and follow your favorite local cricket action.</p>
         <div className="flex flex-col sm:flex-row justify-center space-y-3 sm:space-y-0 sm:space-x-4">
-          <Button variant="primary" size="lg" onClick={() => navigate('/matches')}>
-            View My Matches
+          <Button variant="primary" size="lg" onClick={() => navigate('/matches/newmatch/score')}>
+            Start Scoring
           </Button>
           <Button variant="outline" size="lg" onClick={() => navigate('/tournaments/new')}>
             Create Tournament
@@ -72,27 +72,7 @@ const HomePage: React.FC = () => {
           </section>
         </>
       )}
-       <section className="mt-8 p-6 bg-gray-800 rounded-xl shadow-lg border border-gray-700">
-        <h2 className="text-2xl font-bold text-gray-100 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Link to="/matches/newmatch/score" className="block p-4 bg-red-800 text-white rounded-lg text-center hover:bg-red-700 transition-colors shadow-md">
-                <span className="text-lg font-semibold">Start Scoring</span>
-                <p className="text-xs opacity-80">New Match</p>
-            </Link>
-             <Link to="/stats" className="block p-4 bg-red-700 text-white rounded-lg text-center hover:bg-red-600 transition-colors shadow-md">
-                <span className="text-lg font-semibold">View Stats</span>
-                <p className="text-xs opacity-80">Performance Insights</p>
-            </Link>
-             <Link to="/profile" className="block p-4 bg-gray-700 text-gray-100 rounded-lg text-center hover:bg-gray-600 transition-colors shadow-md">
-                <span className="text-lg font-semibold">My Profile</span>
-                <p className="text-xs opacity-80">Achievements & Settings</p>
-            </Link>
-             <Link to="/tournaments" className="block p-4 bg-yellow-600 text-white rounded-lg text-center hover:bg-yellow-500 transition-colors shadow-md">
-                <span className="text-lg font-semibold">All Tournaments</span>
-                <p className="text-xs opacity-80">Explore Competitions</p>
-            </Link>
-        </div>
-      </section>
+      {/* Quick Actions section removed */}
     </div>
   );
 };
