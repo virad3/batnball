@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -36,20 +37,20 @@
 <script type="importmap">
 {
   "imports": {
-    "firebase/": "https://esm.sh/firebase@^11.9.1/",
-    "react-router-dom": "https://esm.sh/react-router-dom@^7.6.2",
-    "react/": "https://esm.sh/react@^19.1.0/",
     "react": "https://esm.sh/react@^19.1.0",
-    "@google/genai": "https://esm.sh/@google/genai@^1.5.1",
     "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
-    "@heroicons/react/": "https://esm.sh/@heroicons/react@^2.2.0/"
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.6.2",
+    "firebase/": "https://esm.sh/firebase@^11.9.1/",
+    "@heroicons/react/": "https://esm.sh/@heroicons/react@^2.2.0/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.5.1"
   }
 }
 </script>
 <script type="module">
   // Firebase SDK and Initialization
   // IMPORTANT: Replace with your actual Firebase project configuration!
-  import { initializeApp } from 'firebase/app';
+  import { initializeApp } from 'firebase/app'; // This will now correctly use v10.12.3
 
   const firebaseConfig = {
     apiKey: "AIzaSyAtciYAHdfa2mU-NfYr5gvn5LK5SIDUs8o",
