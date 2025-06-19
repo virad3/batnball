@@ -1,8 +1,8 @@
 
 import React from 'react';
-import { HashRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
-import AppHeader from './components/AppHeader'; // New main header
-import MainUITabs from './components/MainUITabs'; // New main navigation tabs
+import { HashRouter, Switch, Route, Redirect, useLocation, RouteProps } from 'react-router-dom'; // Updated imports for v5
+import AppHeader from './components/AppHeader';
+import MainUITabs from './components/MainUITabs';
 import BottomNav from './components/BottomNav';
 import HomePage from './pages/HomePage';
 import MatchesPage from './pages/MatchesPage';
@@ -14,28 +14,30 @@ import StatsPage from './pages/StatsPage';
 import ProfilePage from './pages/ProfilePage';
 import LoginPage from './pages/LoginPage';
 import SignUpPage from './pages/SignUpPage';
-import MyTeamsPage from './pages/MyTeamsPage'; 
-import TeamDetailsPage from './pages/TeamDetailsPage'; 
-import MyPerformancePage from './pages/MyPerformancePage'; 
-import MyCricketPage from './pages/MyCricketPage'; 
-import LookingPage from './pages/LookingPage'; 
-import HighlightsPage from './pages/HighlightsPage'; 
+import MyTeamsPage from './pages/MyTeamsPage';
+import TeamDetailsPage from './pages/TeamDetailsPage';
+import MyPerformancePage from './pages/MyPerformancePage';
+import MyCricketPage from './pages/MyCricketPage';
+import LookingPage from './pages/LookingPage';
+import HighlightsPage from './pages/HighlightsPage';
 import { MatchProvider } from './contexts/MatchContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoadingSpinner from './components/LoadingSpinner';
 
 const pathsToShowMainUITabs = ['/my-cricket', '/matches', '/tournaments', '/teams', '/stats', '/highlights'];
 
-// Layout for authenticated users, includes new AppHeader, MainUITabs, and BottomNav
-const ProtectedLayout: React.FC = () => {
-  const location = useLocation();
-  const showTabs = pathsToShowMainUITabs.some(p => location.pathname.startsWith(p));
+interface ProtectedLayoutProps {
+  children: React.ReactNode;
+}
 
-  // AppHeader height: mobile 57px, sm+ 61px
-  // MainUITabs height: mobile 48px, sm+ 56px
-  let mainContentPaddingTopClasses = "pt-[57px] sm:pt-[61px]"; // Padding for AppHeader only
+// Layout for authenticated users
+const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
+  const location = useLocation();
+  const showTabs = pathsToShowMainUITabs.some(p => location.pathname.startsWith(p) || location.pathname === p);
+
+  let mainContentPaddingTopClasses = "pt-[57px] sm:pt-[61px]";
   if (showTabs) {
-    mainContentPaddingTopClasses = "pt-[105px] sm:pt-[117px]"; // Padding for AppHeader + MainUITabs
+    mainContentPaddingTopClasses = "pt-[105px] sm:pt-[117px]";
   }
 
   return (
@@ -43,14 +45,44 @@ const ProtectedLayout: React.FC = () => {
       <AppHeader />
       {showTabs && <MainUITabs />}
       <main className={`flex-grow container mx-auto px-4 pb-4 mb-16 sm:mb-0 ${mainContentPaddingTopClasses}`}>
-        <Outlet /> {/* Nested routes render here */}
+        {children} {/* Render children passed by PrivateRoute */}
       </main>
       <BottomNav />
     </div>
   );
 };
 
-// Component to handle the main routing logic after AuthProvider is initialized
+// Custom PrivateRoute component for v5
+interface PrivateRouteProps extends RouteProps {
+  component: React.ComponentType<any>;
+}
+
+const PrivateRoute: React.FC<PrivateRouteProps> = ({ component: Component, ...rest }) => {
+  const { user, loading: authLoading } = useAuth();
+
+  // Don't render anything if auth is still loading, or handle it differently if needed
+  if (authLoading && !user) { 
+    return null; // Or a minimal loading indicator
+  }
+
+  return (
+    <Route
+      {...rest}
+      render={props =>
+        user ? (
+          <ProtectedLayout>
+            <Component {...props} />
+          </ProtectedLayout>
+        ) : (
+          <Redirect to={{ pathname: "/login", state: { from: props.location } }} />
+        )
+      }
+    />
+  );
+};
+
+
+// Component to handle the main routing logic
 const AppRoutes: React.FC = () => {
   const { user, loading: authLoading } = useAuth();
 
@@ -64,38 +96,37 @@ const AppRoutes: React.FC = () => {
   }
 
   return (
-    <Routes>
-      <Route path="/login" element={user ? <Navigate to="/home" replace /> : <LoginPage />} />
-      <Route path="/signup" element={user ? <Navigate to="/home" replace /> : <SignUpPage />} />
+    <Switch>
+      <Route path="/login" component={LoginPage} />
+      <Route path="/signup" component={SignUpPage} />
 
-      {/* Protected Routes */}
-      <Route element={user ? <ProtectedLayout /> : <Navigate to="/login" replace />}>
-        <Route path="/" element={<Navigate to="/home" replace />} />
-        <Route path="/home" element={<HomePage />} />
-        <Route path="/matches" element={<MatchesPage />} />
-        <Route path="/matches/:matchId/score" element={<ScoringPage />} />
-        <Route path="/tournaments" element={<TournamentsPage />} />
-        <Route path="/tournaments/new" element={<CreateTournamentPage />} />
-        <Route path="/tournaments/:tournamentId" element={<TournamentDetailPage />} />
-        <Route path="/teams" element={<MyTeamsPage />} /> {/* Route for "TEAMS" tab */}
-        <Route path="/stats" element={<StatsPage />} />
-        <Route path="/highlights" element={<HighlightsPage />} />
-        
-        <Route path="/profile/:userId?" element={<ProfilePage />} />
-        <Route path="/profile" element={<ProfilePage />} /> {/* Default to own profile if no ID */}
-        
-        <Route path="/my-teams" element={<MyTeamsPage />} /> {/* Retained for potential direct access, "TEAMS" tab is primary */}
-        <Route path="/teams/:teamId" element={<TeamDetailsPage />} />
-        <Route path="/my-performance" element={<MyPerformancePage />} /> 
-        <Route path="/my-cricket" element={<MyCricketPage />} /> 
-        <Route path="/looking" element={<LookingPage />} /> 
-        
-        {/* Catch-all for any other authenticated routes, redirects to /home */}
-        <Route path="*" element={<Navigate to="/home" replace />} />
-      </Route>
+      {/* Protected Routes using PrivateRoute */}
+      <PrivateRoute exact path="/" component={() => <Redirect to="/home" />} />
+      <PrivateRoute path="/home" component={HomePage} />
+      <PrivateRoute exact path="/matches" component={MatchesPage} />
+      <PrivateRoute path="/matches/:matchId/score" component={ScoringPage} />
+      <PrivateRoute exact path="/tournaments" component={TournamentsPage} />
+      <PrivateRoute path="/tournaments/new" component={CreateTournamentPage} />
+      <PrivateRoute path="/tournaments/:tournamentId" component={TournamentDetailPage} />
+      <PrivateRoute path="/teams/:teamId" component={TeamDetailsPage} />
+      <PrivateRoute path="/teams" component={MyTeamsPage} /> {/* Covers /my-teams effectively */}
+      <PrivateRoute path="/stats" component={StatsPage} />
+      <PrivateRoute path="/highlights" component={HighlightsPage} />
       
-       {!user && <Route path="*" element={<Navigate to="/login" replace />} />}
-    </Routes>
+      <PrivateRoute path="/profile/:userId" component={ProfilePage} />
+      <PrivateRoute exact path="/profile" component={ProfilePage} />
+        
+      {/* Retained /my-teams for explicit linking if needed, but /teams is the primary for the tab */}
+      <PrivateRoute path="/my-teams" component={MyTeamsPage} /> 
+      <PrivateRoute path="/my-performance" component={MyPerformancePage} />
+      <PrivateRoute path="/my-cricket" component={MyCricketPage} />
+      <PrivateRoute path="/looking" component={LookingPage} />
+      
+      {/* Fallback for authenticated users if no other protected route matches */}
+      <Route path="*">
+        {user ? <Redirect to="/home" /> : <Redirect to="/login" />}
+      </Route>
+    </Switch>
   );
 }
 

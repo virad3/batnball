@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom'; // Link import is fine for v5
 import { Tournament } from '../types';
 import Button from './Button';
 import { Timestamp } from 'firebase/firestore'; // Import Timestamp

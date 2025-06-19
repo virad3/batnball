@@ -1,7 +1,6 @@
 
-
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useHistory } from 'react-router-dom'; // useNavigate -> useHistory for v5
 import Button from '../components/Button';
 import { APP_NAME } from '../constants';
 import { UserProfile } from '../types'; 
@@ -17,7 +16,7 @@ const GoogleIcon = () => (
 );
 
 const SignUpPage: React.FC = () => {
-  const navigate = useNavigate();
+  const history = useHistory(); // v5 hook
   const { signUpWithPassword, signInWithGoogle, loading: authLoading, error: authErrorHook, user } = useAuth();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -33,11 +32,11 @@ const SignUpPage: React.FC = () => {
         setSignupSuccess(true); 
         // Delay navigation to allow user to see success message
         const timer = setTimeout(() => {
-            navigate('/home');
+            history.replace('/home'); // Updated navigation
         }, 2000); // 2 seconds delay
         return () => clearTimeout(timer);
     }
-  }, [user, authErrorHook, navigate]);
+  }, [user, authErrorHook, history]);
   
   useEffect(() => {
     if (authErrorHook) {

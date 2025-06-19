@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom'; 
+import { useParams, Link } from 'react-router-dom';  // useParams and Link are fine for v5
 import { Tournament, Match } from '../types'; 
 import { getTournamentById } from '../services/dataService'; // Now uses Firebase
 import { db } from '../services/firebaseClient'; // Direct Firestore client for specific query

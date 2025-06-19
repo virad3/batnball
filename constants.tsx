@@ -55,11 +55,11 @@ export const NAV_ITEMS_BOTTOM = [
     path: "/community", // Placeholder path, page not yet created
     icon: <UserGroupIcon className="w-6 h-6" />,
   },
-  {
-    name: "Store",
-    path: "/store", // Placeholder path, page not yet created
-    icon: <BuildingStorefrontIcon className="w-6 h-6" />,
-  },
+  // { // Store item removed
+  //   name: "Store",
+  //   path: "/store", 
+  //   icon: <BuildingStorefrontIcon className="w-6 h-6" />,
+  // },
 ];
 
 export const MOCK_API_KEY = "YOUR_GEMINI_API_KEY"; // Placeholder

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom'; // Link import is fine for v5
 import { ShieldCheckIcon, CalendarDaysIcon, ChartBarIcon, SparklesIcon, ChevronRightIcon } from '@heroicons/react/24/outline'; // Example icons
 
 interface HubLinkProps {

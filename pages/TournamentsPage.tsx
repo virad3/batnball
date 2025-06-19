@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom'; // Link import is fine for v5
 import { Tournament } from '../types';
 import { getAllTournaments } from '../services/dataService'; // Now uses Firebase
 import TournamentCard from '../components/TournamentCard';

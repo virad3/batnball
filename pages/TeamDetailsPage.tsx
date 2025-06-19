@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useHistory } from 'react-router-dom'; // useNavigate -> useHistory for v5
 import { Team, UserProfile } from '../types';
 import { getTeamById, updateTeam, getAllUserProfilesForSuggestions, addUserToTeamAffiliation, removeUserFromTeamAffiliation, getFullUserProfile } from '../services/dataService';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,7 +13,7 @@ type PlayerSuggestion = Pick<UserProfile, 'id' | 'username'>;
 
 const TeamDetailsPage = (): JSX.Element => {
   const { teamId } = useParams<{ teamId: string }>();
-  const navigate = useNavigate();
+  const history = useHistory(); // v5 hook
   const { user: authUser, userProfile: currentUserProfile, loading: authLoading } = useAuth();
 
   const [team, setTeam] = useState<Team | null>(null);
@@ -44,7 +44,7 @@ const TeamDetailsPage = (): JSX.Element => {
     if (!teamId) {
       setError("Team ID is missing.");
       setLoading(false);
-      navigate('/my-teams');
+      history.push('/my-teams'); // Updated navigation
       return null; 
     }
     if (authLoading) return null; // Ensure consistency in callback's early return types
@@ -81,7 +81,7 @@ const TeamDetailsPage = (): JSX.Element => {
     } finally {
       setLoading(false);
     }
-  }, [teamId, navigate, authUser, currentUserProfile, authLoading]);
+  }, [teamId, history, authUser, currentUserProfile, authLoading]); // Added history to dependencies
 
   useEffect(() => {
     fetchTeamDetailsAndProfiles();
@@ -209,7 +209,7 @@ const TeamDetailsPage = (): JSX.Element => {
     try {
         await removeUserFromTeamAffiliation(authUser.uid, teamId);
         setIsAffiliatedMember(false); 
-        navigate('/my-teams'); 
+        history.push('/my-teams'); // Updated navigation
     } catch (err: any) {
         setError(err.message || "Failed to leave team.");
     } finally {
@@ -250,7 +250,7 @@ const TeamDetailsPage = (): JSX.Element => {
     <>
       <div className="space-y-6 max-w-3xl mx-auto">
         <div className="flex items-center justify-between">
-          <Button variant="outline" size="sm" onClick={() => navigate('/my-teams')} leftIcon={<ArrowLeftIcon className="w-5 h-5"/>}>
+          <Button variant="outline" size="sm" onClick={() => history.push('/my-teams')} leftIcon={<ArrowLeftIcon className="w-5 h-5"/>}> {/* Updated navigation */}
             Back to My Teams
           </Button>
         </div>

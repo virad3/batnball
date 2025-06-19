@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useHistory } from 'react-router-dom'; // useNavigate -> useHistory for v5
 import { Team, UserProfile } from '../types';
 import { getTeamsByUserId, getTeamById, getFullUserProfile } from '../services/dataService'; // Assuming getTeamById fetches full team object
 import { useAuth } from '../contexts/AuthContext';
@@ -30,7 +30,7 @@ const MyTeamsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   
-  const navigate = useNavigate();
+  const history = useHistory(); // v5 hook
   const { user: authUser, userProfile, loading: authLoading } = useAuth();
 
   const fetchMyTeamsData = useCallback(async () => {
@@ -129,7 +129,7 @@ const MyTeamsPage: React.FC = () => {
   };
 
   const handleTeamCardClick = (team: ProcessedTeamForCard) => {
-    navigate(`/teams/${team.id}`);
+    history.push(`/teams/${team.id}`); // Updated navigation
   };
 
   const TabButton: React.FC<{tabKey: 'my' | 'opponents' | 'following', label: string}> = ({ tabKey, label }) => (

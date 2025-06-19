@@ -1,16 +1,17 @@
+
 import React, { useState, useEffect } from 'react';
 import { Match } from '../types';
 import { getAllMatches } from '../services/dataService'; // Now uses Firebase
 import MatchCard from '../components/MatchCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useHistory } from 'react-router-dom'; // Link is fine, useNavigate -> useHistory for v5
 
 const MatchesPage: React.FC = () => {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'live' | 'upcoming' | 'completed'>('all');
-  const navigate = useNavigate();
+  const history = useHistory(); // v5 hook
 
   useEffect(() => {
     const fetchMatches = async () => {
@@ -28,7 +29,7 @@ const MatchesPage: React.FC = () => {
   }, []);
 
   const handleCreateNewMatch = () => {
-    navigate('/matches/newmatch/score');
+    history.push('/matches/newmatch/score'); // Updated navigation
   };
 
   const filteredMatches = matches.filter(match => {

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, ChangeEvent, FormEvent, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useHistory, Link } from 'react-router-dom'; // useNavigate -> useHistory for v5
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
 import { useAuth } from '../contexts/AuthContext';
@@ -20,7 +20,7 @@ import { ArrowLeftIcon, UserPlusIcon, UserMinusIcon, UserGroupIcon } from '@hero
 
 const ProfilePage: React.FC = () => {
   const { userId: paramsUserId } = useParams<{ userId?: string }>();
-  const navigate = useNavigate();
+  const history = useHistory(); // v5 hook
   const { user: authUserHook, loading: authLoadingHook } = useAuth(); 
 
   const [profileData, setProfileData] = useState<Partial<UserProfile>>({});
@@ -272,7 +272,7 @@ const ProfilePage: React.FC = () => {
     return (
         <div className="text-center p-8 text-xl text-red-400 max-w-2xl mx-auto">
             <p>{error}</p>
-            <Button onClick={() => navigate('/home')} className="mt-4" variant="outline">Go to Home</Button>
+            <Button onClick={() => history.push('/home')} className="mt-4" variant="outline">Go to Home</Button> {/* Updated navigation */}
         </div>
     );
   }
@@ -281,7 +281,7 @@ const ProfilePage: React.FC = () => {
     return (
         <div className="text-center p-8 text-xl text-gray-300 max-w-2xl mx-auto">
             <p>Please log in to view your profile.</p>
-            <Button onClick={() => navigate('/login')} className="mt-4" variant="primary">Login</Button>
+            <Button onClick={() => history.push('/login')} className="mt-4" variant="primary">Login</Button> {/* Updated navigation */}
         </div>
     );
   }
@@ -289,7 +289,7 @@ const ProfilePage: React.FC = () => {
      return (
         <div className="text-center p-8 text-xl text-gray-300 max-w-2xl mx-auto">
             <p>Could not load profile data for the requested user.</p>
-             <Button onClick={() => navigate(-1)} leftIcon={<ArrowLeftIcon className="w-5 h-5"/>} className="mt-4" variant="outline">
+             <Button onClick={() => history.goBack()} leftIcon={<ArrowLeftIcon className="w-5 h-5"/>} className="mt-4" variant="outline"> {/* Updated navigation */}
                 Go Back
             </Button>
         </div>
@@ -359,7 +359,7 @@ const ProfilePage: React.FC = () => {
   return (
     <div className="max-w-3xl mx-auto space-y-8 p-4">
       <div className="flex items-center space-x-3">
-        {paramsUserId && <Button variant="outline" size="sm" onClick={() => navigate(-1)} leftIcon={<ArrowLeftIcon className="w-5 h-5"/>}>Back</Button>}
+        {paramsUserId && <Button variant="outline" size="sm" onClick={() => history.goBack()} leftIcon={<ArrowLeftIcon className="w-5 h-5"/>}>Back</Button>} {/* Updated navigation */}
         <h1 className="text-3xl font-bold text-gray-50 flex-grow">{pageTitle}</h1>
         {!isOwnProfile && authUserHook && (
              <Button

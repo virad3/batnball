@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useHistory, Link } from 'react-router-dom'; // useNavigate -> useHistory for v5
 import { Match, BallEvent, Score, MatchFormat, PlayerBattingStats, PlayerBowlingStats, DismissalType, InningsRecord } from '../types';
 // getMatchById, updateMatch from dataService are now mostly handled by context
 import ScoreDisplay from '../components/ScoreDisplay';
@@ -25,7 +25,7 @@ const ExtraButton: React.FC<{ type: BallEvent['extraType']; onClick: (type: Ball
 
 const ScoringPage: React.FC = () => {
   const { matchId } = useParams<{ matchId: string }>();
-  const navigate = useNavigate();
+  const history = useHistory(); // v5 hook
   const context = useMatchContext();
   const { 
     matchDetails, loadMatch, startNewMatch, updateTossAndStartInnings, addBall, switchInnings, saveMatchState, endMatch,
@@ -60,7 +60,7 @@ const ScoringPage: React.FC = () => {
     setPageLoading(true);
     if (!matchId) { 
       console.log('[ScoringPage] No matchId, navigating to /matches');
-      navigate('/matches'); 
+      history.push('/matches'); // Updated navigation
       return; 
     }
 
@@ -102,14 +102,14 @@ const ScoringPage: React.FC = () => {
       }
     } else if (matchId !== "newmatch") {
       console.log('[ScoringPage] Match not loaded and matchId is not "newmatch", navigating to /matches.');
-      navigate('/matches'); 
+      history.push('/matches'); // Updated navigation
     } else {
       console.log('[ScoringPage] Critical: matchId is "newmatch" but loadedMatch is still null/undefined after trying to create it.');
     }
     setPageLoading(false);
     console.log('[ScoringPage] initializePage finished.');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, navigate, loadMatch, startNewMatch]); // context.matchDetails removed, currentStrikerName, currentBowlerName also potentially cause re-runs but are needed for logic
+  }, [matchId, history, loadMatch, startNewMatch]); // context.matchDetails removed, currentStrikerName, currentBowlerName also potentially cause re-runs but are needed for logic
 
   useEffect(() => {
     initializePage();
@@ -122,16 +122,24 @@ const ScoringPage: React.FC = () => {
     try {
       await updateTossAndStartInnings(tossWinnerNameState, electedToState);
       setShowTossModal(false);
-      if (!matchDetails.teamASquad || matchDetails.teamASquad.length < SQUAD_SIZE || !matchDetails.teamBSquad || matchDetails.teamBSquad.length < SQUAD_SIZE) {
-        setAvailableTeamAPlayers(matchDetails.teamASquad || []);
-        setSelectedTeamASquad(matchDetails.teamASquad || []);
-        setAvailableTeamBPlayers(matchDetails.teamBSquad || []);
-        setSelectedTeamBSquad(matchDetails.teamBSquad || []);
+      // Ensure matchDetails from context is fresh after updateTossAndStartInnings completes
+      // It's possible the context update is asynchronous. Let's use the matchDetails from context after update.
+      const currentMatchDetails = context.matchDetails; // Re-fetch from context
+      if (!currentMatchDetails) {
+          console.error("Match details are null after toss submission, cannot proceed.");
+          return;
+      }
+
+      if (!currentMatchDetails.teamASquad || currentMatchDetails.teamASquad.length < SQUAD_SIZE || !currentMatchDetails.teamBSquad || currentMatchDetails.teamBSquad.length < SQUAD_SIZE) {
+        setAvailableTeamAPlayers(currentMatchDetails.teamASquad || []);
+        setSelectedTeamASquad(currentMatchDetails.teamASquad || []);
+        setAvailableTeamBPlayers(currentMatchDetails.teamBSquad || []);
+        setSelectedTeamBSquad(currentMatchDetails.teamBSquad || []);
         setShowSquadSelectionModal(true);
       } else {
-        setModalStriker(matchDetails.current_striker_name || '');
-        setModalNonStriker(matchDetails.current_non_striker_name || '');
-        setModalBowler(matchDetails.current_bowler_name || '');
+        setModalStriker(currentMatchDetails.current_striker_name || '');
+        setModalNonStriker(currentMatchDetails.current_non_striker_name || '');
+        setModalBowler(currentMatchDetails.current_bowler_name || '');
         setShowPlayerRolesModal(true);
       }
     } catch (error) {
@@ -180,7 +188,6 @@ const ScoringPage: React.FC = () => {
     try {
         context.setMatchDetails(updatedMatchWithSquads); // Optimistic update to current context
         await saveMatchState(); // Save with current context state which should include squads
-        // context.setMatchDetails(updatedMatchWithSquads); // Re-set with potentially updated data from DB? Usually saveMatchState handles this.
         setShowSquadSelectionModal(false);
         setModalStriker('');
         setModalNonStriker('');
@@ -330,7 +337,7 @@ const ScoringPage: React.FC = () => {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
         <div className="relative bg-gray-800 p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
-          <button onClick={() => {setShowTossModal(false); if(matchId==="newmatch") navigate('/matches')}} aria-label="Close toss modal" className="absolute top-3 right-3 text-gray-400 hover:text-gray-200 p-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+          <button onClick={() => {setShowTossModal(false); if(matchId==="newmatch") history.push('/matches')}} aria-label="Close toss modal" className="absolute top-3 right-3 text-gray-400 hover:text-gray-200 p-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
           <h2 className="text-2xl font-bold text-gray-50 mb-6 text-center">
             {matchId === "newmatch" ? "Setup New Match & Toss" : "Match Toss"}
           </h2>
@@ -553,7 +560,7 @@ const ScoringPage: React.FC = () => {
           {currentInningsNumber === 1 && currentMatchInningsData && (currentMatchInningsData.totalWickets >= SQUAD_SIZE -1 || (matchDetails.overs_per_innings && currentMatchInningsData.totalOversBowled >= matchDetails.overs_per_innings)) && (
             <Button onClick={switchInnings} variant="primary" className="w-full mb-3">End Innings & Start 2nd Innings</Button>
           )}
-          <Button onClick={async () => { await saveMatchState(); navigate('/matches');}} variant="outline" className="w-full">Save & Exit to Matches</Button>
+          <Button onClick={async () => { await saveMatchState(); history.push('/matches');}} variant="outline" className="w-full">Save & Exit to Matches</Button> {/* Updated navigation */}
       </div>
 
       <div className="p-4 bg-gray-800 rounded-lg shadow mt-4 border border-gray-700">

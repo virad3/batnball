@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { NavLink } from 'react-router-dom';
-import { NAV_ITEMS_BOTTOM } from '../constants'; // Renamed NAV_ITEMS to NAV_ITEMS_BOTTOM for clarity
+import { NavLink } from 'react-router-dom'; // NavLink import is fine for v5
+import { NAV_ITEMS_BOTTOM } from '../constants';
 
 const BottomNav: React.FC = () => {
   return (
@@ -11,10 +11,8 @@ const BottomNav: React.FC = () => {
           <NavLink
             key={item.name}
             to={item.path}
-            className={({ isActive }) =>
-              `flex flex-col items-center justify-center p-2.5 w-1/5 text-xs transition-colors duration-200 ease-in-out
-               ${isActive ? 'text-yellow-400 bg-gray-800' : 'hover:bg-gray-800 hover:text-gray-200'}`
-            }
+            className="flex flex-col items-center justify-center p-2.5 w-1/4 text-xs transition-colors duration-200 ease-in-out hover:bg-gray-800 hover:text-gray-200"
+            activeClassName="text-yellow-400 bg-gray-800" // v5 active class
             title={item.name}
           >
             {item.icon}

@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useHistory } from 'react-router-dom'; // Link is fine, useNavigate -> useHistory for v5
 import { Match, Tournament } from '../types';
 import { getUpcomingMatches, getOngoingTournaments } from '../services/dataService'; // Now uses Firebase
 import MatchCard from '../components/MatchCard';
@@ -11,7 +12,7 @@ const HomePage: React.FC = () => {
   const [upcomingMatches, setUpcomingMatches] = useState<Match[]>([]);
   const [ongoingTournaments, setOngoingTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  const history = useHistory(); // v5 hook
 
   useEffect(() => {
     const fetchData = async () => {
@@ -35,10 +36,10 @@ const HomePage: React.FC = () => {
       <section className="text-center p-6 bg-gray-800 rounded-xl shadow-lg border border-gray-700">
         <p className="text-lg text-gray-300 mb-6">Track scores, manage tournaments, and follow your favorite local cricket action.</p>
         <div className="flex flex-col sm:flex-row justify-center space-y-3 sm:space-y-0 sm:space-x-4">
-          <Button variant="primary" size="lg" onClick={() => navigate('/matches/newmatch/score')}>
+          <Button variant="primary" size="lg" onClick={() => history.push('/matches/newmatch/score')}> {/* Updated navigation */}
             Start Scoring
           </Button>
-          <Button variant="outline" size="lg" onClick={() => navigate('/tournaments/new')}>
+          <Button variant="outline" size="lg" onClick={() => history.push('/tournaments/new')}> {/* Updated navigation */}
             Create Tournament
           </Button>
         </div>
