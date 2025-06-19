@@ -20,6 +20,7 @@ import MyPerformancePage from './pages/MyPerformancePage';
 import MyCricketPage from './pages/MyCricketPage';
 import LookingPage from './pages/LookingPage';
 import HighlightsPage from './pages/HighlightsPage';
+import SelectTeamsPage from './pages/SelectTeamsPage'; // New Page
 import { MatchProvider } from './contexts/MatchContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -27,20 +28,11 @@ import LoadingSpinner from './components/LoadingSpinner';
 const pathsToShowMainUITabs = ['/my-cricket', '/matches', '/tournaments', '/teams', '/stats', '/highlights'];
 
 // Layout for authenticated users
-const ProtectedLayout: React.FC = () => {
+const ProtectedLayout: React.FC<{ fullPageOverride?: boolean }> = ({ fullPageOverride = false }) => {
   const location = useLocation();
-  const { user, loading: authLoading } = useAuth(); // Auth check within layout
-
-  const showTabs = pathsToShowMainUITabs.some(p => location.pathname.startsWith(p) || location.pathname === p);
-
-  let mainContentPaddingTopClasses = "pt-[57px] sm:pt-[61px]";
-  if (showTabs) {
-    mainContentPaddingTopClasses = "pt-[105px] sm:pt-[117px]";
-  }
+  const { user, loading: authLoading } = useAuth();
 
   if (authLoading && !user) {
-    // This minimal loading is if ProtectedLayout itself is rendered while auth is resolving
-    // The main loading spinner is handled in AppRoutes before any route is chosen
     return (
         <div className="flex justify-center items-center min-h-screen bg-gray-900 text-gray-100">
             <LoadingSpinner size="sm" />
@@ -52,12 +44,23 @@ const ProtectedLayout: React.FC = () => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  if (fullPageOverride) {
+    return <Outlet />; // Render child route directly without standard layout
+  }
+  
+  const showTabs = pathsToShowMainUITabs.some(p => location.pathname.startsWith(p) || location.pathname === p);
+  let mainContentPaddingTopClasses = "pt-[57px] sm:pt-[61px]"; // AppHeader height
+  if (showTabs) {
+    mainContentPaddingTopClasses = "pt-[105px] sm:pt-[117px]"; // AppHeader + MainUITabs height
+  }
+
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-900">
       <AppHeader />
       {showTabs && <MainUITabs />}
       <main className={`flex-grow container mx-auto px-4 pb-4 mb-16 sm:mb-0 ${mainContentPaddingTopClasses}`}>
-        <Outlet /> {/* Child routes will render here */}
+        <Outlet />
       </main>
       <BottomNav />
     </div>
@@ -83,7 +86,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignUpPage />} />
 
-      {/* Protected Routes */}
+      {/* Protected Routes with Standard Layout */}
       <Route element={<ProtectedLayout />}>
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/home" element={<HomePage />} />
@@ -104,6 +107,11 @@ const AppRoutes: React.FC = () => {
         <Route path="/my-performance" element={<MyPerformancePage />} />
         <Route path="/my-cricket" element={<MyCricketPage />} />
         <Route path="/looking" element={<LookingPage />} />
+      </Route>
+
+      {/* Protected Routes with Full Page Override Layout (e.g. for custom headers) */}
+      <Route element={<ProtectedLayout fullPageOverride />}>
+        <Route path="/start-match/select-teams" element={<SelectTeamsPage />} />
       </Route>
       
       {/* Fallback for any other path */}

@@ -37,8 +37,8 @@ const MatchesPage: React.FC = () => {
     fetchMatches();
   }, [user]);
 
-  const handleStartNewMatch = () => {
-    navigate('/matches/newmatch/score'); 
+  const handleStartNewMatchFlow = () => {
+    navigate('/start-match/select-teams'); // Navigate to new team selection page
   };
 
   const filteredMatches = useMemo(() => {
@@ -86,9 +86,9 @@ const MatchesPage: React.FC = () => {
       <div className="bg-gray-800 p-4 rounded-lg shadow-md flex justify-between items-center border border-gray-700">
         <p className="text-gray-100 text-sm sm:text-base">Want to start a match?</p>
         <Button 
-          variant="primary" // This will be the red-ish button
+          variant="primary" 
           className="bg-teal-600 hover:bg-teal-500 text-white font-semibold" // Override for teal/green
-          onClick={handleStartNewMatch}
+          onClick={handleStartNewMatchFlow}
           size="sm"
         >
           START A MATCH
