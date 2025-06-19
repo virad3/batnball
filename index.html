@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -33,6 +32,14 @@
     ::-webkit-scrollbar-thumb:hover {
       background: #6b7280; /* Tailwind gray-500 */
     }
+    .main-content-area { /* Added for potential sticky header/tab calculations */
+        padding-top: 112px; /* Approx height of AppHeader + MainUITabs */
+    }
+    @media (min-width: 640px) { /* sm breakpoint */
+      .main-content-area {
+        padding-top: 0; /* Reset padding-top if BottomNav is hidden and TopNav isn't fixed, or adjust as needed */
+      }
+    }
   </style>
 <script type="importmap">
 {
@@ -48,10 +55,8 @@
 }
 </script>
 <script type="module">
-  // Firebase SDK and Initialization
+  // Firebase SDK Configuration
   // IMPORTANT: Replace with your actual Firebase project configuration!
-  import { initializeApp } from 'firebase/app'; // This will now correctly use v10.12.3
-
   const firebaseConfig = {
     apiKey: "AIzaSyAtciYAHdfa2mU-NfYr5gvn5LK5SIDUs8o",
     authDomain: "batnball-82f54.firebaseapp.com",
@@ -61,18 +66,13 @@
     appId: "1:823328503312:web:6b41442d0de12efb62bc95"
   };
 
-  // Initialize Firebase
-  initializeApp(firebaseConfig);
-
-  // Make Firebase config accessible globally if needed by other non-module scripts (though not ideal)
-  // For this project, firebaseClient.ts will handle Firebase instances.
-  window.firebaseConfig = firebaseConfig; // Mainly for API_KEY for Gemini for now.
+  // Make Firebase config accessible globally.
+  // Firebase initialization will be handled in firebaseClient.ts
+  window.firebaseConfig = firebaseConfig;
 
    // Placeholder for Gemini API Key - this should be managed securely
    window.process = {
     env: {
-      // API_KEY for Gemini is typically a server-side concern or handled via Firebase Functions.
-      // If used client-side, ensure it's restricted.
       API_KEY: '' // Your Gemini API Key - Consider if this is needed client-side
     }
   };

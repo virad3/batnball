@@ -1,7 +1,8 @@
 
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import Header from './components/Header';
+import AppHeader from './components/AppHeader'; // New main header
+import MainUITabs from './components/MainUITabs'; // New main navigation tabs
 import BottomNav from './components/BottomNav';
 import HomePage from './pages/HomePage';
 import MatchesPage from './pages/MatchesPage';
@@ -23,11 +24,14 @@ import { MatchProvider } from './contexts/MatchContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoadingSpinner from './components/LoadingSpinner';
 
-// Layout for authenticated users, includes Header and BottomNav
+// Layout for authenticated users, includes new AppHeader, MainUITabs, and BottomNav
 const ProtectedLayout: React.FC = () => (
   <div className="flex flex-col min-h-screen bg-gray-900">
-    <Header />
-    <main className="flex-grow container mx-auto p-4 mb-16 sm:mb-0">
+    <AppHeader />
+    <MainUITabs /> {/* This will contain MATCHES, TOURNAMENTS, TEAMS etc. */}
+    {/* Apply padding top to main content area to account for fixed headers on mobile if needed */}
+    {/* The class 'main-content-area' can be used for this, defined in index.html */}
+    <main className="flex-grow container mx-auto p-4 mb-16 sm:mb-0"> {/* main-content-area removed for now, handle fixed positioning carefully */}
       <Outlet /> {/* Nested routes render here */}
     </main>
     <BottomNav />
@@ -61,20 +65,22 @@ const AppRoutes: React.FC = () => {
         <Route path="/tournaments" element={<TournamentsPage />} />
         <Route path="/tournaments/new" element={<CreateTournamentPage />} />
         <Route path="/tournaments/:tournamentId" element={<TournamentDetailPage />} />
+        <Route path="/teams" element={<MyTeamsPage />} /> {/* Route for "TEAMS" tab */}
         <Route path="/stats" element={<StatsPage />} />
-        <Route path="/profile/:userId?" element={<ProfilePage />} /> {/* Updated Route */}
-        <Route path="/profile" element={<ProfilePage />} /> {/* Fallback for /profile, effectively /profile/undefined -> logged-in user */}
-        <Route path="/my-teams" element={<MyTeamsPage />} /> 
+        <Route path="/highlights" element={<HighlightsPage />} />
+        
+        <Route path="/profile/:userId?" element={<ProfilePage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/my-teams" element={<MyTeamsPage />} /> {/* Retained for potential direct access or old links, "TEAMS" tab is primary */}
         <Route path="/teams/:teamId" element={<TeamDetailsPage />} />
         <Route path="/my-performance" element={<MyPerformancePage />} /> 
         <Route path="/my-cricket" element={<MyCricketPage />} /> 
         <Route path="/looking" element={<LookingPage />} /> 
-        <Route path="/highlights" element={<HighlightsPage />} /> 
+        
         {/* Catch-all for any other authenticated routes, redirects to /home */}
         <Route path="*" element={<Navigate to="/home" replace />} />
       </Route>
       
-      {/* Fallback for any unhandled paths when user is not defined (already handled by above) */}
        {!user && <Route path="*" element={<Navigate to="/login" replace />} />}
     </Routes>
   );

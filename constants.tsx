@@ -1,61 +1,67 @@
 
 import React from 'react';
+import { 
+  HomeIcon, MagnifyingGlassIcon, UserGroupIcon, BuildingStorefrontIcon, PresentationChartBarIcon, TrophyIcon, ShieldCheckIcon, SparklesIcon, CogIcon 
+} from '@heroicons/react/24/outline'; // More icons
 
-export const APP_NAME = "BAT 'n' BALL"; // Changed from "Bat 'n' Ball"
+export const APP_NAME = "BAT 'n' BALL";
 
 export const COLORS = {
-  accentRed: "#991b1b", // Updated to Tailwind red-800 for a maroon shade
+  accentRed: "#991b1b", 
   darkText: "#1a202c", 
   lightText: "#f7fafc", 
 };
 
-export const NAV_ITEMS = [
+// Define CalendarDaysIcon before it's used
+const CalendarDaysIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-3.75h.008v.008H12v-.008z" />
+  </svg>
+);
+
+// For the main UI tabs below AppHeader
+export const MAIN_NAVIGATION_TAB_ITEMS = [
+  { name: "Matches", path: "/matches", icon: <CalendarDaysIcon className="w-5 h-5" /> },
+  { name: "Tournaments", path: "/tournaments", icon: <TrophyIcon className="w-5 h-5" /> },
+  { name: "Teams", path: "/teams", icon: <UserGroupIcon className="w-5 h-5" /> }, // Path changed to /teams
+  { name: "Stats", path: "/stats", icon: <PresentationChartBarIcon className="w-5 h-5" /> },
+  { name: "Highlights", path: "/highlights", icon: <SparklesIcon className="w-5 h-5" /> },
+];
+
+// For the Bottom Navigation bar (mobile)
+export const NAV_ITEMS_BOTTOM = [
   {
     name: "Home",
     path: "/home",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h7.5" />
-      </svg>
-    ),
+    icon: <HomeIcon className="w-6 h-6" />,
   },
   {
-    name: "Looking",
+    name: "Looking", // "Discover" or "Explore"
     path: "/looking",
-    icon: (
+    icon: <MagnifyingGlassIcon className="w-6 h-6" />,
+  },
+  {
+    name: "My Cricket",
+    path: "/my-cricket", // This links to the MyCricketPage hub
+    icon: ( // Bat and Ball icon
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 2.25L7.5 9l-1.5 1.5L8.25 12l1.5-1.5 6.75-6.75-1.5-1.5zM7.5 9L3 13.5l1.5 1.5L9 10.5" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 15a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
       </svg>
     ),
   },
   {
-    name: "My Cricket", // Label remains "My Cricket" for the icon
-    path: "/my-teams",  // Path now points to /my-teams
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 2.25L7.5 9l-1.5 1.5L8.25 12l1.5-1.5 6.75-6.75-1.5-1.5zM7.5 9L3 13.5l1.5 1.5L9 10.5" /> {/* Bat */}
-        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 15a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" /> {/* Ball */}
-      </svg>
-    ),
+    name: "Community",
+    path: "/community", // Placeholder path, page not yet created
+    icon: <UserGroupIcon className="w-6 h-6" />,
   },
   {
-    name: "Stats",
-    path: "/stats",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-      </svg>
-    ),
-  },
-  {
-    name: "Profile",
-    path: "/profile",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    ),
+    name: "Store",
+    path: "/store", // Placeholder path, page not yet created
+    icon: <BuildingStorefrontIcon className="w-6 h-6" />,
   },
 ];
 
 export const MOCK_API_KEY = "YOUR_GEMINI_API_KEY"; // Placeholder
+
+// UserCircleIcon and CogIcon could also be defined here if needed frequently for consistency
