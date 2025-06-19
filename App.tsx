@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import AppHeader from './components/AppHeader'; // New main header
 import MainUITabs from './components/MainUITabs'; // New main navigation tabs
 import BottomNav from './components/BottomNav';
@@ -24,19 +24,31 @@ import { MatchProvider } from './contexts/MatchContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoadingSpinner from './components/LoadingSpinner';
 
+const pathsToShowMainUITabs = ['/my-cricket', '/matches', '/tournaments', '/teams', '/stats', '/highlights'];
+
 // Layout for authenticated users, includes new AppHeader, MainUITabs, and BottomNav
-const ProtectedLayout: React.FC = () => (
-  <div className="flex flex-col min-h-screen bg-gray-900">
-    <AppHeader />
-    <MainUITabs /> {/* This will contain MATCHES, TOURNAMENTS, TEAMS etc. */}
-    {/* Apply padding top to main content area to account for fixed headers on mobile if needed */}
-    {/* The class 'main-content-area' can be used for this, defined in index.html */}
-    <main className="flex-grow container mx-auto p-4 mb-16 sm:mb-0"> {/* main-content-area removed for now, handle fixed positioning carefully */}
-      <Outlet /> {/* Nested routes render here */}
-    </main>
-    <BottomNav />
-  </div>
-);
+const ProtectedLayout: React.FC = () => {
+  const location = useLocation();
+  const showTabs = pathsToShowMainUITabs.some(p => location.pathname.startsWith(p));
+
+  // AppHeader height: mobile 57px, sm+ 61px
+  // MainUITabs height: mobile 48px, sm+ 56px
+  let mainContentPaddingTopClasses = "pt-[57px] sm:pt-[61px]"; // Padding for AppHeader only
+  if (showTabs) {
+    mainContentPaddingTopClasses = "pt-[105px] sm:pt-[117px]"; // Padding for AppHeader + MainUITabs
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen bg-gray-900">
+      <AppHeader />
+      {showTabs && <MainUITabs />}
+      <main className={`flex-grow container mx-auto px-4 pb-4 mb-16 sm:mb-0 ${mainContentPaddingTopClasses}`}>
+        <Outlet /> {/* Nested routes render here */}
+      </main>
+      <BottomNav />
+    </div>
+  );
+};
 
 // Component to handle the main routing logic after AuthProvider is initialized
 const AppRoutes: React.FC = () => {
@@ -70,8 +82,9 @@ const AppRoutes: React.FC = () => {
         <Route path="/highlights" element={<HighlightsPage />} />
         
         <Route path="/profile/:userId?" element={<ProfilePage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/my-teams" element={<MyTeamsPage />} /> {/* Retained for potential direct access or old links, "TEAMS" tab is primary */}
+        <Route path="/profile" element={<ProfilePage />} /> {/* Default to own profile if no ID */}
+        
+        <Route path="/my-teams" element={<MyTeamsPage />} /> {/* Retained for potential direct access, "TEAMS" tab is primary */}
         <Route path="/teams/:teamId" element={<TeamDetailsPage />} />
         <Route path="/my-performance" element={<MyPerformancePage />} /> 
         <Route path="/my-cricket" element={<MyCricketPage />} /> 
