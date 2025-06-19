@@ -481,12 +481,10 @@ export const addUserToTeamAffiliation = async (userId: string, teamId: string): 
     await updateDoc(profileDocRef, {
       teamIds: arrayUnion(teamId)
     });
-    console.log(`Team ${teamId} added to profile ${userId}`);
-  } catch (error) {
-    console.error(`Failed to add team ${teamId} to profile ${userId}:`, error);
-    // Optionally, try to set if arrayUnion fails (e.g. field doesn't exist)
-    // This is more complex and usually arrayUnion is sufficient if field might not exist.
-    // Firestore's arrayUnion will create the array field if it doesn't exist.
+    console.log(`[dataService] Team ${teamId} successfully added to profile ${userId}`);
+  } catch (error: any) {
+    console.error(`[dataService] Failed to add team ${teamId} to profile ${userId}. Error Code: ${error.code || 'N/A'}, Message: ${error.message || 'Unknown error'}`, error);
+    // throw error; // Optionally rethrow if calling functions need to handle it
   }
 };
 
@@ -496,9 +494,10 @@ export const removeUserFromTeamAffiliation = async (userId: string, teamId: stri
     await updateDoc(profileDocRef, {
       teamIds: arrayRemove(teamId)
     });
-    console.log(`Team ${teamId} removed from profile ${userId}`);
-  } catch (error) {
-    console.error(`Failed to remove team ${teamId} from profile ${userId}:`, error);
+    console.log(`[dataService] Team ${teamId} successfully removed from profile ${userId}`);
+  } catch (error: any) {
+    console.error(`[dataService] Failed to remove team ${teamId} from profile ${userId}. Error Code: ${error.code || 'N/A'}, Message: ${error.message || 'Unknown error'}`, error);
+    // throw error; // Optionally rethrow
   }
 };
 
@@ -512,7 +511,7 @@ export const getTeamsInfoByIds = async (teamIds: string[]): Promise<Array<Pick<T
   // Newer SDK versions might lift this limit or offer better batching.
   // For simplicity here, we'll do one query. If more than 30, this needs chunking.
   if (teamIds.length > 30) {
-    console.warn("Fetching more than 30 teams by ID at once, this might hit Firestore limits or be inefficient. Consider batching.");
+    console.warn("[dataService] Fetching more than 30 teams by ID at once, this might hit Firestore limits or be inefficient. Consider batching.");
   }
   
   const q = query(teamsCol, where('__name__', 'in', teamIds)); // '__name__' refers to document ID
