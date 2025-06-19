@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link, useHistory } from 'react-router-dom'; // useNavigate -> useHistory for v5
+import { Link, useNavigate } from 'react-router-dom'; // useNavigate for v7
 import Button from '../components/Button';
 import { APP_NAME } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,7 +15,7 @@ const GoogleIcon = () => (
 );
 
 const LoginPage: React.FC = () => {
-  const history = useHistory(); // v5 hook
+  const navigate = useNavigate(); // v7 hook
   const { loginWithPassword, signInWithGoogle, loading: authLoading, error: authErrorHook, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,15 +23,15 @@ const LoginPage: React.FC = () => {
 
   useEffect(() => {
     if (user) {
-      history.replace('/home'); // Updated navigation
+      navigate('/home', { replace: true }); 
     }
-  }, [user, history]);
+  }, [user, navigate]);
   
   useEffect(() => {
     if (authErrorHook) {
       setLocalError(authErrorHook.message || "Login failed. Please check your credentials or try again.");
     } else {
-      setLocalError(null); // Clear previous errors on successful state change from AuthContext
+      setLocalError(null); 
     }
   }, [authErrorHook]);
 
@@ -49,7 +49,6 @@ const LoginPage: React.FC = () => {
   const handleGoogleSignIn = async () => {
     setLocalError(null);
     await signInWithGoogle();
-    // Navigation and error handling will be managed by useEffect hooks watching `user` and `authErrorHook`
   };
 
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
@@ -133,7 +132,7 @@ const LoginPage: React.FC = () => {
           <Button
             type="button"
             onClick={handleGoogleSignIn}
-            isLoading={authLoading && !localError} // Show loading only if Google sign-in is in progress without other errors
+            isLoading={authLoading && !localError} 
             disabled={authLoading}
             className="w-full bg-white text-gray-700 hover:bg-gray-100 focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500 border border-gray-300"
             size="lg"

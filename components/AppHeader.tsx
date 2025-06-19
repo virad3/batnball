@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useHistory } from 'react-router-dom'; // useNavigate -> useHistory for v5
+import { Link, useNavigate } from 'react-router-dom'; // useNavigate for v7
 import { APP_NAME } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
 import { Bars3Icon, MagnifyingGlassIcon, ChatBubbleLeftEllipsisIcon } from '@heroicons/react/24/outline';
@@ -11,7 +11,7 @@ const AppHeader: React.FC = () => {
   
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const userAvatarButtonRef = useRef<HTMLButtonElement>(null);
-  const history = useHistory(); // v5 hook
+  const navigate = useNavigate(); // v7 hook
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -37,7 +37,7 @@ const AppHeader: React.FC = () => {
   const handleLogout = async () => {
     await logout();
     setIsUserDropdownOpen(false);
-    history.push('/login'); // Updated navigation
+    navigate('/login'); 
   };
   
   const displayName = userProfile?.username || user?.displayName || user?.email?.split('@')[0] || "User";
@@ -69,11 +69,6 @@ const AppHeader: React.FC = () => {
         {/* Center/Right Section: Icons, User Profile */}
         <div className="flex items-center space-x-2 sm:space-x-3">
           {/* PRO Button Removed */}
-          {/* 
-          <button className="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold bg-teal-500 text-white rounded-md hover:bg-teal-600 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-400 focus:ring-offset-2 focus:ring-offset-gray-800">
-            PRO @ ₹399
-          </button> 
-          */}
           
           <button aria-label="Search" className="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600">
             <MagnifyingGlassIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-300" />

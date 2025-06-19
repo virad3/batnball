@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useHistory, Link } from 'react-router-dom'; // useNavigate -> useHistory for v5
+import { useParams, useNavigate, Link } from 'react-router-dom'; // useNavigate for v7
 import { Match, BallEvent, Score, MatchFormat, PlayerBattingStats, PlayerBowlingStats, DismissalType, InningsRecord } from '../types';
-// getMatchById, updateMatch from dataService are now mostly handled by context
 import ScoreDisplay from '../components/ScoreDisplay';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -25,7 +24,7 @@ const ExtraButton: React.FC<{ type: BallEvent['extraType']; onClick: (type: Ball
 
 const ScoringPage: React.FC = () => {
   const { matchId } = useParams<{ matchId: string }>();
-  const history = useHistory(); // v5 hook
+  const navigate = useNavigate(); // v7 hook
   const context = useMatchContext();
   const { 
     matchDetails, loadMatch, startNewMatch, updateTossAndStartInnings, addBall, switchInnings, saveMatchState, endMatch,
@@ -60,7 +59,7 @@ const ScoringPage: React.FC = () => {
     setPageLoading(true);
     if (!matchId) { 
       console.log('[ScoringPage] No matchId, navigating to /matches');
-      history.push('/matches'); // Updated navigation
+      navigate('/matches'); 
       return; 
     }
 
@@ -76,6 +75,10 @@ const ScoringPage: React.FC = () => {
       };
       loadedMatch = await startNewMatch(tempMatchData);
       console.log('[ScoringPage] loadedMatch after startNewMatch call:', loadedMatch);
+      // After starting a new match, update the URL to reflect the new match's ID
+      if (loadedMatch && loadedMatch.id) {
+        navigate(`/matches/${loadedMatch.id}/score`, { replace: true });
+      }
     }
 
     if (loadedMatch) {
@@ -102,14 +105,16 @@ const ScoringPage: React.FC = () => {
       }
     } else if (matchId !== "newmatch") {
       console.log('[ScoringPage] Match not loaded and matchId is not "newmatch", navigating to /matches.');
-      history.push('/matches'); // Updated navigation
+      navigate('/matches'); 
     } else {
       console.log('[ScoringPage] Critical: matchId is "newmatch" but loadedMatch is still null/undefined after trying to create it.');
+       // This could happen if startNewMatch fails silently or returns null.
+       // Potentially navigate away or show an error. For now, pageLoading will remain true or UI might hang.
     }
     setPageLoading(false);
     console.log('[ScoringPage] initializePage finished.');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, history, loadMatch, startNewMatch]); // context.matchDetails removed, currentStrikerName, currentBowlerName also potentially cause re-runs but are needed for logic
+  }, [matchId, navigate, loadMatch, startNewMatch, context.matchDetails, currentStrikerName, currentBowlerName]);
 
   useEffect(() => {
     initializePage();
@@ -122,9 +127,7 @@ const ScoringPage: React.FC = () => {
     try {
       await updateTossAndStartInnings(tossWinnerNameState, electedToState);
       setShowTossModal(false);
-      // Ensure matchDetails from context is fresh after updateTossAndStartInnings completes
-      // It's possible the context update is asynchronous. Let's use the matchDetails from context after update.
-      const currentMatchDetails = context.matchDetails; // Re-fetch from context
+      const currentMatchDetails = context.matchDetails; 
       if (!currentMatchDetails) {
           console.error("Match details are null after toss submission, cannot proceed.");
           return;
@@ -186,8 +189,8 @@ const ScoringPage: React.FC = () => {
         teamBSquad: selectedTeamBSquad,
     };
     try {
-        context.setMatchDetails(updatedMatchWithSquads); // Optimistic update to current context
-        await saveMatchState(); // Save with current context state which should include squads
+        context.setMatchDetails(updatedMatchWithSquads); 
+        await saveMatchState(); 
         setShowSquadSelectionModal(false);
         setModalStriker('');
         setModalNonStriker('');
@@ -213,7 +216,7 @@ const ScoringPage: React.FC = () => {
             current_non_striker_name: modalNonStriker,
             current_bowler_name: modalBowler,
         };
-        context.setMatchDetails(updatedMatchData); // Optimistic
+        context.setMatchDetails(updatedMatchData); 
         await saveMatchState(); 
     }
     setShowPlayerRolesModal(false);
@@ -337,7 +340,7 @@ const ScoringPage: React.FC = () => {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
         <div className="relative bg-gray-800 p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
-          <button onClick={() => {setShowTossModal(false); if(matchId==="newmatch") history.push('/matches')}} aria-label="Close toss modal" className="absolute top-3 right-3 text-gray-400 hover:text-gray-200 p-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+          <button onClick={() => {setShowTossModal(false); if(matchId==="newmatch") navigate('/matches')}} aria-label="Close toss modal" className="absolute top-3 right-3 text-gray-400 hover:text-gray-200 p-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
           <h2 className="text-2xl font-bold text-gray-50 mb-6 text-center">
             {matchId === "newmatch" ? "Setup New Match & Toss" : "Match Toss"}
           </h2>
@@ -560,7 +563,7 @@ const ScoringPage: React.FC = () => {
           {currentInningsNumber === 1 && currentMatchInningsData && (currentMatchInningsData.totalWickets >= SQUAD_SIZE -1 || (matchDetails.overs_per_innings && currentMatchInningsData.totalOversBowled >= matchDetails.overs_per_innings)) && (
             <Button onClick={switchInnings} variant="primary" className="w-full mb-3">End Innings & Start 2nd Innings</Button>
           )}
-          <Button onClick={async () => { await saveMatchState(); history.push('/matches');}} variant="outline" className="w-full">Save & Exit to Matches</Button> {/* Updated navigation */}
+          <Button onClick={async () => { await saveMatchState(); navigate('/matches');}} variant="outline" className="w-full">Save & Exit to Matches</Button>
       </div>
 
       <div className="p-4 bg-gray-800 rounded-lg shadow mt-4 border border-gray-700">

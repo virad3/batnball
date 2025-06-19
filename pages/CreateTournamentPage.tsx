@@ -1,16 +1,16 @@
 
 import React, { useState } from 'react';
-import { useHistory } from 'react-router-dom'; // useNavigate -> useHistory for v5
+import { useNavigate } from 'react-router-dom'; // useNavigate for v7
 import { Tournament, TournamentFormat } from '../types'; 
-import { createTournament } from '../services/dataService'; // Now uses Firebase
+import { createTournament } from '../services/dataService'; 
 import Button from '../components/Button';
 
 const CreateTournamentPage: React.FC = () => {
-  const history = useHistory(); // v5 hook
+  const navigate = useNavigate(); // v7 hook
   const [tournamentName, setTournamentName] = useState('');
   const [format, setFormat] = useState<TournamentFormat>(TournamentFormat.LEAGUE);
-  const [startDate, setStartDate] = useState(''); // Store as YYYY-MM-DD string
-  const [endDate, setEndDate] = useState('');   // Store as YYYY-MM-DD string
+  const [startDate, setStartDate] = useState(''); 
+  const [endDate, setEndDate] = useState('');   
   const [selectedTeamNames, setSelectedTeamNames] = useState<string[]>([]);
   const [customTeamName, setCustomTeamName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
@@ -47,16 +47,16 @@ const CreateTournamentPage: React.FC = () => {
     const newTournamentData: Omit<Tournament, 'id' | 'matches' | 'organizerName' | 'user_id'> = {
       name: tournamentName,
       format,
-      startDate, // Pass as string, dataService will convert to Timestamp
-      endDate,   // Pass as string
+      startDate, 
+      endDate,   
       teamNames: selectedTeamNames,
       logoUrl: logoUrl || undefined,
     };
 
     try {
-      const createdTournament = await createTournament(newTournamentData); // dataService function now uses Firebase
+      const createdTournament = await createTournament(newTournamentData); 
       setLoading(false);
-      history.push(`/tournaments/${createdTournament.id}`); // Updated navigation
+      navigate(`/tournaments/${createdTournament.id}`); 
     } catch (err: any) {
       setError(err.message || "Failed to create tournament. Please try again.");
       setLoading(false);
@@ -146,7 +146,7 @@ const CreateTournamentPage: React.FC = () => {
         <div className="pt-2 flex flex-col sm:flex-row sm:justify-end sm:space-x-3 space-y-3 sm:space-y-0">
           <Button 
             type="button" 
-            onClick={() => history.push('/tournaments')} // Updated navigation
+            onClick={() => navigate('/tournaments')} 
             variant="outline" 
             size="lg"
             className="w-full sm:w-auto"

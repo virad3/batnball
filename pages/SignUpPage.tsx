@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link, useHistory } from 'react-router-dom'; // useNavigate -> useHistory for v5
+import { Link, useNavigate } from 'react-router-dom'; // useNavigate for v7
 import Button from '../components/Button';
 import { APP_NAME } from '../constants';
 import { UserProfile } from '../types'; 
@@ -16,7 +16,7 @@ const GoogleIcon = () => (
 );
 
 const SignUpPage: React.FC = () => {
-  const history = useHistory(); // v5 hook
+  const navigate = useNavigate(); // v7 hook
   const { signUpWithPassword, signInWithGoogle, loading: authLoading, error: authErrorHook, user } = useAuth();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -27,23 +27,21 @@ const SignUpPage: React.FC = () => {
   const [signupSuccess, setSignupSuccess] = useState(false);
 
   useEffect(() => {
-    // If user exists AND there's no auth error, it means login/signup was successful.
     if (user && !authErrorHook) {
         setSignupSuccess(true); 
-        // Delay navigation to allow user to see success message
         const timer = setTimeout(() => {
-            history.replace('/home'); // Updated navigation
-        }, 2000); // 2 seconds delay
+            navigate('/home', { replace: true }); 
+        }, 2000); 
         return () => clearTimeout(timer);
     }
-  }, [user, authErrorHook, history]);
+  }, [user, authErrorHook, navigate]);
   
   useEffect(() => {
     if (authErrorHook) {
       setLocalError(authErrorHook.message || "Sign up failed. Please try again.");
-      setSignupSuccess(false); // Ensure success message is hidden if an error occurs
+      setSignupSuccess(false); 
     } else {
-      setLocalError(null); // Clear previous errors if authErrorHook becomes null
+      setLocalError(null); 
     }
   }, [authErrorHook]);
 
@@ -79,14 +77,12 @@ const SignUpPage: React.FC = () => {
         }
       }
     });
-    // Success/error handling is driven by useEffect hooks watching `user` and `authErrorHook`
   };
 
   const handleGoogleSignUp = async () => {
     setLocalError(null);
     setSignupSuccess(false);
     await signInWithGoogle();
-    // Success/error handling is driven by useEffect hooks watching `user` and `authErrorHook`
   };
   
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
@@ -108,7 +104,7 @@ const SignUpPage: React.FC = () => {
             {localError}
           </div>
         )}
-        {signupSuccess && !authErrorHook && ( // Show success only if no auth error
+        {signupSuccess && !authErrorHook && ( 
             <div role="alert" className="bg-green-800 bg-opacity-50 border border-green-700 text-green-300 px-4 py-3 rounded-md text-sm">
                 Sign up successful! Welcome to {APP_NAME}. Redirecting you...
             </div>
@@ -181,7 +177,7 @@ const SignUpPage: React.FC = () => {
           <Button
             type="button"
             onClick={handleGoogleSignUp}
-            isLoading={authLoading && !localError} // Show loading state specific to Google action
+            isLoading={authLoading && !localError} 
             disabled={authLoading || signupSuccess}
             className="w-full bg-white text-gray-700 hover:bg-gray-100 focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500 border border-gray-300"
             size="lg"

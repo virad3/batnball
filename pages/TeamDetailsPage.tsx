@@ -1,19 +1,19 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useHistory } from 'react-router-dom'; // useNavigate -> useHistory for v5
+import { useParams, useNavigate } from 'react-router-dom'; // useNavigate for v7
 import { Team, UserProfile } from '../types';
 import { getTeamById, updateTeam, getAllUserProfilesForSuggestions, addUserToTeamAffiliation, removeUserFromTeamAffiliation, getFullUserProfile } from '../services/dataService';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
-import PlayerInfoModal from '../components/PlayerInfoModal'; // Import the new modal
+import PlayerInfoModal from '../components/PlayerInfoModal'; 
 import { ArrowLeftIcon, PlusIcon, TrashIcon, UserGroupIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
 
 type PlayerSuggestion = Pick<UserProfile, 'id' | 'username'>;
 
 const TeamDetailsPage = (): JSX.Element => {
   const { teamId } = useParams<{ teamId: string }>();
-  const history = useHistory(); // v5 hook
+  const navigate = useNavigate(); // v7 hook
   const { user: authUser, userProfile: currentUserProfile, loading: authLoading } = useAuth();
 
   const [team, setTeam] = useState<Team | null>(null);
@@ -32,7 +32,6 @@ const TeamDetailsPage = (): JSX.Element => {
   const [isOwner, setIsOwner] = useState(false);
   const [isAffiliatedMember, setIsAffiliatedMember] = useState(false);
 
-  // State for PlayerInfoModal
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const [playerModalLoading, setPlayerModalLoading] = useState(false);
   const [selectedPlayerForModal, setSelectedPlayerForModal] = useState<PlayerSuggestion | {username: string} | null>(null);
@@ -44,10 +43,10 @@ const TeamDetailsPage = (): JSX.Element => {
     if (!teamId) {
       setError("Team ID is missing.");
       setLoading(false);
-      history.push('/my-teams'); // Updated navigation
-      return null; 
+      navigate('/my-teams'); 
+      return; 
     }
-    if (authLoading) return null; // Ensure consistency in callback's early return types
+    if (authLoading) return;
 
     setLoading(true);
     setError(null);
@@ -81,7 +80,7 @@ const TeamDetailsPage = (): JSX.Element => {
     } finally {
       setLoading(false);
     }
-  }, [teamId, history, authUser, currentUserProfile, authLoading]); // Added history to dependencies
+  }, [teamId, navigate, authUser, currentUserProfile, authLoading]); 
 
   useEffect(() => {
     fetchTeamDetailsAndProfiles();
@@ -209,7 +208,7 @@ const TeamDetailsPage = (): JSX.Element => {
     try {
         await removeUserFromTeamAffiliation(authUser.uid, teamId);
         setIsAffiliatedMember(false); 
-        history.push('/my-teams'); // Updated navigation
+        navigate('/my-teams'); 
     } catch (err: any) {
         setError(err.message || "Failed to leave team.");
     } finally {
@@ -232,10 +231,10 @@ const TeamDetailsPage = (): JSX.Element => {
       } catch (err) {
         console.error("Error fetching player profile for modal:", err);
         setPlayerModalError("Could not load detailed profile.");
-        setPlayerModalProfile(null); // Ensure profile is null on error
+        setPlayerModalProfile(null); 
       }
     } else {
-      setPlayerModalProfile(null); // Not a registered user, or ID missing
+      setPlayerModalProfile(null); 
     }
     setPlayerModalLoading(false);
   };
@@ -250,7 +249,7 @@ const TeamDetailsPage = (): JSX.Element => {
     <>
       <div className="space-y-6 max-w-3xl mx-auto">
         <div className="flex items-center justify-between">
-          <Button variant="outline" size="sm" onClick={() => history.push('/my-teams')} leftIcon={<ArrowLeftIcon className="w-5 h-5"/>}> {/* Updated navigation */}
+          <Button variant="outline" size="sm" onClick={() => navigate('/my-teams')} leftIcon={<ArrowLeftIcon className="w-5 h-5"/>}> 
             Back to My Teams
           </Button>
         </div>

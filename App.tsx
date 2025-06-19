@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { HashRouter, Switch, Route, Redirect, useLocation, RouteProps } from 'react-router-dom'; // Updated imports for v5
+import { HashRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'; // Updated imports for v7
 import AppHeader from './components/AppHeader';
 import MainUITabs from './components/MainUITabs';
 import BottomNav from './components/BottomNav';
@@ -26,13 +26,11 @@ import LoadingSpinner from './components/LoadingSpinner';
 
 const pathsToShowMainUITabs = ['/my-cricket', '/matches', '/tournaments', '/teams', '/stats', '/highlights'];
 
-interface ProtectedLayoutProps {
-  children: React.ReactNode;
-}
-
 // Layout for authenticated users
-const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
+const ProtectedLayout: React.FC = () => {
   const location = useLocation();
+  const { user, loading: authLoading } = useAuth(); // Auth check within layout
+
   const showTabs = pathsToShowMainUITabs.some(p => location.pathname.startsWith(p) || location.pathname === p);
 
   let mainContentPaddingTopClasses = "pt-[57px] sm:pt-[61px]";
@@ -40,44 +38,29 @@ const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
     mainContentPaddingTopClasses = "pt-[105px] sm:pt-[117px]";
   }
 
+  if (authLoading && !user) {
+    // This minimal loading is if ProtectedLayout itself is rendered while auth is resolving
+    // The main loading spinner is handled in AppRoutes before any route is chosen
+    return (
+        <div className="flex justify-center items-center min-h-screen bg-gray-900 text-gray-100">
+            <LoadingSpinner size="sm" />
+        </div>
+    );
+  }
+
+  if (!user && !authLoading) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-900">
       <AppHeader />
       {showTabs && <MainUITabs />}
       <main className={`flex-grow container mx-auto px-4 pb-4 mb-16 sm:mb-0 ${mainContentPaddingTopClasses}`}>
-        {children} {/* Render children passed by PrivateRoute */}
+        <Outlet /> {/* Child routes will render here */}
       </main>
       <BottomNav />
     </div>
-  );
-};
-
-// Custom PrivateRoute component for v5
-interface PrivateRouteProps extends RouteProps {
-  component: React.ComponentType<any>;
-}
-
-const PrivateRoute: React.FC<PrivateRouteProps> = ({ component: Component, ...rest }) => {
-  const { user, loading: authLoading } = useAuth();
-
-  // Don't render anything if auth is still loading, or handle it differently if needed
-  if (authLoading && !user) { 
-    return null; // Or a minimal loading indicator
-  }
-
-  return (
-    <Route
-      {...rest}
-      render={props =>
-        user ? (
-          <ProtectedLayout>
-            <Component {...props} />
-          </ProtectedLayout>
-        ) : (
-          <Redirect to={{ pathname: "/login", state: { from: props.location } }} />
-        )
-      }
-    />
   );
 };
 
@@ -96,37 +79,36 @@ const AppRoutes: React.FC = () => {
   }
 
   return (
-    <Switch>
-      <Route path="/login" component={LoginPage} />
-      <Route path="/signup" component={SignUpPage} />
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignUpPage />} />
 
-      {/* Protected Routes using PrivateRoute */}
-      <PrivateRoute exact path="/" component={() => <Redirect to="/home" />} />
-      <PrivateRoute path="/home" component={HomePage} />
-      <PrivateRoute exact path="/matches" component={MatchesPage} />
-      <PrivateRoute path="/matches/:matchId/score" component={ScoringPage} />
-      <PrivateRoute exact path="/tournaments" component={TournamentsPage} />
-      <PrivateRoute path="/tournaments/new" component={CreateTournamentPage} />
-      <PrivateRoute path="/tournaments/:tournamentId" component={TournamentDetailPage} />
-      <PrivateRoute path="/teams/:teamId" component={TeamDetailsPage} />
-      <PrivateRoute path="/teams" component={MyTeamsPage} /> {/* Covers /my-teams effectively */}
-      <PrivateRoute path="/stats" component={StatsPage} />
-      <PrivateRoute path="/highlights" component={HighlightsPage} />
-      
-      <PrivateRoute path="/profile/:userId" component={ProfilePage} />
-      <PrivateRoute exact path="/profile" component={ProfilePage} />
+      {/* Protected Routes */}
+      <Route element={<ProtectedLayout />}>
+        <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route path="/home" element={<HomePage />} />
+        <Route path="/matches" element={<MatchesPage />} />
+        <Route path="/matches/:matchId/score" element={<ScoringPage />} />
+        <Route path="/tournaments" element={<TournamentsPage />} />
+        <Route path="/tournaments/new" element={<CreateTournamentPage />} />
+        <Route path="/tournaments/:tournamentId" element={<TournamentDetailPage />} />
+        <Route path="/teams/:teamId" element={<TeamDetailsPage />} />
+        <Route path="/teams" element={<MyTeamsPage />} />
+        <Route path="/stats" element={<StatsPage />} />
+        <Route path="/highlights" element={<HighlightsPage />} />
         
-      {/* Retained /my-teams for explicit linking if needed, but /teams is the primary for the tab */}
-      <PrivateRoute path="/my-teams" component={MyTeamsPage} /> 
-      <PrivateRoute path="/my-performance" component={MyPerformancePage} />
-      <PrivateRoute path="/my-cricket" component={MyCricketPage} />
-      <PrivateRoute path="/looking" component={LookingPage} />
-      
-      {/* Fallback for authenticated users if no other protected route matches */}
-      <Route path="*">
-        {user ? <Redirect to="/home" /> : <Redirect to="/login" />}
+        <Route path="/profile/:userId" element={<ProfilePage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+          
+        <Route path="/my-teams" element={<MyTeamsPage />} /> 
+        <Route path="/my-performance" element={<MyPerformancePage />} />
+        <Route path="/my-cricket" element={<MyCricketPage />} />
+        <Route path="/looking" element={<LookingPage />} />
       </Route>
-    </Switch>
+      
+      {/* Fallback for any other path */}
+      <Route path="*" element={user ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />} />
+    </Routes>
   );
 }
 

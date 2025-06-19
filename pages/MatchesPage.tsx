@@ -1,23 +1,23 @@
 
 import React, { useState, useEffect } from 'react';
 import { Match } from '../types';
-import { getAllMatches } from '../services/dataService'; // Now uses Firebase
+import { getAllMatches } from '../services/dataService'; 
 import MatchCard from '../components/MatchCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
-import { Link, useHistory } from 'react-router-dom'; // Link is fine, useNavigate -> useHistory for v5
+import { Link, useNavigate } from 'react-router-dom'; // useNavigate for v7
 
 const MatchesPage: React.FC = () => {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'live' | 'upcoming' | 'completed'>('all');
-  const history = useHistory(); // v5 hook
+  const navigate = useNavigate(); // v7 hook
 
   useEffect(() => {
     const fetchMatches = async () => {
       setLoading(true);
       try {
-        const allMatchesFromDB = await getAllMatches(); // Fetches user-specific matches from Firebase
+        const allMatchesFromDB = await getAllMatches(); 
         setMatches(allMatchesFromDB);
       } catch (error) {
         console.error("Failed to fetch matches:", error);
@@ -29,7 +29,7 @@ const MatchesPage: React.FC = () => {
   }, []);
 
   const handleCreateNewMatch = () => {
-    history.push('/matches/newmatch/score'); // Updated navigation
+    navigate('/matches/newmatch/score'); 
   };
 
   const filteredMatches = matches.filter(match => {

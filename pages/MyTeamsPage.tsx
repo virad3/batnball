@@ -1,14 +1,14 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useHistory } from 'react-router-dom'; // useNavigate -> useHistory for v5
+import { useNavigate } from 'react-router-dom'; // useNavigate for v7
 import { Team, UserProfile } from '../types';
-import { getTeamsByUserId, getTeamById, getFullUserProfile } from '../services/dataService'; // Assuming getTeamById fetches full team object
+import { getTeamsByUserId, getTeamById, getFullUserProfile } from '../services/dataService'; 
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
 import TeamCard from '../components/TeamCard';
 import CreateTeamModal from '../components/CreateTeamModal';
-import { PlusIcon, UserGroupIcon, QrCodeIcon as QrCodeIconOutline } from '@heroicons/react/24/outline'; // Using outline for consistency
+import { PlusIcon, UserGroupIcon, QrCodeIcon as QrCodeIconOutline } from '@heroicons/react/24/outline'; 
 import { collection, query, where, getDocs, documentId } from 'firebase/firestore';
 import { db } from '../services/firebaseClient';
 
@@ -17,10 +17,10 @@ interface ProcessedTeamForCard {
   id: string;
   logoUrl?: string | null;
   teamName: string;
-  location?: string; // Placeholder for now
+  location?: string; 
   ownerName?: string;
   isOwnerByCurrentUser: boolean;
-  rawTeamObject: Team; // Keep raw team object for navigation
+  rawTeamObject: Team; 
 }
 
 const MyTeamsPage: React.FC = () => {
@@ -30,7 +30,7 @@ const MyTeamsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   
-  const history = useHistory(); // v5 hook
+  const navigate = useNavigate(); // v7 hook
   const { user: authUser, userProfile, loading: authLoading } = useAuth();
 
   const fetchMyTeamsData = useCallback(async () => {
@@ -48,11 +48,9 @@ const MyTeamsPage: React.FC = () => {
       // 2. Fetch affiliated teams (user is a member but not necessarily owner)
       let affiliatedTeamsRaw: Team[] = [];
       if (userProfile.teamIds && userProfile.teamIds.length > 0) {
-        // Filter out already fetched owned team IDs to avoid redundant fetches if getTeamById is used individually
         const affiliatedIdsToFetch = userProfile.teamIds.filter(id => !ownedTeamsRaw.some(ot => ot.id === id));
         
         if (affiliatedIdsToFetch.length > 0) {
-            // Firestore 'in' query can handle up to 30 elements
             const teamsQuery = query(collection(db, 'teams'), where(documentId(), 'in', affiliatedIdsToFetch));
             const affiliatedSnapshot = await getDocs(teamsQuery);
             affiliatedTeamsRaw = affiliatedSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
@@ -63,7 +61,7 @@ const MyTeamsPage: React.FC = () => {
       const allUserRelatedTeamsMap = new Map<string, Team>();
       ownedTeamsRaw.forEach(team => allUserRelatedTeamsMap.set(team.id, team));
       affiliatedTeamsRaw.forEach(team => {
-        if (!allUserRelatedTeamsMap.has(team.id)) { // Add only if not already present from owned list
+        if (!allUserRelatedTeamsMap.has(team.id)) { 
             allUserRelatedTeamsMap.set(team.id, team);
         }
       });
@@ -75,7 +73,6 @@ const MyTeamsPage: React.FC = () => {
       const ownerProfilesMap = new Map<string, UserProfile>();
 
       if (ownerIds.size > 0) {
-        // Batch fetch owner profiles (simplified: fetch one by one, ideally batch this)
         for (const ownerId of Array.from(ownerIds)) {
           if (!ownerProfilesMap.has(ownerId)) {
             const profile = await getFullUserProfile(ownerId);
@@ -95,7 +92,7 @@ const MyTeamsPage: React.FC = () => {
           id: team.id,
           logoUrl: team.logoUrl,
           teamName: team.name,
-          location: "Location N/A", // Placeholder
+          location: "Location N/A", 
           ownerName: ownerProfile?.username || (isOwner ? userProfile.username : "Unknown Owner"),
           isOwnerByCurrentUser: isOwner,
           rawTeamObject: team,
@@ -116,7 +113,6 @@ const MyTeamsPage: React.FC = () => {
     if (activeTab === 'my') {
       fetchMyTeamsData();
     } else {
-      // Placeholder: load data for other tabs if/when implemented
       setLoading(false); 
     }
   }, [activeTab, fetchMyTeamsData]);
@@ -129,7 +125,7 @@ const MyTeamsPage: React.FC = () => {
   };
 
   const handleTeamCardClick = (team: ProcessedTeamForCard) => {
-    history.push(`/teams/${team.id}`); // Updated navigation
+    navigate(`/teams/${team.id}`); 
   };
 
   const TabButton: React.FC<{tabKey: 'my' | 'opponents' | 'following', label: string}> = ({ tabKey, label }) => (
