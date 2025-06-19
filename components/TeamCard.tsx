@@ -1,5 +1,5 @@
 import React from 'react';
-import { LocationMarkerIcon, QrCodeIcon as QrCodeIconOutline } from '@heroicons/react/24/outline';
+import { MapPinIcon, QrCodeIcon as QrCodeIconOutline } from '@heroicons/react/24/outline'; // Changed LocationMarkerIcon to MapPinIcon
 import { UserCircleIcon } from '@heroicons/react/24/solid'; // Solid for captain icon potentially
 
 interface TeamCardProps {
@@ -72,7 +72,7 @@ const TeamCard: React.FC<TeamCardProps> = ({
           
           {location && location !== "Location N/A" && (
             <div className="flex items-center text-xs sm:text-sm text-gray-400 mb-0.5">
-              <LocationMarkerIcon className="w-3 h-3 sm:w-4 sm:h-4 mr-1 flex-shrink-0" />
+              <MapPinIcon className="w-3 h-3 sm:w-4 sm:h-4 mr-1 flex-shrink-0" /> {/* Changed LocationMarkerIcon to MapPinIcon */}
               <span className="truncate">{location}</span>
             </div>
           )}
