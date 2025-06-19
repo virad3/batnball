@@ -21,7 +21,7 @@ import { ArrowLeftIcon, UserPlusIcon, UserMinusIcon, UserGroupIcon } from '@hero
 const ProfilePage: React.FC = () => {
   const { userId: paramsUserId } = useParams<{ userId?: string }>();
   const navigate = useNavigate();
-  const { user: authUserHook, loading: authLoadingHook } = useAuth(); // Removed authContextProfile from direct destructuring here
+  const { user: authUserHook, loading: authLoadingHook } = useAuth(); 
 
   const [profileData, setProfileData] = useState<Partial<UserProfile>>({});
   const [initialProfileData, setInitialProfileData] = useState<Partial<UserProfile>>({});
@@ -34,65 +34,71 @@ const ProfilePage: React.FC = () => {
   const [isOwnProfile, setIsOwnProfile] = useState(false);
   const [viewedUserId, setViewedUserId] = useState<string | null>(null);
 
-  // Follow system state
   const [isFollowingCurrentUser, setIsFollowingCurrentUser] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [followActionLoading, setFollowActionLoading] = useState(false);
 
-  // Teams list
   const [affiliatedTeams, setAffiliatedTeams] = useState<Array<Pick<Team, 'id' | 'name'>>>([]);
   const [teamsLoading, setTeamsLoading] = useState(false);
 
 
   const loadProfileAndRelatedData = useCallback(async () => {
+    console.log('[ProfilePage:loadProfileAndRelatedData] Starting to load profile data.');
     setPageLoading(true);
     setError(null);
-    setAffiliatedTeams([]); // Reset teams
+    setAffiliatedTeams([]); 
 
     const effectiveUserId = paramsUserId || authUserHook?.uid;
+    console.log(`[ProfilePage:loadProfileAndRelatedData] Effective User ID: ${effectiveUserId}, paramsUserId: ${paramsUserId}, authUserHook?.uid: ${authUserHook?.uid}`);
     setViewedUserId(effectiveUserId || null);
 
     if (!effectiveUserId) {
-      if (!authLoadingHook) { // Only set error if auth loading is complete
+      if (!authLoadingHook) { 
         setError("User profile not found or user not authenticated.");
+        console.log('[ProfilePage:loadProfileAndRelatedData] No effectiveUserId and auth not loading. Setting error.');
+      } else {
+        console.log('[ProfilePage:loadProfileAndRelatedData] No effectiveUserId, but auth is still loading.');
       }
       setPageLoading(false);
       return;
     }
     
-    // Determine if it's the user's own profile
     if (authUserHook?.uid) {
         setIsOwnProfile(effectiveUserId === authUserHook.uid);
+        console.log(`[ProfilePage:loadProfileAndRelatedData] Is own profile? ${effectiveUserId === authUserHook.uid}`);
     } else {
-        setIsOwnProfile(false); // If no authUser, cannot be own profile
+        setIsOwnProfile(false); 
+        console.log('[ProfilePage:loadProfileAndRelatedData] No authUser, cannot be own profile.');
     }
     
     let fetchedProfile: Partial<UserProfile> | null = null;
     try {
-      fetchedProfile = await getFullUserProfile(effectiveUserId); // Always fetch fresh profile
+      console.log(`[ProfilePage:loadProfileAndRelatedData] Fetching full user profile for: ${effectiveUserId}`);
+      fetchedProfile = await getFullUserProfile(effectiveUserId); 
+      console.log(`[ProfilePage:loadProfileAndRelatedData] Fetched profile for ${effectiveUserId}:`, fetchedProfile);
     } catch (err: any) {
       setError(err.message || `Failed to load profile data for user ID ${effectiveUserId}.`);
-      console.error("Error loading profile:", err);
+      console.error("[ProfilePage:loadProfileAndRelatedData] Error loading profile:", err);
       setPageLoading(false);
       return;
     }
 
     if (fetchedProfile) {
+      console.log(`[ProfilePage:loadProfileAndRelatedData] Setting profileData and initialProfileData with teamIds:`, fetchedProfile.teamIds);
       setProfileData(fetchedProfile);
-      setInitialProfileData(fetchedProfile); // For tracking changes if editable
+      setInitialProfileData(fetchedProfile); 
       setProfilePicPreview(fetchedProfile.profilePicUrl || null);
 
-      // Fetch follow data
-      if (authUserHook?.uid && authUserHook.uid !== effectiveUserId) { // Only if viewing another user's profile and logged in
+      if (authUserHook?.uid && authUserHook.uid !== effectiveUserId) { 
         try {
             const isFollowing = await checkIfFollowing(effectiveUserId);
             setIsFollowingCurrentUser(isFollowing);
         } catch (followError: any) {
-            console.error("Error fetching follow status:", followError);
+            console.error("[ProfilePage:loadProfileAndRelatedData] Error fetching follow status:", followError);
         }
       } else {
-        setIsFollowingCurrentUser(false); // Not applicable for own profile or if not logged in
+        setIsFollowingCurrentUser(false); 
       }
       try {
         const [followers, following] = await Promise.all([
@@ -102,40 +108,46 @@ const ProfilePage: React.FC = () => {
         setFollowersCount(followers);
         setFollowingCount(following);
       } catch (followCountError: any) {
-        console.error("Error fetching follow counts:", followCountError);
+        console.error("[ProfilePage:loadProfileAndRelatedData] Error fetching follow counts:", followCountError);
       }
 
-
-      // Fetch affiliated teams
+      console.log(`[ProfilePage:loadProfileAndRelatedData] Checking teamIds on fetchedProfile:`, fetchedProfile.teamIds);
       if (fetchedProfile.teamIds && fetchedProfile.teamIds.length > 0) {
+          console.log(`[ProfilePage:loadProfileAndRelatedData] Profile has teamIds: ${fetchedProfile.teamIds}. Fetching team info.`);
           setTeamsLoading(true);
           try {
               const teams = await getTeamsInfoByIds(fetchedProfile.teamIds);
+              console.log(`[ProfilePage:loadProfileAndRelatedData] Fetched affiliated teams info:`, teams);
               setAffiliatedTeams(teams);
           } catch (teamsError: any) {
-              console.error("Error fetching affiliated teams:", teamsError);
-              setAffiliatedTeams([]); // Ensure it's an empty array on error
+              console.error("[ProfilePage:loadProfileAndRelatedData] Error fetching affiliated teams:", teamsError);
+              setAffiliatedTeams([]); 
           } finally {
               setTeamsLoading(false);
           }
       } else {
-          setAffiliatedTeams([]); // Ensure teams are cleared if no teamIds or empty
+          console.log(`[ProfilePage:loadProfileAndRelatedData] Profile has no teamIds or teamIds array is empty.`);
+          setAffiliatedTeams([]); 
       }
 
     } else {
       setError(`Profile for user ID ${effectiveUserId} not found.`);
-      setAffiliatedTeams([]); // Ensure teams are cleared if profile not found
+      console.log(`[ProfilePage:loadProfileAndRelatedData] Fetched profile was null for ${effectiveUserId}.`);
+      setAffiliatedTeams([]); 
     }
     setPageLoading(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps 
-  }, [paramsUserId, authUserHook?.uid, authLoadingHook]); // Dependencies: only re-run if these key identifiers change
+    console.log('[ProfilePage:loadProfileAndRelatedData] Finished loading profile data.');
+  }, [paramsUserId, authUserHook, authLoadingHook]); 
 
 
   useEffect(() => {
-    if (!authLoadingHook) { // Ensure auth state is resolved before loading profile
+    // This effect runs when authLoadingHook changes or when loadProfileAndRelatedData itself changes (due to its dependencies changing).
+    // It ensures that loadProfileAndRelatedData is called once auth state is resolved.
+    console.log(`[ProfilePage:useEffect] Auth loading state: ${authLoadingHook}. Triggering loadProfileAndRelatedData if not loading.`);
+    if (!authLoadingHook) { 
         loadProfileAndRelatedData();
     }
-  }, [loadProfileAndRelatedData, authLoadingHook]);
+  }, [authLoadingHook, loadProfileAndRelatedData]); // Critical: include loadProfileAndRelatedData here because its definition depends on authUserHook and paramsUserId
 
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -273,7 +285,7 @@ const ProfilePage: React.FC = () => {
         </div>
     );
   }
-  if (!profileData.id && !pageLoading) { // Check profileData.id as indicator of fetched profile
+  if (!profileData.id && !pageLoading) { 
      return (
         <div className="text-center p-8 text-xl text-gray-300 max-w-2xl mx-auto">
             <p>Could not load profile data for the requested user.</p>
@@ -342,6 +354,7 @@ const ProfilePage: React.FC = () => {
   };
 
   const pageTitle = isOwnProfile ? "My Profile" : `${profileData.username || 'User'}'s Profile`;
+  console.log(`[ProfilePage:Render] Rendering affiliated teams. Current state:`, affiliatedTeams, "Teams loading:", teamsLoading);
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 p-4">

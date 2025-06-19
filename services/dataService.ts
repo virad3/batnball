@@ -241,11 +241,14 @@ export const getFullUserProfile = async (targetUserId: string): Promise<UserProf
   const profileDocSnap = await getDoc(profileDocRef);
 
   if (!profileDocSnap.exists()) {
-    console.warn(`Profile for user ID ${targetUserId} not found in Firestore.`);
+    console.warn(`[dataService:getFullUserProfile] Profile for user ID ${targetUserId} not found in Firestore.`);
     return null; 
   }
   
   const firestoreRawData: DocumentData = profileDocSnap.data();
+  console.log(`[dataService:getFullUserProfile] Raw data for ${targetUserId} from Firestore:`, firestoreRawData);
+  console.log(`[dataService:getFullUserProfile] Raw teamIds for ${targetUserId} from Firestore:`, firestoreRawData.teamIds);
+
   const dbProfileData: Partial<UserProfile> = firestoreRawData as Partial<UserProfile>;
 
   let dobString: string | null = null;
@@ -254,11 +257,10 @@ export const getFullUserProfile = async (targetUserId: string): Promise<UserProf
   if (rawDobFromFirestore instanceof Timestamp) {
     dobString = rawDobFromFirestore.toDate().toISOString().split('T')[0];
   } else if (typeof rawDobFromFirestore === 'string' && rawDobFromFirestore) {
-    // Ensure it's a valid date string before trying to parse, or just use it if it's already YYYY-MM-DD
      try {
         dobString = new Date(rawDobFromFirestore).toISOString().split('T')[0];
      } catch (e) {
-        dobString = rawDobFromFirestore; // if already in correct string format or invalid, keep as is
+        dobString = rawDobFromFirestore; 
      }
   }
 
@@ -305,46 +307,35 @@ export const updateUserProfile = async (
     const { id, email, achievements, ...firestoreProfileUpdatesInput } = profileUpdates;
     const firestoreProfileUpdates: Partial<UserProfile> = { ...firestoreProfileUpdatesInput };
 
-    // Reflect Auth changes in Firestore profile if they occurred
     if (authProfileUpdates.displayName) {
         firestoreProfileUpdates.username = authProfileUpdates.displayName;
     }
-    if (authProfileUpdates.photoURL !== undefined) { // Check undefined because photoURL can be null
+    if (authProfileUpdates.photoURL !== undefined) {
         firestoreProfileUpdates.profilePicUrl = authProfileUpdates.photoURL;
     }
-    // Always ensure email from auth is present (though typically not changed here)
     firestoreProfileUpdates.email = currentUser.email;
 
 
-    if (firestoreProfileUpdates.date_of_birth) { // If a date string is provided
+    if (firestoreProfileUpdates.date_of_birth) { 
         try {
             firestoreProfileUpdates.date_of_birth = Timestamp.fromDate(new Date(firestoreProfileUpdates.date_of_birth as string)) as any;
         } catch (e) {
             console.warn("Invalid date_of_birth string, not converting to Timestamp:", firestoreProfileUpdates.date_of_birth);
-            // Decide: either unset it, or keep the invalid string, or error. For now, keep potentially invalid string.
-            // Or better: delete firestoreProfileUpdates.date_of_birth if invalid and not null
         }
     } else if (firestoreProfileUpdates.date_of_birth === '' || firestoreProfileUpdates.date_of_birth === null) {
-      // If explicitly set to empty or null, store null
       (firestoreProfileUpdates as any).date_of_birth = null;
     }
 
 
     if (Object.keys(firestoreProfileUpdates).length > 0) {
       const profileDocRef = doc(db, 'profiles', userId);
-      // Construct finalUpdates to ensure only defined values are merged.
-      // Firestore `set` with `merge: true` handles undefined fields by not touching them.
-      // However, explicitly passing `null` will set the field to null.
       const finalUpdatesForFirestore: any = {};
       for (const key in firestoreProfileUpdates) {
           if (Object.prototype.hasOwnProperty.call(firestoreProfileUpdates, key)) {
               const typedKey = key as keyof Partial<UserProfile>;
-              // Add to finalUpdates if the value is explicitly provided in profileUpdates
-              // This ensures that if teamIds is not in profileUpdates, it's not accidentally overwritten to undefined
               if (profileUpdates.hasOwnProperty(typedKey)) {
                 finalUpdatesForFirestore[typedKey] = firestoreProfileUpdates[typedKey];
               } else if (typedKey === 'email' || typedKey === 'username' || typedKey === 'profilePicUrl') {
-                // Ensure auth-synced fields are updated if changed via auth
                  finalUpdatesForFirestore[typedKey] = firestoreProfileUpdates[typedKey];
               }
           }
@@ -389,8 +380,6 @@ export const getCurrentUserProfile = async (): Promise<UserProfile | null> => {
 // --- Player Suggestions ---
 export const getAllUserProfilesForSuggestions = async (): Promise<Pick<UserProfile, 'id' | 'username'>[]> => {
   const profilesCol = collection(db, 'profiles');
-  // Removed orderBy to simplify and avoid potential index issues for now.
-  // If ordering is desired later, ensure Firestore indexes are configured.
   try {
     const querySnapshot = await getDocs(profilesCol);
     
@@ -402,7 +391,6 @@ export const getAllUserProfilesForSuggestions = async (): Promise<Pick<UserProfi
     const profiles: Pick<UserProfile, 'id' | 'username'>[] = [];
     querySnapshot.forEach(docSnap => {
       const data = docSnap.data();
-      // Ensure username exists and is a string. Fallback if necessary.
       const username = (typeof data.username === 'string' && data.username.trim() !== '') ? data.username.trim() : 'Unnamed User';
       profiles.push({
         id: docSnap.id,
@@ -410,13 +398,11 @@ export const getAllUserProfilesForSuggestions = async (): Promise<Pick<UserProfi
       });
     });
     
-    console.log(`[dataService] Fetched ${profiles.length} profiles for suggestions:`, profiles);
+    // console.log(`[dataService] Fetched ${profiles.length} profiles for suggestions:`, profiles); // Reduced verbosity
     return profiles;
 
   } catch (error) {
     console.error("[dataService] Error fetching user profiles for suggestions:", error);
-    // Log the error, but return an empty array to prevent app crash.
-    // The calling component should handle the empty list gracefully.
     return []; 
   }
 };
@@ -481,10 +467,9 @@ export const addUserToTeamAffiliation = async (userId: string, teamId: string): 
     await updateDoc(profileDocRef, {
       teamIds: arrayUnion(teamId)
     });
-    console.log(`[dataService] Team ${teamId} successfully added to profile ${userId}`);
+    console.log(`[dataService:addUserToTeamAffiliation] Team ${teamId} successfully added to profile ${userId}`);
   } catch (error: any) {
-    console.error(`[dataService] Failed to add team ${teamId} to profile ${userId}. Error Code: ${error.code || 'N/A'}, Message: ${error.message || 'Unknown error'}`, error);
-    // throw error; // Optionally rethrow if calling functions need to handle it
+    console.error(`[dataService:addUserToTeamAffiliation] Failed to add team ${teamId} to profile ${userId}. Error Code: ${error.code || 'N/A'}, Message: ${error.message || 'Unknown error'}`, error);
   }
 };
 
@@ -494,34 +479,34 @@ export const removeUserFromTeamAffiliation = async (userId: string, teamId: stri
     await updateDoc(profileDocRef, {
       teamIds: arrayRemove(teamId)
     });
-    console.log(`[dataService] Team ${teamId} successfully removed from profile ${userId}`);
+    console.log(`[dataService:removeUserFromTeamAffiliation] Team ${teamId} successfully removed from profile ${userId}`);
   } catch (error: any) {
-    console.error(`[dataService] Failed to remove team ${teamId} from profile ${userId}. Error Code: ${error.code || 'N/A'}, Message: ${error.message || 'Unknown error'}`, error);
-    // throw error; // Optionally rethrow
+    console.error(`[dataService:removeUserFromTeamAffiliation] Failed to remove team ${teamId} from profile ${userId}. Error Code: ${error.code || 'N/A'}, Message: ${error.message || 'Unknown error'}`, error);
   }
 };
 
 export const getTeamsInfoByIds = async (teamIds: string[]): Promise<Array<Pick<Team, 'id' | 'name'>>> => {
+  console.log(`[dataService:getTeamsInfoByIds] Received teamIds to fetch:`, teamIds);
   if (!teamIds || teamIds.length === 0) {
+    console.warn("[dataService:getTeamsInfoByIds] Received empty or null teamIds array. Returning empty.");
     return [];
   }
   const teamsCol = collection(db, 'teams');
-  // Firestore 'in' query supports up to 30 elements per query.
-  // If teamIds can exceed this, batching is needed. For now, assume <30.
-  // Newer SDK versions might lift this limit or offer better batching.
-  // For simplicity here, we'll do one query. If more than 30, this needs chunking.
+  
   if (teamIds.length > 30) {
-    console.warn("[dataService] Fetching more than 30 teams by ID at once, this might hit Firestore limits or be inefficient. Consider batching.");
+    console.warn("[dataService:getTeamsInfoByIds] Fetching more than 30 teams by ID at once. Consider batching for performance/limits.");
   }
   
-  const q = query(teamsCol, where('__name__', 'in', teamIds)); // '__name__' refers to document ID
+  const q = query(teamsCol, where('__name__', 'in', teamIds)); 
   const querySnapshot = await getDocs(q);
   
-  return querySnapshot.docs.map(docSnap => {
+  const fetchedTeams = querySnapshot.docs.map(docSnap => {
     const data = docSnap.data();
     return { 
       id: docSnap.id, 
       name: data.name || 'Unnamed Team' 
     } as Pick<Team, 'id' | 'name'>;
   });
+  console.log(`[dataService:getTeamsInfoByIds] Fetched teams data:`, fetchedTeams);
+  return fetchedTeams;
 };
