@@ -177,7 +177,7 @@ const TeamDetailsPage = (): JSX.Element => {
         setError("Only team owner can remove players.");
         return;
     }
-    if (!window.confirm(\`Are you sure you want to remove \${playerToRemoveName} from the team roster?\`)) {
+    if (!window.confirm('Are you sure you want to remove ' + playerToRemoveName + ' from the team roster?')) {
         return;
     }
     setIsUpdating(true);
@@ -242,7 +242,7 @@ const TeamDetailsPage = (): JSX.Element => {
   
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
   const inputFocusClass = "focus:ring-red-500 focus:border-red-500";
-  const inputClass = \`\${inputBaseClass} \${inputFocusClass}\`;
+  const inputClass = `${inputBaseClass} ${inputFocusClass}`;
 
   if (loading || authLoading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
   
@@ -350,7 +350,7 @@ const TeamDetailsPage = (): JSX.Element => {
                       <button
                         onClick={() => handlePlayerRosterItemClick(player)}
                         className="text-gray-100 text-sm truncate text-left hover:text-red-400 focus:outline-none focus:text-red-400"
-                        title={\`View details for \${player}\`}
+                        title={`View details for ${player}`}
                       >
                         {player}
                       </button>
