@@ -1,4 +1,3 @@
-
 import { Match, Tournament, UserProfile, Team } from '../types';
 import { db, auth, storage } from './firebaseClient';
 import { 
@@ -147,14 +146,14 @@ export const createTournament = async (tournamentData: Omit<Tournament, 'id' | '
   if (!userId) throw new Error("User must be logged in to create a tournament.");
 
   const currentUser = auth.currentUser;
-  const organizerName = currentUser?.displayName || currentUser?.email || "Unknown Organizer";
+  const organizerName = currentUser?.displayName || currentUser?.email?.split('@')[0] || "Unknown Organizer";
 
   const tournamentToInsert = {
-    ...tournamentData,
+    ...tournamentData, // Includes name, format, location, teamNames, logoUrl
     user_id: userId,
     organizerName: organizerName,
-    startDate: tournamentData.startDate ? Timestamp.fromDate(new Date(tournamentData.startDate as string)) : Timestamp.now(), // Ensure string for Date constructor
-    endDate: tournamentData.endDate ? Timestamp.fromDate(new Date(tournamentData.endDate as string)) : Timestamp.now(), // Ensure string for Date constructor
+    startDate: tournamentData.startDate ? Timestamp.fromDate(new Date(tournamentData.startDate as string)) : Timestamp.now(),
+    endDate: tournamentData.endDate ? Timestamp.fromDate(new Date(tournamentData.endDate as string)) : Timestamp.now(),
   };
 
   const tournamentsCol = collection(db, 'tournaments');

@@ -117,6 +117,8 @@ export interface BallEvent {
   strikerName?: string; // Who faced the ball
 }
 
+export type TournamentStatus = "Upcoming" | "Ongoing" | "Past";
+
 export interface Tournament {
   id: string;
   user_id?: string;
@@ -128,6 +130,7 @@ export interface Tournament {
   matches?: Match[]; 
   organizerName?: string; 
   logoUrl?: string;
+  location?: string; // Added location field
 }
 
 export interface UserProfile {

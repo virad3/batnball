@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom'; // useNavigate for v7
 import { Tournament, TournamentFormat } from '../types'; 
@@ -11,6 +10,7 @@ const CreateTournamentPage: React.FC = () => {
   const [format, setFormat] = useState<TournamentFormat>(TournamentFormat.LEAGUE);
   const [startDate, setStartDate] = useState(''); 
   const [endDate, setEndDate] = useState('');   
+  const [location, setLocation] = useState(''); // Added location state
   const [selectedTeamNames, setSelectedTeamNames] = useState<string[]>([]);
   const [customTeamName, setCustomTeamName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
@@ -33,8 +33,8 @@ const CreateTournamentPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!tournamentName || !startDate || !endDate || selectedTeamNames.length < 2) {
-      setError("Please fill all required fields and add at least two teams.");
+    if (!tournamentName || !startDate || !endDate || !location || selectedTeamNames.length < 2) {
+      setError("Please fill all required fields (Name, Dates, Location, min. 2 Teams).");
       return;
     }
     if (new Date(startDate) > new Date(endDate)) {
@@ -49,6 +49,7 @@ const CreateTournamentPage: React.FC = () => {
       format,
       startDate, 
       endDate,   
+      location, // Added location
       teamNames: selectedTeamNames,
       logoUrl: logoUrl || undefined,
     };
@@ -84,6 +85,11 @@ const CreateTournamentPage: React.FC = () => {
           <select id="format" value={format} onChange={(e) => setFormat(e.target.value as TournamentFormat)} required className={`${inputClass} mt-1 text-gray-100`}>
             {Object.values(TournamentFormat).map(tf => <option key={tf} value={tf} className="bg-gray-700 text-gray-100">{tf}</option>)}
           </select>
+        </div>
+
+        <div>
+          <label htmlFor="location" className={labelClass}>Location / Venue <span className="text-red-400">*</span></label>
+          <input type="text" id="location" value={location} onChange={(e) => setLocation(e.target.value)} required className={`${inputClass} mt-1`} placeholder="e.g., City Ground, Thiruvananthapuram" />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
@@ -139,8 +145,8 @@ const CreateTournamentPage: React.FC = () => {
         </div>
 
         <div>
-          <label htmlFor="logoUrl" className={labelClass}>Tournament Logo URL (Optional)</label>
-          <input type="url" id="logoUrl" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" className={`${inputClass} mt-1`} />
+          <label htmlFor="logoUrl" className={labelClass}>Tournament Logo/Banner URL (Optional)</label>
+          <input type="url" id="logoUrl" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://example.com/banner.jpg" className={`${inputClass} mt-1`} />
         </div>
 
         <div className="pt-2 flex flex-col sm:flex-row sm:justify-end sm:space-x-3 space-y-3 sm:space-y-0">

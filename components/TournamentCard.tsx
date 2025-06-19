@@ -1,59 +1,99 @@
-
 import React from 'react';
-import { Link } from 'react-router-dom'; // Link import is fine for v5
-import { Tournament } from '../types';
+import { Link } from 'react-router-dom';
+import { Tournament, TournamentStatus } from '../types';
 import Button from './Button';
-import { Timestamp } from 'firebase/firestore'; // Import Timestamp
+import { Timestamp } from 'firebase/firestore';
 
 interface TournamentCardProps {
   tournament: Tournament;
 }
 
-const TournamentCard: React.FC<TournamentCardProps> = ({ tournament }) => {
-  // Handle date conversion if it's a Firebase Timestamp or string
-  const convertTimestampToDate = (dateInput: string | Timestamp | undefined | null): Date => {
-    if (dateInput instanceof Timestamp) {
-      return dateInput.toDate();
-    }
-    // If it's already a Date object or string, new Date() handles it
-    // Add a check for null/undefined to avoid passing them to new Date()
-    if (dateInput) {
-        return new Date(dateInput as string | Date); 
-    }
-    // Fallback for unexpected or missing date
-    console.warn("Tournament date is in an unexpected format or missing:", dateInput);
-    return new Date(); // Return current date as fallback
-  };
-  
-  const startDate = convertTimestampToDate(tournament.startDate);
-  const endDate = convertTimestampToDate(tournament.endDate);
+const getTournamentStatus = (startDate: Date, endDate: Date): TournamentStatus => {
+  const now = new Date();
+  if (now < startDate) return "Upcoming";
+  if (now > endDate) return "Past";
+  return "Ongoing";
+};
 
+const formatDateForCard = (dateInput: string | Timestamp | Date | undefined | null): string => {
+  if (!dateInput) return 'N/A';
+  let d: Date;
+  if (dateInput instanceof Timestamp) {
+    d = dateInput.toDate();
+  } else if (typeof dateInput === 'string') {
+    d = new Date(dateInput);
+  } else {
+    d = dateInput; // Already a Date object
+  }
+
+  if (isNaN(d.getTime())) return 'Invalid Date';
+
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+const TournamentCard: React.FC<TournamentCardProps> = ({ tournament }) => {
+  const startDate = tournament.startDate instanceof Timestamp ? tournament.startDate.toDate() : new Date(tournament.startDate as string | Date);
+  const endDate = tournament.endDate instanceof Timestamp ? tournament.endDate.toDate() : new Date(tournament.endDate as string | Date);
+  
+  const status = getTournamentStatus(startDate, endDate);
+
+  const statusBadgeStyles: Record<TournamentStatus, string> = {
+    Upcoming: "bg-blue-500 text-white",
+    Ongoing: "bg-red-500 text-white",
+    Past: "bg-gray-600 text-white",
+  };
+
+  const formattedStartDate = formatDateForCard(startDate);
+  const formattedEndDate = formatDateForCard(endDate);
+
+  const defaultBanner = `https://picsum.photos/seed/${tournament.id}/600/300`;
 
   return (
-    <div className="bg-gray-800 rounded-xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl border border-gray-700">
-      <div className="h-32 sm:h-40 overflow-hidden">
-        <img 
-            src={tournament.logoUrl || `https://picsum.photos/seed/${tournament.id}/400/200`} 
-            alt={tournament.name} 
-            className="w-full h-full object-cover" 
-        />
-      </div>
-      <div className="p-5 text-gray-200">
-        <h3 className="text-xl font-bold text-gray-100 mb-2 truncate">{tournament.name}</h3>
-        <p className="text-sm text-gray-300 mb-1">Format: {tournament.format}</p>
-        <p className="text-sm text-gray-300 mb-1">
-          Dates: {startDate.toLocaleDateString()} - {endDate.toLocaleDateString()}
-        </p>
-        <p className="text-sm text-gray-300 mb-4">Teams: {tournament.teamNames?.length || 0}</p>
-        <div className="flex justify-end">
-          <Link to={`/tournaments/${tournament.id}`}>
-            <Button variant="primary" size="sm"> 
-              View Details
-            </Button>
-          </Link>
+    <Link to={`/tournaments/${tournament.id}`} className="block group">
+      <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl border border-gray-700 group-hover:border-red-600">
+        <div className="relative h-40 sm:h-48 w-full">
+          <img 
+              src={tournament.logoUrl || defaultBanner} 
+              alt={`${tournament.name} banner`}
+              className="w-full h-full object-cover" 
+              onError={(e) => (e.currentTarget.src = defaultBanner)}
+          />
+          <span 
+            className={`absolute top-2 right-2 px-3 py-1 text-xs font-semibold rounded-full shadow ${statusBadgeStyles[status]}`}
+          >
+            {status.toUpperCase()}
+          </span>
+        </div>
+        
+        <div className="p-4">
+          <h3 className="text-xl font-bold text-gray-100 mb-2 truncate" title={tournament.name}>
+            {tournament.name}
+          </h3>
+          <p className="text-xs text-gray-400 mb-1">
+            Date: {formattedStartDate} to {formattedEndDate}
+          </p>
+          <p className="text-xs text-gray-400 mb-3 truncate" title={tournament.location || "Location not specified"}>
+            {tournament.location || "Location not specified"}
+          </p>
+
+          {status === "Ongoing" && (
+            <div className="flex justify-end">
+              <Button 
+                variant="primary" 
+                size="sm" 
+                className="bg-teal-500 hover:bg-teal-600 text-white text-xs px-3 py-1.5"
+                onClick={(e) => { e.preventDefault(); console.log('Follow tournament clicked'); /* Implement follow logic */}}
+              >
+                FOLLOW
+              </Button>
+            </div>
+          )}
+           {(status === "Upcoming" || status === "Past") && (
+             <div className="h-[29px]"></div> // Placeholder to keep card height consistent
+           )}
         </div>
       </div>
-    </div>
+    </Link>
   );
 };
 
