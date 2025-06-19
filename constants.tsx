@@ -29,8 +29,8 @@ export const NAV_ITEMS = [
     ),
   },
   {
-    name: "My Cricket",
-    path: "/my-cricket",
+    name: "My Cricket", // Label remains "My Cricket" for the icon
+    path: "/my-teams",  // Path now points to /my-teams
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
         <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 2.25L7.5 9l-1.5 1.5L8.25 12l1.5-1.5 6.75-6.75-1.5-1.5zM7.5 9L3 13.5l1.5 1.5L9 10.5" /> {/* Bat */}

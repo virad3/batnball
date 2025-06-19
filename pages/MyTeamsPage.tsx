@@ -2,105 +2,167 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Team, UserProfile } from '../types';
-import { getTeamsByUserId, deleteTeam, getTeamsInfoByIds } from '../services/dataService';
+import { getTeamsByUserId, getTeamById, getFullUserProfile } from '../services/dataService'; // Assuming getTeamById fetches full team object
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
 import TeamCard from '../components/TeamCard';
 import CreateTeamModal from '../components/CreateTeamModal';
-import { PlusIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, UserGroupIcon, QrCodeIcon as QrCodeIconOutline } from '@heroicons/react/24/outline'; // Using outline for consistency
+import { collection, query, where, getDocs, documentId } from 'firebase/firestore';
+import { db } from '../services/firebaseClient';
+
+
+interface ProcessedTeamForCard {
+  id: string;
+  logoUrl?: string | null;
+  teamName: string;
+  location?: string; // Placeholder for now
+  ownerName?: string;
+  isOwnerByCurrentUser: boolean;
+  rawTeamObject: Team; // Keep raw team object for navigation
+}
 
 const MyTeamsPage: React.FC = () => {
-  const [ownedTeams, setOwnedTeams] = useState<Team[]>([]);
-  const [affiliatedTeamInfos, setAffiliatedTeamInfos] = useState<Array<Pick<Team, 'id' | 'name'>>>([]);
-  const [loadingOwned, setLoadingOwned] = useState(true);
-  const [loadingAffiliated, setLoadingAffiliated] = useState(true);
+  const [activeTab, setActiveTab] = useState<'my' | 'opponents' | 'following'>('my');
+  const [myTeamsList, setMyTeamsList] = useState<ProcessedTeamForCard[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   
   const navigate = useNavigate();
-  const { userProfile, loading: authLoading } = useAuth();
+  const { user: authUser, userProfile, loading: authLoading } = useAuth();
 
-  const fetchOwnedTeams = useCallback(async () => {
-    setLoadingOwned(true);
-    setError(null);
-    try {
-      const userTeams = await getTeamsByUserId();
-      setOwnedTeams(userTeams);
-    } catch (err: any) {
-      console.error("Failed to fetch owned teams:", err);
-      setError(prevError => prevError ? `${prevError}\nCould not load your owned teams.` : "Could not load your owned teams.");
-    } finally {
-      setLoadingOwned(false);
-    }
-  }, []);
-
-  const fetchAffiliatedTeams = useCallback(async () => {
-    if (authLoading || !userProfile) {
-      // Wait for auth context to load or if userProfile is null
-      if (!authLoading) setLoadingAffiliated(false); // If auth is done and no profile, stop loading affiliated
+  const fetchMyTeamsData = useCallback(async () => {
+    if (authLoading || !authUser || !userProfile) {
+      if (!authLoading) setLoading(false);
       return;
     }
 
-    setLoadingAffiliated(true);
-    if (userProfile.teamIds && userProfile.teamIds.length > 0) {
-      try {
-        const teamInfos = await getTeamsInfoByIds(userProfile.teamIds);
-        setAffiliatedTeamInfos(teamInfos);
-      } catch (err: any) {
-        console.error("Failed to fetch affiliated teams:", err);
-        setError(prevError => prevError ? `${prevError}\nCould not load affiliated teams.` : "Could not load affiliated teams.");
+    setLoading(true);
+    setError(null);
+    try {
+      // 1. Fetch owned teams
+      const ownedTeamsRaw = await getTeamsByUserId();
+      
+      // 2. Fetch affiliated teams (user is a member but not necessarily owner)
+      let affiliatedTeamsRaw: Team[] = [];
+      if (userProfile.teamIds && userProfile.teamIds.length > 0) {
+        // Filter out already fetched owned team IDs to avoid redundant fetches if getTeamById is used individually
+        const affiliatedIdsToFetch = userProfile.teamIds.filter(id => !ownedTeamsRaw.some(ot => ot.id === id));
+        
+        if (affiliatedIdsToFetch.length > 0) {
+            // Firestore 'in' query can handle up to 30 elements
+            const teamsQuery = query(collection(db, 'teams'), where(documentId(), 'in', affiliatedIdsToFetch));
+            const affiliatedSnapshot = await getDocs(teamsQuery);
+            affiliatedTeamsRaw = affiliatedSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
+        }
       }
+
+      // 3. Combine owned and affiliated teams, ensuring uniqueness
+      const allUserRelatedTeamsMap = new Map<string, Team>();
+      ownedTeamsRaw.forEach(team => allUserRelatedTeamsMap.set(team.id, team));
+      affiliatedTeamsRaw.forEach(team => {
+        if (!allUserRelatedTeamsMap.has(team.id)) { // Add only if not already present from owned list
+            allUserRelatedTeamsMap.set(team.id, team);
+        }
+      });
+      const allUserRelatedTeams = Array.from(allUserRelatedTeamsMap.values());
+
+
+      // 4. Fetch owner profiles for all these teams
+      const ownerIds = new Set<string>(allUserRelatedTeams.map(team => team.user_id).filter(id => !!id));
+      const ownerProfilesMap = new Map<string, UserProfile>();
+
+      if (ownerIds.size > 0) {
+        // Batch fetch owner profiles (simplified: fetch one by one, ideally batch this)
+        for (const ownerId of Array.from(ownerIds)) {
+          if (!ownerProfilesMap.has(ownerId)) {
+            const profile = await getFullUserProfile(ownerId);
+            if (profile) {
+              ownerProfilesMap.set(ownerId, profile);
+            }
+          }
+        }
+      }
+      
+      // 5. Process teams for card display
+      const processedList: ProcessedTeamForCard[] = allUserRelatedTeams.map(team => {
+        const isOwner = team.user_id === authUser.uid;
+        const ownerProfile = ownerProfilesMap.get(team.user_id);
+        
+        return {
+          id: team.id,
+          logoUrl: team.logoUrl,
+          teamName: team.name,
+          location: "Location N/A", // Placeholder
+          ownerName: ownerProfile?.username || (isOwner ? userProfile.username : "Unknown Owner"),
+          isOwnerByCurrentUser: isOwner,
+          rawTeamObject: team,
+        };
+      });
+
+      setMyTeamsList(processedList.sort((a,b) => a.teamName.localeCompare(b.teamName)));
+
+    } catch (err: any) {
+      console.error("Failed to fetch teams data:", err);
+      setError("Could not load your teams. " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [authUser, userProfile, authLoading]);
+
+  useEffect(() => {
+    if (activeTab === 'my') {
+      fetchMyTeamsData();
     } else {
-      setAffiliatedTeamInfos([]); // No affiliated teams
+      // Placeholder: load data for other tabs if/when implemented
+      setLoading(false); 
     }
-    setLoadingAffiliated(false);
-  }, [userProfile, authLoading]);
-
-  useEffect(() => {
-    fetchOwnedTeams();
-  }, [fetchOwnedTeams]);
-
-  useEffect(() => {
-    fetchAffiliatedTeams();
-  }, [fetchAffiliatedTeams]);
-
-  const handleDeleteTeam = async (teamId: string) => {
-    if (window.confirm("Are you sure you want to delete this team? This action cannot be undone.")) {
-      try {
-        await deleteTeam(teamId);
-        setOwnedTeams(prevTeams => prevTeams.filter(team => team.id !== teamId));
-        // Also remove from affiliated if it was there (though typically it shouldn't be managed from both)
-        setAffiliatedTeamInfos(prevInfos => prevInfos.filter(info => info.id !== teamId));
-      } catch (err: any) {
-        console.error("Failed to delete team:", err);
-        setError(err.message || "Could not delete the team. Please try again.");
-      }
-    }
-  };
-
-  const handleViewTeam = (teamId: string) => {
-    navigate(`/teams/${teamId}`);
-  };
+  }, [activeTab, fetchMyTeamsData]);
 
   const handleTeamCreated = () => {
     setIsCreateModalOpen(false);
-    fetchOwnedTeams(); // Refresh owned teams
-    // Potentially refresh affiliated teams too, if creating a team and adding self as member immediately updates profile.
-    // For now, only refreshing owned teams.
+    if (activeTab === 'my') {
+      fetchMyTeamsData(); 
+    }
   };
 
-  const displayedAffiliatedTeams = affiliatedTeamInfos.filter(
-    affTeam => !ownedTeams.some(ownedTeam => ownedTeam.id === affTeam.id)
+  const handleTeamCardClick = (team: ProcessedTeamForCard) => {
+    navigate(`/teams/${team.id}`);
+  };
+
+  const TabButton: React.FC<{tabKey: 'my' | 'opponents' | 'following', label: string}> = ({ tabKey, label }) => (
+    <button
+      onClick={() => setActiveTab(tabKey)}
+      className={`py-3 px-4 sm:px-6 text-sm sm:text-base font-medium transition-colors duration-150 ease-in-out focus:outline-none
+        ${activeTab === tabKey 
+          ? 'border-b-2 border-red-600 text-red-500 bg-gray-800' 
+          : 'text-gray-400 hover:text-gray-200 hover:bg-gray-750'
+        }
+      `}
+      role="tab"
+      aria-selected={activeTab === tabKey}
+    >
+      {label}
+    </button>
   );
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-50 mb-4 sm:mb-0">My Teams</h1>
-        <Button variant="primary" onClick={() => setIsCreateModalOpen(true)} leftIcon={<PlusIcon className="w-5 h-5 mr-2" />}>
-          Create New Team
+    <div className="space-y-6">
+      <div className="bg-gray-800 p-4 rounded-lg shadow-md flex justify-between items-center border border-gray-700">
+        <p className="text-gray-100 text-sm sm:text-base">Want to create a new team?</p>
+        <Button variant="primary" size="sm" onClick={() => setIsCreateModalOpen(true)} leftIcon={<PlusIcon className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />}>
+          CREATE
         </Button>
+      </div>
+
+      <div className="border-b border-gray-700">
+        <nav className="-mb-px flex space-x-2 sm:space-x-4" aria-label="Tabs" role="tablist">
+          <TabButton tabKey="my" label="My" />
+          <TabButton tabKey="opponents" label="Opponents" />
+          <TabButton tabKey="following" label="Following" />
+        </nav>
       </div>
 
       {error && (
@@ -109,64 +171,49 @@ const MyTeamsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Teams I Own/Manage Section */}
-      <section>
-        <h2 className="text-2xl font-semibold text-gray-100 mb-4 border-b border-gray-700 pb-2">Teams I Own/Manage</h2>
-        {loadingOwned ? (
-          <div className="flex justify-center items-center py-10"><LoadingSpinner size="md" /></div>
-        ) : ownedTeams.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {ownedTeams.map(team => (
+      {loading && activeTab === 'my' && (
+        <div className="flex justify-center items-center py-10"><LoadingSpinner size="lg" /></div>
+      )}
+
+      {!loading && activeTab === 'my' && (
+        myTeamsList.length > 0 ? (
+          <div className="space-y-4">
+            {myTeamsList.map(team => (
               <TeamCard 
                 key={team.id} 
-                team={team} 
-                onDelete={handleDeleteTeam} 
-                onViewPlayers={handleViewTeam} 
+                teamName={team.teamName}
+                logoUrl={team.logoUrl}
+                location={team.location}
+                ownerName={team.ownerName}
+                isOwnerByCurrentUser={team.isOwnerByCurrentUser}
+                onTeamClick={() => handleTeamCardClick(team)}
               />
             ))}
           </div>
         ) : (
-          <div className="text-center py-8 bg-gray-800 rounded-lg shadow-md border border-gray-700">
-            <UserGroupIcon className="w-16 h-16 text-gray-500 mx-auto mb-4 opacity-50" />
-            <p className="text-gray-300">You haven't created or taken ownership of any teams yet.</p>
-            <p className="text-gray-400 mt-1 text-sm">Use the "Create New Team" button to get started.</p>
+          <div className="text-center py-10 bg-gray-800 rounded-lg shadow-md border border-gray-700">
+            <UserGroupIcon className="w-20 h-20 text-gray-500 mx-auto mb-4 opacity-50" />
+            <p className="text-gray-300 text-lg">No teams to display.</p>
+            <p className="text-gray-400 mt-1 text-sm">Create a team or join one, and it will appear here.</p>
           </div>
-        )}
-      </section>
+        )
+      )}
 
-      {/* Teams I'm Part Of Section */}
-      <section className="mt-10">
-        <h2 className="text-2xl font-semibold text-gray-100 mb-4 border-b border-gray-700 pb-2">Teams I'm Part Of</h2>
-        {authLoading || loadingAffiliated ? (
-          <div className="flex justify-center items-center py-10"><LoadingSpinner size="md" /></div>
-        ) : displayedAffiliatedTeams.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {displayedAffiliatedTeams.map(teamInfo => {
-              // Create a partial Team object for TeamCard compatibility
-              const partialTeamForCard: Partial<Team> & Pick<Team, 'id' | 'name'> = {
-                id: teamInfo.id,
-                name: teamInfo.name,
-                players: [], // Placeholder, TeamCard might show "0 Players" or adapt if it only needs count for display
-                logoUrl: `https://picsum.photos/seed/${teamInfo.id}/200/150`, // Generic placeholder
-              };
-              return (
-                <TeamCard 
-                  key={teamInfo.id} 
-                  team={partialTeamForCard as Team} // Cast as Team, ensure TeamCard handles potentially missing fields gracefully
-                  onViewPlayers={handleViewTeam}
-                  // No onDelete prop passed, so delete button won't show (if TeamCard is updated)
-                />
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-8 bg-gray-800 rounded-lg shadow-md border border-gray-700">
-             <UserGroupIcon className="w-16 h-16 text-gray-500 mx-auto mb-4 opacity-50" />
-            <p className="text-gray-300">You are not yet a member of any other teams.</p>
-            <p className="text-gray-400 mt-1 text-sm">Teams you join will appear here.</p>
-          </div>
-        )}
-      </section>
+      {activeTab === 'opponents' && (
+        <div className="text-center py-10 bg-gray-800 rounded-lg shadow-md border border-gray-700">
+          <UserGroupIcon className="w-20 h-20 text-gray-500 mx-auto mb-4 opacity-50" />
+          <p className="text-gray-300 text-lg">Opponent Team Tracking</p>
+          <p className="text-gray-400 mt-1 text-sm">This feature is coming soon!</p>
+        </div>
+      )}
+
+      {activeTab === 'following' && (
+        <div className="text-center py-10 bg-gray-800 rounded-lg shadow-md border border-gray-700">
+          <UserGroupIcon className="w-20 h-20 text-gray-500 mx-auto mb-4 opacity-50" />
+          <p className="text-gray-300 text-lg">Following Teams</p>
+          <p className="text-gray-400 mt-1 text-sm">This feature is coming soon!</p>
+        </div>
+      )}
 
       {isCreateModalOpen && (
         <CreateTeamModal
