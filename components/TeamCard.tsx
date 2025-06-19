@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Team } from '../types';
 import Button from './Button';
@@ -5,7 +6,7 @@ import { UsersIcon, EyeIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 interface TeamCardProps {
   team: Team;
-  onDelete: (teamId: string) => void;
+  onDelete?: (teamId: string) => void; // Made optional
   onViewPlayers: (teamId: string) => void;
 }
 
@@ -29,7 +30,8 @@ const TeamCard: React.FC<TeamCardProps> = ({ team, onDelete, onViewPlayers }) =>
         <div>
           <h3 className="text-xl font-bold text-gray-100 mb-1 truncate" title={team.name}>{team.name}</h3>
           <p className="text-sm text-gray-400 mb-3">
-            {team.players.length} Player{team.players.length !== 1 ? 's' : ''}
+            {/* Ensure team.players exists before accessing length, especially if partial Team object is passed */}
+            {team.players ? `${team.players.length} Player${team.players.length !== 1 ? 's' : ''}` : 'Player info unavailable'}
           </p>
         </div>
         <div className="mt-4 flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2">
@@ -40,17 +42,19 @@ const TeamCard: React.FC<TeamCardProps> = ({ team, onDelete, onViewPlayers }) =>
             leftIcon={<EyeIcon className="w-4 h-4" />}
             className="w-full sm:w-auto"
           >
-            View Players
+            View Details
           </Button>
-          <Button 
-            variant="danger" 
-            size="sm" 
-            onClick={() => onDelete(team.id)}
-            leftIcon={<TrashIcon className="w-4 h-4" />}
-            className="w-full sm:w-auto"
-          >
-            Delete
-          </Button>
+          {onDelete && ( // Only render delete button if onDelete prop is provided
+            <Button 
+              variant="danger" 
+              size="sm" 
+              onClick={() => onDelete(team.id)}
+              leftIcon={<TrashIcon className="w-4 h-4" />}
+              className="w-full sm:w-auto"
+            >
+              Delete
+            </Button>
+          )}
         </div>
       </div>
     </div>
