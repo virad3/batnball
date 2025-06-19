@@ -342,6 +342,22 @@ export const getCurrentUserProfile = async (): Promise<UserProfile | null> => {
   return getFullUserProfile(userId);
 };
 
+// --- Player Suggestions ---
+export const getAllUserProfilesForSuggestions = async (): Promise<Pick<UserProfile, 'id' | 'username'>[]> => {
+  const profilesCol = collection(db, 'profiles');
+  // Consider adding orderBy('username') if you want suggestions to be alphabetically sorted by default
+  // Add limit if the number of users is very large and you want to implement server-side search instead
+  const q = query(profilesCol); 
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(docSnap => {
+    const data = docSnap.data();
+    return { 
+      id: docSnap.id, 
+      username: data.username || 'Unnamed User' // Fallback for safety
+    } as Pick<UserProfile, 'id' | 'username'>;
+  });
+};
+
 
 // --- Follow System ---
 const followsCollection = collection(db, 'follows');

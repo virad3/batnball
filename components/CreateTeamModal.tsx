@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Team } from '../types';
-import { createTeam } from '../services/dataService';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Team, UserProfile } from '../types';
+import { createTeam, getAllUserProfilesForSuggestions } from '../services/dataService';
 import Button from './Button';
 import { XMarkIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 
@@ -10,6 +11,8 @@ interface CreateTeamModalProps {
   onTeamCreated: (newTeam: Team) => void;
 }
 
+type PlayerSuggestion = Pick<UserProfile, 'id' | 'username'>;
+
 const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTeamCreated }) => {
   const [teamName, setTeamName] = useState('');
   const [currentPlayerName, setCurrentPlayerName] = useState('');
@@ -17,15 +20,94 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [allUserProfiles, setAllUserProfiles] = useState<PlayerSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<PlayerSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestionBoxRef = useRef<HTMLUListElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      const fetchProfiles = async () => {
+        try {
+          const profiles = await getAllUserProfilesForSuggestions();
+          setAllUserProfiles(profiles);
+        } catch (err) {
+          console.error("Failed to fetch user profiles for suggestions:", err);
+          // Non-critical error, suggestions simply won't work
+        }
+      };
+      fetchProfiles();
+    } else {
+      // Reset suggestions when modal is closed
+      setAllUserProfiles([]);
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        suggestionBoxRef.current &&
+        !suggestionBoxRef.current.contains(event.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(event.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+
+    if (showSuggestions) {
+      document.addEventListener('mousedown', handleClickOutside);
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSuggestions]);
+
+
+  const handlePlayerNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setCurrentPlayerName(value);
+    setError(null); // Clear error on input change
+
+    if (value.trim() && allUserProfiles.length > 0) {
+      const filtered = allUserProfiles.filter(profile =>
+        profile.username.toLowerCase().includes(value.toLowerCase()) && !players.includes(profile.username)
+      ).slice(0, 5); // Limit to 5 suggestions
+      setSuggestions(filtered);
+      setShowSuggestions(filtered.length > 0);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+  
+  const handleSuggestionClick = (suggestedPlayer: PlayerSuggestion) => {
+    setCurrentPlayerName(suggestedPlayer.username);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    inputRef.current?.focus();
+  };
+
   const handleAddPlayer = () => {
-    if (currentPlayerName.trim() && !players.includes(currentPlayerName.trim())) {
-      setPlayers(prevPlayers => [...prevPlayers, currentPlayerName.trim()]);
+    const nameToAdd = currentPlayerName.trim();
+    if (nameToAdd && !players.includes(nameToAdd)) {
+      setPlayers(prevPlayers => [...prevPlayers, nameToAdd]);
       setCurrentPlayerName('');
+      setSuggestions([]);
+      setShowSuggestions(false);
       setError(null);
-    } else if (players.includes(currentPlayerName.trim())) {
+    } else if (players.includes(nameToAdd)) {
       setError("This player is already in the list.");
-    } else if (!currentPlayerName.trim()) {
+      setShowSuggestions(false);
+    } else if (!nameToAdd) {
       setError("Player name cannot be empty.");
+      setShowSuggestions(false);
     }
   };
 
@@ -40,12 +122,11 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
       setError("Team name is required.");
       return;
     }
-    if (players.length === 0) {
-      setError("Please add at least one player to the team.");
-      // Or allow creating team with 0 players if desired:
-      // if (window.confirm("Create team with no players?")) { /* proceed */ } else { return; }
-      // return; 
-    }
+    // Optional: Keep check for at least one player or allow empty teams
+    // if (players.length === 0) {
+    //   setError("Please add at least one player to the team.");
+    //   return; 
+    // }
 
     setLoading(true);
     try {
@@ -71,6 +152,8 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
     setPlayers([]);
     setError(null);
     setLoading(false);
+    setSuggestions([]);
+    setShowSuggestions(false);
   };
   
   const handleClose = () => {
@@ -128,20 +211,25 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
             />
           </div>
 
-          <div>
+          <div className="relative">
             <label htmlFor="currentPlayerName" className={labelClass}>Add Player</label>
             <div className="flex space-x-2">
               <input
+                ref={inputRef}
                 type="text"
                 id="currentPlayerName"
                 value={currentPlayerName}
-                onChange={(e) => setCurrentPlayerName(e.target.value)}
+                onChange={handlePlayerNameChange}
+                onFocus={() => { if (currentPlayerName.trim() && suggestions.length > 0) setShowSuggestions(true);}}
                 className={inputClass}
-                placeholder="Enter player name"
+                placeholder="Enter player name or select suggestion"
+                autoComplete="off"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    handleAddPlayer();
+                    if (!showSuggestions || suggestions.length === 0) { // Add if no suggestions or not actively navigating them
+                       handleAddPlayer();
+                    }
                   }
                 }}
               />
@@ -149,6 +237,26 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
                 Add
               </Button>
             </div>
+            {showSuggestions && suggestions.length > 0 && (
+              <ul 
+                ref={suggestionBoxRef} 
+                className="absolute z-10 w-[calc(100%-90px)] mt-1 max-h-40 overflow-y-auto bg-gray-600 border border-gray-500 rounded-md shadow-lg"
+                role="listbox"
+                aria-label="Player suggestions"
+              >
+                {suggestions.map((suggestion) => (
+                  <li
+                    key={suggestion.id}
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    className="px-3 py-2 text-sm text-gray-200 hover:bg-red-700 hover:text-white cursor-pointer"
+                    role="option"
+                    aria-selected="false" // Can be enhanced with keyboard navigation
+                  >
+                    {suggestion.username}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {players.length > 0 && (
@@ -185,10 +293,5 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
     </div>
   );
 };
-// Helper to name the form for the submit button outside the form structure due to modal layout
-// This is not strictly necessary if the button is inside the <form> tag itself.
-// Since the form structure is straightforward, I'll bind submit to the button directly.
-// The form tag should wrap the inputs and the submit button or be referenced by form attribute.
-// I'll make sure the form submission works by having the submit button call handleSubmit.
 
 export default CreateTeamModal;
