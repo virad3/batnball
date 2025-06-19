@@ -3,15 +3,18 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Team, UserProfile } from '../types';
 import { getTeamById, updateTeam, getAllUserProfilesForSuggestions, addUserToTeamAffiliation, removeUserFromTeamAffiliation } from '../services/dataService';
+import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
-import { ArrowLeftIcon, PlusIcon, TrashIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, PlusIcon, TrashIcon, UserGroupIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
 
 type PlayerSuggestion = Pick<UserProfile, 'id' | 'username'>;
 
 const TeamDetailsPage: React.FC = () => {
   const { teamId } = useParams<{ teamId: string }>();
   const navigate = useNavigate();
+  const { user: authUser, userProfile, loading: authLoading } = useAuth();
+
   const [team, setTeam] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +28,9 @@ const TeamDetailsPage: React.FC = () => {
   const suggestionBoxRef = useRef<HTMLUListElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const [isOwner, setIsOwner] = useState(false);
+  const [isAffiliatedMember, setIsAffiliatedMember] = useState(false);
+
 
   const fetchTeamDetailsAndProfiles = useCallback(async () => {
     if (!teamId) {
@@ -33,6 +39,8 @@ const TeamDetailsPage: React.FC = () => {
       navigate('/my-teams');
       return;
     }
+    if (authLoading) return; // Wait for auth context to load
+
     setLoading(true);
     setError(null);
     try {
@@ -43,8 +51,19 @@ const TeamDetailsPage: React.FC = () => {
 
       if (fetchedTeam) {
         setTeam(fetchedTeam);
+        if (authUser?.uid) {
+          const ownerCheck = fetchedTeam.user_id === authUser.uid;
+          setIsOwner(ownerCheck);
+          const memberCheck = !!(userProfile?.teamIds?.includes(teamId) && !ownerCheck);
+          setIsAffiliatedMember(memberCheck);
+        } else {
+          setIsOwner(false);
+          setIsAffiliatedMember(false);
+        }
       } else {
         setError("Team not found or you don't have access.");
+        setIsOwner(false);
+        setIsAffiliatedMember(false);
       }
       setAllUserProfiles(profiles);
 
@@ -54,7 +73,7 @@ const TeamDetailsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [teamId, navigate]);
+  }, [teamId, navigate, authUser, userProfile, authLoading]);
 
   useEffect(() => {
     fetchTeamDetailsAndProfiles();
@@ -83,7 +102,7 @@ const TeamDetailsPage: React.FC = () => {
   const handlePlayerNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setNewPlayerName(value);
-    setSelectedPlayerIdForAdd(undefined); // Clear if user types
+    setSelectedPlayerIdForAdd(undefined); 
     setError(null);
 
     if (value.trim() && allUserProfiles.length > 0 && team) {
@@ -100,16 +119,16 @@ const TeamDetailsPage: React.FC = () => {
 
   const handleSuggestionClick = (suggestedPlayer: PlayerSuggestion) => {
     setNewPlayerName(suggestedPlayer.username);
-    setSelectedPlayerIdForAdd(suggestedPlayer.id); // Store ID for add operation
+    setSelectedPlayerIdForAdd(suggestedPlayer.id); 
     setSuggestions([]);
     setShowSuggestions(false);
     inputRef.current?.focus();
   };
 
-  const handleAddPlayer = async () => {
+  const handleAddPlayerToRoster = async () => {
     const nameToAdd = newPlayerName.trim();
-    if (!team || !nameToAdd) {
-      setError("Player name cannot be empty.");
+    if (!team || !nameToAdd || !isOwner) {
+      setError(isOwner ? "Player name cannot be empty." : "Only team owner can add players.");
       setShowSuggestions(false);
       return;
     }
@@ -126,7 +145,6 @@ const TeamDetailsPage: React.FC = () => {
       const updatedTeamData = await updateTeam(team.id, { players: updatedPlayers });
       setTeam(updatedTeamData);
       
-      // If player was from suggestion or name matches a registered user, update their profile
       let userIdToUpdate = selectedPlayerIdForAdd;
       if (!userIdToUpdate) {
         const matchedProfile = allUserProfiles.find(p => p.username === nameToAdd);
@@ -146,9 +164,12 @@ const TeamDetailsPage: React.FC = () => {
     }
   };
 
-  const handleRemovePlayer = async (playerToRemoveName: string) => {
-    if (!team || !teamId) return;
-    if (!window.confirm(`Are you sure you want to remove ${playerToRemoveName} from the team?`)) {
+  const handleRemovePlayerFromRoster = async (playerToRemoveName: string) => {
+    if (!team || !teamId || !isOwner) {
+        setError("Only team owner can remove players.");
+        return;
+    }
+    if (!window.confirm(`Are you sure you want to remove ${playerToRemoveName} from the team roster?`)) {
         return;
     }
     setIsUpdating(true);
@@ -158,7 +179,6 @@ const TeamDetailsPage: React.FC = () => {
       const updatedTeamData = await updateTeam(team.id, { players: updatedPlayers });
       setTeam(updatedTeamData);
 
-      // If removed player is a registered user, update their profile
       const matchedProfile = allUserProfiles.find(p => p.username === playerToRemoveName);
       if (matchedProfile) {
         await removeUserFromTeamAffiliation(matchedProfile.id, teamId);
@@ -170,12 +190,31 @@ const TeamDetailsPage: React.FC = () => {
       setIsUpdating(false);
     }
   };
+
+  const handleLeaveTeam = async () => {
+    if (!authUser?.uid || !teamId || !isAffiliatedMember) return;
+    if (!window.confirm("Are you sure you want to leave this team? This will remove the team from your affiliations.")) {
+        return;
+    }
+    setIsUpdating(true);
+    setError(null);
+    try {
+        await removeUserFromTeamAffiliation(authUser.uid, teamId);
+        // Optimistically update UI or fetch userProfile again if AuthContext doesn't auto-update teamIds fast enough
+        setIsAffiliatedMember(false); // Assume successful removal for UI
+        navigate('/my-teams'); // Navigate away
+    } catch (err: any) {
+        setError(err.message || "Failed to leave team.");
+    } finally {
+        setIsUpdating(false);
+    }
+  };
   
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
   const inputFocusClass = "focus:ring-red-500 focus:border-red-500";
   const inputClass = `${inputBaseClass} ${inputFocusClass}`;
 
-  if (loading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
+  if (loading || authLoading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
   
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -202,56 +241,73 @@ const TeamDetailsPage: React.FC = () => {
           <header className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 text-center">
              <UserGroupIcon className="w-16 h-16 text-red-600 mx-auto mb-3 opacity-80" />
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-50" title={team.name}>{team.name}</h1>
-            <p className="text-gray-400 mt-1">{team.players.length} Player{team.players.length !== 1 ? 's' : ''}</p>
+            <p className="text-gray-400 mt-1">{team.players.length} Player{team.players.length !== 1 ? 's' : ''} in roster</p>
+             {isAffiliatedMember && (
+                <Button 
+                    onClick={handleLeaveTeam}
+                    isLoading={isUpdating}
+                    disabled={isUpdating}
+                    variant="danger"
+                    size="sm"
+                    className="mt-4"
+                    leftIcon={<ArrowRightOnRectangleIcon className="w-5 h-5" />}
+                >
+                    Leave Team
+                </Button>
+            )}
           </header>
 
           <section className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
-            <h2 className="text-xl font-semibold text-gray-100 mb-4">Manage Players</h2>
-            <div className="mb-6 space-y-3 relative">
-                <label htmlFor="newPlayerNamePage" className="block text-sm font-medium text-gray-300">Add New Player:</label>
-                <div className="flex space-x-2">
-                    <input
-                    ref={inputRef}
-                    type="text"
-                    id="newPlayerNamePage"
-                    value={newPlayerName}
-                    onChange={handlePlayerNameChange}
-                    onFocus={() => { if (newPlayerName.trim() && suggestions.length > 0) setShowSuggestions(true);}}
-                    placeholder="Enter player name or select suggestion"
-                    className={inputClass}
-                    autoComplete="off"
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if(!showSuggestions || suggestions.length === 0) handleAddPlayer();}}}
-                    />
-                    <Button 
-                        onClick={handleAddPlayer} 
-                        isLoading={isUpdating && newPlayerName.trim() !== ""} 
-                        disabled={isUpdating}
-                        leftIcon={<PlusIcon className="w-5 h-5"/>}
+            <h2 className="text-xl font-semibold text-gray-100 mb-4">
+                {isOwner ? "Manage Player Roster" : "Player Roster"}
+            </h2>
+            {isOwner && (
+                <div className="mb-6 space-y-3 relative">
+                    <label htmlFor="newPlayerNamePage" className="block text-sm font-medium text-gray-300">Add New Player to Roster:</label>
+                    <div className="flex space-x-2">
+                        <input
+                        ref={inputRef}
+                        type="text"
+                        id="newPlayerNamePage"
+                        value={newPlayerName}
+                        onChange={handlePlayerNameChange}
+                        onFocus={() => { if (newPlayerName.trim() && suggestions.length > 0) setShowSuggestions(true);}}
+                        placeholder="Enter player name or select suggestion"
+                        className={inputClass}
+                        autoComplete="off"
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if(!showSuggestions || suggestions.length === 0) handleAddPlayerToRoster();}}}
+                        />
+                        <Button 
+                            onClick={handleAddPlayerToRoster} 
+                            isLoading={isUpdating && newPlayerName.trim() !== ""} 
+                            disabled={isUpdating || !isOwner}
+                            leftIcon={<PlusIcon className="w-5 h-5"/>}
+                        >
+                        Add
+                        </Button>
+                    </div>
+                    {showSuggestions && suggestions.length > 0 && (
+                    <ul 
+                        ref={suggestionBoxRef} 
+                        className="absolute z-10 w-[calc(100%-100px)] mt-1 max-h-40 overflow-y-auto bg-gray-600 border border-gray-500 rounded-md shadow-lg"
+                        role="listbox"
+                        aria-label="Player suggestions"
                     >
-                    Add
-                    </Button>
+                        {suggestions.map((suggestion) => (
+                        <li
+                            key={suggestion.id}
+                            onClick={() => handleSuggestionClick(suggestion)}
+                            className="px-3 py-2 text-sm text-gray-200 hover:bg-red-700 hover:text-white cursor-pointer"
+                            role="option"
+                            aria-selected="false" 
+                        >
+                            {suggestion.username}
+                        </li>
+                        ))}
+                    </ul>
+                    )}
                 </div>
-                {showSuggestions && suggestions.length > 0 && (
-                  <ul 
-                    ref={suggestionBoxRef} 
-                    className="absolute z-10 w-[calc(100%-100px)] mt-1 max-h-40 overflow-y-auto bg-gray-600 border border-gray-500 rounded-md shadow-lg"
-                    role="listbox"
-                    aria-label="Player suggestions"
-                  >
-                    {suggestions.map((suggestion) => (
-                      <li
-                        key={suggestion.id}
-                        onClick={() => handleSuggestionClick(suggestion)}
-                        className="px-3 py-2 text-sm text-gray-200 hover:bg-red-700 hover:text-white cursor-pointer"
-                        role="option"
-                        aria-selected="false" 
-                      >
-                        {suggestion.username}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-            </div>
+            )}
 
             {team.players.length > 0 ? (
               <ul className="space-y-2 max-h-96 overflow-y-auto pr-1">
@@ -261,22 +317,24 @@ const TeamDetailsPage: React.FC = () => {
                     className="flex justify-between items-center bg-gray-700 p-3 rounded-md shadow-sm hover:bg-gray-600 transition-colors"
                   >
                     <span className="text-gray-100 text-sm truncate" title={player}>{player}</span>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => handleRemovePlayer(player)}
-                      isLoading={isUpdating && team.players.includes(player)} 
-                      disabled={isUpdating && team.players.includes(player)} // disable only if this specific player remove is in progress
-                      leftIcon={<TrashIcon className="w-4 h-4" />}
-                      className="px-2 py-1"
-                    >
-                      Remove
-                    </Button>
+                    {isOwner && (
+                        <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => handleRemovePlayerFromRoster(player)}
+                        isLoading={isUpdating && team.players.includes(player)} 
+                        disabled={isUpdating && team.players.includes(player)}
+                        leftIcon={<TrashIcon className="w-4 h-4" />}
+                        className="px-2 py-1"
+                        >
+                        Remove
+                        </Button>
+                    )}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-gray-400 text-center py-4">No players added to this team yet.</p>
+              <p className="text-gray-400 text-center py-4">No players added to this team's roster yet.</p>
             )}
           </section>
         </>
