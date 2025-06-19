@@ -11,7 +11,7 @@ import { ArrowLeftIcon, PlusIcon, TrashIcon, UserGroupIcon, ArrowRightOnRectangl
 
 type PlayerSuggestion = Pick<UserProfile, 'id' | 'username'>;
 
-const TeamDetailsPage: React.FC = () => {
+const TeamDetailsPage = (): JSX.Element => {
   const { teamId } = useParams<{ teamId: string }>();
   const navigate = useNavigate();
   const { user: authUser, userProfile: currentUserProfile, loading: authLoading } = useAuth();
@@ -45,9 +45,9 @@ const TeamDetailsPage: React.FC = () => {
       setError("Team ID is missing.");
       setLoading(false);
       navigate('/my-teams');
-      return null; // Changed from return;
+      return null; 
     }
-    if (authLoading) return; 
+    if (authLoading) return null; // Ensure consistency in callback's early return types
 
     setLoading(true);
     setError(null);
