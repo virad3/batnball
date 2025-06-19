@@ -389,15 +389,36 @@ export const getCurrentUserProfile = async (): Promise<UserProfile | null> => {
 // --- Player Suggestions ---
 export const getAllUserProfilesForSuggestions = async (): Promise<Pick<UserProfile, 'id' | 'username'>[]> => {
   const profilesCol = collection(db, 'profiles');
-  const q = query(profilesCol, orderBy('username')); 
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(docSnap => {
-    const data = docSnap.data();
-    return { 
-      id: docSnap.id, 
-      username: data.username || 'Unnamed User' 
-    } as Pick<UserProfile, 'id' | 'username'>;
-  });
+  // Removed orderBy to simplify and avoid potential index issues for now.
+  // If ordering is desired later, ensure Firestore indexes are configured.
+  try {
+    const querySnapshot = await getDocs(profilesCol);
+    
+    if (querySnapshot.empty) {
+      console.warn("[dataService] No documents found in 'profiles' collection when fetching for suggestions. Ensure the collection exists, has data, and security rules allow reads.");
+      return [];
+    }
+    
+    const profiles: Pick<UserProfile, 'id' | 'username'>[] = [];
+    querySnapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      // Ensure username exists and is a string. Fallback if necessary.
+      const username = (typeof data.username === 'string' && data.username.trim() !== '') ? data.username.trim() : 'Unnamed User';
+      profiles.push({
+        id: docSnap.id,
+        username: username
+      });
+    });
+    
+    console.log(`[dataService] Fetched ${profiles.length} profiles for suggestions:`, profiles);
+    return profiles;
+
+  } catch (error) {
+    console.error("[dataService] Error fetching user profiles for suggestions:", error);
+    // Log the error, but return an empty array to prevent app crash.
+    // The calling component should handle the empty list gracefully.
+    return []; 
+  }
 };
 
 
