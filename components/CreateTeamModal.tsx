@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Team, UserProfile } from '../types';
-import { createTeam, getAllUserProfilesForSuggestions } from '../services/dataService';
+import { createTeam, getAllUserProfilesForSuggestions, addUserToTeamAffiliation } from '../services/dataService';
 import Button from './Button';
 import { XMarkIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 
@@ -12,11 +12,16 @@ interface CreateTeamModalProps {
 }
 
 type PlayerSuggestion = Pick<UserProfile, 'id' | 'username'>;
+interface ModalPlayer {
+  name: string;
+  userId?: string; // UserProfile.id if selected from suggestions
+}
 
 const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTeamCreated }) => {
   const [teamName, setTeamName] = useState('');
   const [currentPlayerName, setCurrentPlayerName] = useState('');
-  const [players, setPlayers] = useState<string[]>([]);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | undefined>(undefined); // Store ID of suggested player
+  const [players, setPlayers] = useState<ModalPlayer[]>([]); // Store name and optional userId
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,12 +39,15 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
           setAllUserProfiles(profiles);
         } catch (err) {
           console.error("Failed to fetch user profiles for suggestions:", err);
-          // Non-critical error, suggestions simply won't work
         }
       };
       fetchProfiles();
     } else {
-      // Reset suggestions when modal is closed
+      setTeamName('');
+      setCurrentPlayerName('');
+      setSelectedPlayerId(undefined);
+      setPlayers([]);
+      setError(null);
       setAllUserProfiles([]);
       setSuggestions([]);
       setShowSuggestions(false);
@@ -63,22 +71,21 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
     } else {
       document.removeEventListener('mousedown', handleClickOutside);
     }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showSuggestions]);
 
 
   const handlePlayerNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setCurrentPlayerName(value);
-    setError(null); // Clear error on input change
+    setSelectedPlayerId(undefined); // Clear selected ID if typing changes
+    setError(null); 
 
     if (value.trim() && allUserProfiles.length > 0) {
       const filtered = allUserProfiles.filter(profile =>
-        profile.username.toLowerCase().includes(value.toLowerCase()) && !players.includes(profile.username)
-      ).slice(0, 5); // Limit to 5 suggestions
+        profile.username.toLowerCase().includes(value.toLowerCase()) && 
+        !players.some(p => p.name === profile.username) // Exclude already added players
+      ).slice(0, 5); 
       setSuggestions(filtered);
       setShowSuggestions(filtered.length > 0);
     } else {
@@ -89,6 +96,7 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
   
   const handleSuggestionClick = (suggestedPlayer: PlayerSuggestion) => {
     setCurrentPlayerName(suggestedPlayer.username);
+    setSelectedPlayerId(suggestedPlayer.id); // Store the ID of the suggested player
     setSuggestions([]);
     setShowSuggestions(false);
     inputRef.current?.focus();
@@ -96,13 +104,14 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
 
   const handleAddPlayer = () => {
     const nameToAdd = currentPlayerName.trim();
-    if (nameToAdd && !players.includes(nameToAdd)) {
-      setPlayers(prevPlayers => [...prevPlayers, nameToAdd]);
+    if (nameToAdd && !players.some(p => p.name === nameToAdd)) {
+      setPlayers(prevPlayers => [...prevPlayers, { name: nameToAdd, userId: selectedPlayerId }]);
       setCurrentPlayerName('');
+      setSelectedPlayerId(undefined);
       setSuggestions([]);
       setShowSuggestions(false);
       setError(null);
-    } else if (players.includes(nameToAdd)) {
+    } else if (players.some(p => p.name === nameToAdd)) {
       setError("This player is already in the list.");
       setShowSuggestions(false);
     } else if (!nameToAdd) {
@@ -111,8 +120,8 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
     }
   };
 
-  const handleRemovePlayer = (playerToRemove: string) => {
-    setPlayers(prevPlayers => prevPlayers.filter(player => player !== playerToRemove));
+  const handleRemovePlayer = (playerToRemoveName: string) => {
+    setPlayers(prevPlayers => prevPlayers.filter(player => player.name !== playerToRemoveName));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -122,43 +131,50 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
       setError("Team name is required.");
       return;
     }
-    // Optional: Keep check for at least one player or allow empty teams
-    // if (players.length === 0) {
-    //   setError("Please add at least one player to the team.");
-    //   return; 
-    // }
 
     setLoading(true);
     try {
+      const playerNamesOnly = players.map(p => p.name);
       const newTeamData: Pick<Team, 'name' | 'players' | 'logoUrl'> = {
         name: teamName.trim(),
-        players,
-        logoUrl: null, // Placeholder for future logo functionality
+        players: playerNamesOnly,
+        logoUrl: null, 
       };
       const createdTeam = await createTeam(newTeamData);
+      
+      // After team is created, update profiles of registered players
+      const profileUpdatePromises = players
+        .filter(player => player.userId) // Only for players added from suggestions (with a userId)
+        .map(player => addUserToTeamAffiliation(player.userId!, createdTeam.id));
+      
+      await Promise.all(profileUpdatePromises);
+
       onTeamCreated(createdTeam);
-      resetForm();
+      resetFormAndClose();
     } catch (err: any) {
-      console.error("Failed to create team:", err);
+      console.error("Failed to create team or update profiles:", err);
       setError(err.message || "Could not create team. Please try again.");
     } finally {
       setLoading(false);
     }
   };
-
-  const resetForm = () => {
+  
+  const resetFormAndClose = () => {
     setTeamName('');
     setCurrentPlayerName('');
+    setSelectedPlayerId(undefined);
     setPlayers([]);
     setError(null);
     setLoading(false);
     setSuggestions([]);
     setShowSuggestions(false);
+    // Keep allUserProfiles loaded if modal might be reopened soon, or clear it:
+    // setAllUserProfiles([]); 
+    onClose();
   };
   
   const handleClose = () => {
-    resetForm();
-    onClose();
+    resetFormAndClose();
   };
 
 
@@ -196,12 +212,12 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5 flex-grow overflow-y-auto pr-2">
+        <form onSubmit={handleSubmit} className="space-y-5 flex-grow overflow-y-auto pr-2" id="create-team-form-modal">
           <div>
-            <label htmlFor="teamName" className={labelClass}>Team Name <span className="text-red-400">*</span></label>
+            <label htmlFor="teamNameModal" className={labelClass}>Team Name <span className="text-red-400">*</span></label>
             <input
               type="text"
-              id="teamName"
+              id="teamNameModal"
               value={teamName}
               onChange={(e) => setTeamName(e.target.value)}
               required
@@ -212,12 +228,12 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
           </div>
 
           <div className="relative">
-            <label htmlFor="currentPlayerName" className={labelClass}>Add Player</label>
+            <label htmlFor="currentPlayerNameModal" className={labelClass}>Add Player</label>
             <div className="flex space-x-2">
               <input
                 ref={inputRef}
                 type="text"
-                id="currentPlayerName"
+                id="currentPlayerNameModal"
                 value={currentPlayerName}
                 onChange={handlePlayerNameChange}
                 onFocus={() => { if (currentPlayerName.trim() && suggestions.length > 0) setShowSuggestions(true);}}
@@ -227,7 +243,7 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    if (!showSuggestions || suggestions.length === 0) { // Add if no suggestions or not actively navigating them
+                    if (!showSuggestions || suggestions.length === 0) { 
                        handleAddPlayer();
                     }
                   }
@@ -250,7 +266,7 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
                     onClick={() => handleSuggestionClick(suggestion)}
                     className="px-3 py-2 text-sm text-gray-200 hover:bg-red-700 hover:text-white cursor-pointer"
                     role="option"
-                    aria-selected="false" // Can be enhanced with keyboard navigation
+                    aria-selected="false" 
                   >
                     {suggestion.username}
                   </li>
@@ -264,13 +280,13 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
               <h4 className="text-sm font-medium text-gray-300">Players ({players.length}):</h4>
               <ul className="max-h-48 overflow-y-auto space-y-1.5">
                 {players.map(player => (
-                  <li key={player} className="flex justify-between items-center bg-gray-600 p-2 rounded-md text-sm text-gray-100">
-                    <span className="truncate">{player}</span>
+                  <li key={player.name} className="flex justify-between items-center bg-gray-600 p-2 rounded-md text-sm text-gray-100">
+                    <span className="truncate">{player.name}</span>
                     <button
                       type="button"
-                      onClick={() => handleRemovePlayer(player)}
+                      onClick={() => handleRemovePlayer(player.name)}
                       className="text-red-400 hover:text-red-300 p-0.5 rounded-full"
-                      aria-label={`Remove ${player}`}
+                      aria-label={`Remove ${player.name}`}
                     >
                       <TrashIcon className="w-4 h-4" />
                     </button>
@@ -285,7 +301,7 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
           <Button type="button" variant="outline" onClick={handleClose} className="w-full sm:w-auto" disabled={loading}>
             Cancel
           </Button>
-          <Button type="submit" form="create-team-form" onClick={handleSubmit} isLoading={loading} disabled={loading || !teamName.trim()} className="w-full sm:w-auto" variant="primary">
+          <Button type="submit" form="create-team-form-modal" isLoading={loading} disabled={loading || !teamName.trim()} className="w-full sm:w-auto" variant="primary">
             {loading ? 'Creating Team...' : 'Create Team'}
           </Button>
         </div>

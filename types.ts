@@ -137,6 +137,7 @@ export interface UserProfile {
   profileType: "Scorer" | "Organizer" | "Fan" | "Player"; // from user_metadata or profiles table
   profilePicUrl?: string | null; // from user_metadata or profiles table
   achievements?: string[]; // from user_metadata or profiles table (example)
+  teamIds?: string[]; // New field to store IDs of teams the user is part of
 
   // New fields for 'profiles' table
   location?: string | null;
@@ -181,7 +182,7 @@ export interface Team {
   id: string;
   user_id: string;
   name: string;
-  players: string[];
+  players: string[]; // Stores player names. Linking to UserProfile is done via name matching for now.
   createdAt: FirebaseTimestamp;
   logoUrl?: string | null;
 }

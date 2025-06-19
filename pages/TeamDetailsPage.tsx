@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Team, UserProfile } from '../types';
-import { getTeamById, updateTeam, getAllUserProfilesForSuggestions } from '../services/dataService';
+import { getTeamById, updateTeam, getAllUserProfilesForSuggestions, addUserToTeamAffiliation, removeUserFromTeamAffiliation } from '../services/dataService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
 import { ArrowLeftIcon, PlusIcon, TrashIcon, UserGroupIcon } from '@heroicons/react/24/outline';
@@ -16,6 +16,7 @@ const TeamDetailsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newPlayerName, setNewPlayerName] = useState('');
+  const [selectedPlayerIdForAdd, setSelectedPlayerIdForAdd] = useState<string | undefined>(undefined);
   const [isUpdating, setIsUpdating] = useState(false);
 
   const [allUserProfiles, setAllUserProfiles] = useState<PlayerSuggestion[]>([]);
@@ -76,21 +77,19 @@ const TeamDetailsPage: React.FC = () => {
     } else {
       document.removeEventListener('mousedown', handleClickOutside);
     }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showSuggestions]);
 
   const handlePlayerNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setNewPlayerName(value);
+    setSelectedPlayerIdForAdd(undefined); // Clear if user types
     setError(null);
 
     if (value.trim() && allUserProfiles.length > 0 && team) {
       const filtered = allUserProfiles.filter(profile =>
         profile.username.toLowerCase().includes(value.toLowerCase()) && !team.players.includes(profile.username)
-      ).slice(0, 5); // Limit to 5 suggestions
+      ).slice(0, 5); 
       setSuggestions(filtered);
       setShowSuggestions(filtered.length > 0);
     } else {
@@ -101,6 +100,7 @@ const TeamDetailsPage: React.FC = () => {
 
   const handleSuggestionClick = (suggestedPlayer: PlayerSuggestion) => {
     setNewPlayerName(suggestedPlayer.username);
+    setSelectedPlayerIdForAdd(suggestedPlayer.id); // Store ID for add operation
     setSuggestions([]);
     setShowSuggestions(false);
     inputRef.current?.focus();
@@ -125,7 +125,20 @@ const TeamDetailsPage: React.FC = () => {
       const updatedPlayers = [...team.players, nameToAdd];
       const updatedTeamData = await updateTeam(team.id, { players: updatedPlayers });
       setTeam(updatedTeamData);
+      
+      // If player was from suggestion or name matches a registered user, update their profile
+      let userIdToUpdate = selectedPlayerIdForAdd;
+      if (!userIdToUpdate) {
+        const matchedProfile = allUserProfiles.find(p => p.username === nameToAdd);
+        if (matchedProfile) userIdToUpdate = matchedProfile.id;
+      }
+
+      if (userIdToUpdate && teamId) {
+        await addUserToTeamAffiliation(userIdToUpdate, teamId);
+      }
+
       setNewPlayerName('');
+      setSelectedPlayerIdForAdd(undefined);
     } catch (err: any) {
       setError(err.message || "Failed to add player.");
     } finally {
@@ -133,17 +146,24 @@ const TeamDetailsPage: React.FC = () => {
     }
   };
 
-  const handleRemovePlayer = async (playerToRemove: string) => {
-    if (!team) return;
-    if (!window.confirm(`Are you sure you want to remove ${playerToRemove} from the team?`)) {
+  const handleRemovePlayer = async (playerToRemoveName: string) => {
+    if (!team || !teamId) return;
+    if (!window.confirm(`Are you sure you want to remove ${playerToRemoveName} from the team?`)) {
         return;
     }
     setIsUpdating(true);
     setError(null);
     try {
-      const updatedPlayers = team.players.filter(player => player !== playerToRemove);
+      const updatedPlayers = team.players.filter(player => player !== playerToRemoveName);
       const updatedTeamData = await updateTeam(team.id, { players: updatedPlayers });
       setTeam(updatedTeamData);
+
+      // If removed player is a registered user, update their profile
+      const matchedProfile = allUserProfiles.find(p => p.username === playerToRemoveName);
+      if (matchedProfile) {
+        await removeUserFromTeamAffiliation(matchedProfile.id, teamId);
+      }
+
     } catch (err: any) {
       setError(err.message || "Failed to remove player.");
     } finally {
@@ -188,12 +208,12 @@ const TeamDetailsPage: React.FC = () => {
           <section className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
             <h2 className="text-xl font-semibold text-gray-100 mb-4">Manage Players</h2>
             <div className="mb-6 space-y-3 relative">
-                <label htmlFor="newPlayerName" className="block text-sm font-medium text-gray-300">Add New Player:</label>
+                <label htmlFor="newPlayerNamePage" className="block text-sm font-medium text-gray-300">Add New Player:</label>
                 <div className="flex space-x-2">
                     <input
                     ref={inputRef}
                     type="text"
-                    id="newPlayerName"
+                    id="newPlayerNamePage"
                     value={newPlayerName}
                     onChange={handlePlayerNameChange}
                     onFocus={() => { if (newPlayerName.trim() && suggestions.length > 0) setShowSuggestions(true);}}
@@ -216,6 +236,7 @@ const TeamDetailsPage: React.FC = () => {
                     ref={suggestionBoxRef} 
                     className="absolute z-10 w-[calc(100%-100px)] mt-1 max-h-40 overflow-y-auto bg-gray-600 border border-gray-500 rounded-md shadow-lg"
                     role="listbox"
+                    aria-label="Player suggestions"
                   >
                     {suggestions.map((suggestion) => (
                       <li
@@ -223,6 +244,7 @@ const TeamDetailsPage: React.FC = () => {
                         onClick={() => handleSuggestionClick(suggestion)}
                         className="px-3 py-2 text-sm text-gray-200 hover:bg-red-700 hover:text-white cursor-pointer"
                         role="option"
+                        aria-selected="false" 
                       >
                         {suggestion.username}
                       </li>
@@ -244,7 +266,7 @@ const TeamDetailsPage: React.FC = () => {
                       size="sm"
                       onClick={() => handleRemovePlayer(player)}
                       isLoading={isUpdating && team.players.includes(player)} 
-                      disabled={isUpdating}
+                      disabled={isUpdating && team.players.includes(player)} // disable only if this specific player remove is in progress
                       leftIcon={<TrashIcon className="w-4 h-4" />}
                       className="px-2 py-1"
                     >

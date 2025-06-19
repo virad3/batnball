@@ -2,7 +2,7 @@
 import { Match, Tournament, UserProfile, Team } from '../types';
 import { db, auth, storage } from './firebaseClient';
 import { 
-  collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, Timestamp, writeBatch, DocumentData, collectionGroup,getCountFromServer 
+  collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, Timestamp, writeBatch, DocumentData, collectionGroup,getCountFromServer, arrayUnion, arrayRemove 
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { User, updateProfile as updateFirebaseUserProfile } from 'firebase/auth';
@@ -50,11 +50,15 @@ export const getMatchById = async (id: string): Promise<Match | null> => {
     // Basic RLS check - ensure user owns this match
     const matchData = { id: docSnap.id, ...docSnap.data() } as Match;
     const currentUserId = getUserId();
+    // For public viewing of matches eventually, this check might be relaxed or user_id might not be the sole check.
+    // For now, only owner can load full match details for context.
     if (matchData.user_id === currentUserId) {
       return matchData;
     } else {
-      console.warn(`[dataService] User ${currentUserId} attempted to access match ${id} owned by ${matchData.user_id}. Access denied.`);
-      return null; // Or throw error
+      console.warn(`[dataService] User ${currentUserId} attempted to access match ${id} owned by ${matchData.user_id}. Access denied for full context load.`);
+      // Allow fetching basic data if needed for public viewing, but for full scoring context, ownership is key.
+      // For now, return null if not owner, as this is used by MatchContext mostly.
+      return null; 
     }
   }
   console.log(`[dataService] Match with ID (${id}) not found in Firestore.`);
@@ -68,7 +72,7 @@ export const createMatch = async (matchData: Partial<Match>): Promise<Match> => 
   const matchToInsert = {
     ...matchData,
     user_id: userId,
-    date: matchData.date ? Timestamp.fromDate(new Date(matchData.date)) : Timestamp.now(),
+    date: matchData.date ? Timestamp.fromDate(new Date(matchData.date as string)) : Timestamp.now(),
     innings1Record: matchData.innings1Record || null,
     innings2Record: matchData.innings2Record || null,
   };
@@ -125,13 +129,15 @@ export const getTournamentById = async (id: string): Promise<Tournament | null> 
   const docSnap = await getDoc(tournamentDocRef);
   if (docSnap.exists()) {
     const tournamentData = { id: docSnap.id, ...docSnap.data() } as Tournament;
-    const currentUserId = getUserId();
-     if (tournamentData.user_id === currentUserId) { // Only owner can view details for now
-      return tournamentData;
-    } else {
-      console.warn(`[dataService] User ${currentUserId} attempted to access tournament ${id} owned by ${tournamentData.user_id}. Access denied.`);
-      return null;
-    }
+    // For now, allow any authenticated user to view tournament details for simplicity.
+    // RLS can be tightened later if needed.
+    // const currentUserId = getUserId();
+    //  if (tournamentData.user_id === currentUserId) { 
+    return tournamentData;
+    // } else {
+    //   console.warn(`[dataService] User ${currentUserId} attempted to access tournament ${id} owned by ${tournamentData.user_id}. Access denied.`);
+    //   return null;
+    // }
   }
   return null;
 };
@@ -186,19 +192,27 @@ export const getTeamById = async (id: string): Promise<Team | null> => {
   const docSnap = await getDoc(teamDocRef);
   if (docSnap.exists()) {
     const teamData = { id: docSnap.id, ...docSnap.data() } as Team;
-    const currentUserId = getUserId();
-    if (teamData.user_id === currentUserId) { // Only owner can view team details for now
-      return teamData;
-    } else {
-      console.warn(`[dataService] User ${currentUserId} attempted to access team ${id} owned by ${teamData.user_id}. Access denied.`);
-      return null;
-    }
+    // Allow any authenticated user to view team details for now.
+    // RLS can be tightened later.
+    // const currentUserId = getUserId();
+    // if (teamData.user_id === currentUserId) { 
+    return teamData;
+    // } else {
+    //   console.warn(`[dataService] User ${currentUserId} attempted to access team ${id} owned by ${teamData.user_id}. Access denied.`);
+    //   return null;
+    // }
   }
   return null;
 };
 
 export const updateTeam = async (teamId: string, updates: Partial<Omit<Team, 'id' | 'user_id' | 'createdAt'>>): Promise<Team> => {
   const teamDocRef = doc(db, 'teams', teamId);
+  const teamData = await getTeamById(teamId); // Fetch to check ownership before update
+  const currentUserId = getUserId();
+  if (!teamData || teamData.user_id !== currentUserId) {
+    throw new Error("Team not found or user does not have permission to update.");
+  }
+  
   // Ensure user_id and createdAt are not part of updates from client
   const { user_id, createdAt, ...validUpdates } = updates as any; 
   await updateDoc(teamDocRef, validUpdates);
@@ -208,10 +222,12 @@ export const updateTeam = async (teamId: string, updates: Partial<Omit<Team, 'id
 };
 
 export const deleteTeam = async (teamId: string): Promise<void> => {
-  const teamToDelete = await getTeamById(teamId); // Verifies ownership for now
-  if (!teamToDelete) {
+  const teamToDelete = await getTeamById(teamId); 
+  const currentUserId = getUserId();
+  if (!teamToDelete || teamToDelete.user_id !== currentUserId) {
     throw new Error("Team not found or user does not have permission to delete.");
   }
+  // TODO: Future enhancement: Remove this teamId from all UserProfile.teamIds
   const teamDocRef = doc(db, 'teams', teamId);
   await deleteDoc(teamDocRef);
 };
@@ -226,8 +242,6 @@ export const getFullUserProfile = async (targetUserId: string): Promise<UserProf
 
   if (!profileDocSnap.exists()) {
     console.warn(`Profile for user ID ${targetUserId} not found in Firestore.`);
-    // Attempt to create a basic profile if user exists in Auth but not Firestore (e.g., edge case)
-    // This is less common now with onAuthStateChanged handling.
     return null; 
   }
   
@@ -239,9 +253,15 @@ export const getFullUserProfile = async (targetUserId: string): Promise<UserProf
 
   if (rawDobFromFirestore instanceof Timestamp) {
     dobString = rawDobFromFirestore.toDate().toISOString().split('T')[0];
-  } else if (typeof rawDobFromFirestore === 'string') {
-    dobString = rawDobFromFirestore;
+  } else if (typeof rawDobFromFirestore === 'string' && rawDobFromFirestore) {
+    // Ensure it's a valid date string before trying to parse, or just use it if it's already YYYY-MM-DD
+     try {
+        dobString = new Date(rawDobFromFirestore).toISOString().split('T')[0];
+     } catch (e) {
+        dobString = rawDobFromFirestore; // if already in correct string format or invalid, keep as is
+     }
   }
+
 
   return {
     id: targetUserId,
@@ -250,6 +270,7 @@ export const getFullUserProfile = async (targetUserId: string): Promise<UserProf
     profileType: dbProfileData.profileType || 'Fan',
     profilePicUrl: dbProfileData.profilePicUrl || null,
     achievements: dbProfileData.achievements || [],
+    teamIds: dbProfileData.teamIds || [], // Initialize teamIds
     location: dbProfileData.location ?? null,
     date_of_birth: dobString,
     mobile_number: dbProfileData.mobile_number ?? null, 
@@ -284,30 +305,53 @@ export const updateUserProfile = async (
     const { id, email, achievements, ...firestoreProfileUpdatesInput } = profileUpdates;
     const firestoreProfileUpdates: Partial<UserProfile> = { ...firestoreProfileUpdatesInput };
 
-    if (authProfileUpdates.displayName || authProfileUpdates.photoURL) {
-        firestoreProfileUpdates.email = currentUser.email; 
-        firestoreProfileUpdates.username = authProfileUpdates.displayName || currentUser.displayName || undefined;
-        firestoreProfileUpdates.profilePicUrl = authProfileUpdates.photoURL === undefined ? currentUser.photoURL : authProfileUpdates.photoURL;
+    // Reflect Auth changes in Firestore profile if they occurred
+    if (authProfileUpdates.displayName) {
+        firestoreProfileUpdates.username = authProfileUpdates.displayName;
+    }
+    if (authProfileUpdates.photoURL !== undefined) { // Check undefined because photoURL can be null
+        firestoreProfileUpdates.profilePicUrl = authProfileUpdates.photoURL;
+    }
+    // Always ensure email from auth is present (though typically not changed here)
+    firestoreProfileUpdates.email = currentUser.email;
+
+
+    if (firestoreProfileUpdates.date_of_birth) { // If a date string is provided
+        try {
+            firestoreProfileUpdates.date_of_birth = Timestamp.fromDate(new Date(firestoreProfileUpdates.date_of_birth as string)) as any;
+        } catch (e) {
+            console.warn("Invalid date_of_birth string, not converting to Timestamp:", firestoreProfileUpdates.date_of_birth);
+            // Decide: either unset it, or keep the invalid string, or error. For now, keep potentially invalid string.
+            // Or better: delete firestoreProfileUpdates.date_of_birth if invalid and not null
+        }
+    } else if (firestoreProfileUpdates.date_of_birth === '' || firestoreProfileUpdates.date_of_birth === null) {
+      // If explicitly set to empty or null, store null
+      (firestoreProfileUpdates as any).date_of_birth = null;
     }
 
-    if (firestoreProfileUpdates.date_of_birth && typeof firestoreProfileUpdates.date_of_birth === 'string') {
-        firestoreProfileUpdates.date_of_birth = Timestamp.fromDate(new Date(firestoreProfileUpdates.date_of_birth)) as any;
-    } else if (firestoreProfileUpdates.date_of_birth === null || firestoreProfileUpdates.date_of_birth === '') {
-        firestoreProfileUpdates.date_of_birth = null;
-    }
 
     if (Object.keys(firestoreProfileUpdates).length > 0) {
       const profileDocRef = doc(db, 'profiles', userId);
+      // Construct finalUpdates to ensure only defined values are merged.
+      // Firestore `set` with `merge: true` handles undefined fields by not touching them.
+      // However, explicitly passing `null` will set the field to null.
       const finalUpdatesForFirestore: any = {};
       for (const key in firestoreProfileUpdates) {
           if (Object.prototype.hasOwnProperty.call(firestoreProfileUpdates, key)) {
               const typedKey = key as keyof Partial<UserProfile>;
-              if (firestoreProfileUpdates[typedKey] !== undefined) { 
-                  finalUpdatesForFirestore[typedKey] = firestoreProfileUpdates[typedKey];
+              // Add to finalUpdates if the value is explicitly provided in profileUpdates
+              // This ensures that if teamIds is not in profileUpdates, it's not accidentally overwritten to undefined
+              if (profileUpdates.hasOwnProperty(typedKey)) {
+                finalUpdatesForFirestore[typedKey] = firestoreProfileUpdates[typedKey];
+              } else if (typedKey === 'email' || typedKey === 'username' || typedKey === 'profilePicUrl') {
+                // Ensure auth-synced fields are updated if changed via auth
+                 finalUpdatesForFirestore[typedKey] = firestoreProfileUpdates[typedKey];
               }
           }
       }
-      await setDoc(profileDocRef, finalUpdatesForFirestore, { merge: true });
+      if(Object.keys(finalUpdatesForFirestore).length > 0) {
+        await setDoc(profileDocRef, finalUpdatesForFirestore, { merge: true });
+      }
     }
     
     await auth.currentUser?.reload(); 
@@ -345,15 +389,13 @@ export const getCurrentUserProfile = async (): Promise<UserProfile | null> => {
 // --- Player Suggestions ---
 export const getAllUserProfilesForSuggestions = async (): Promise<Pick<UserProfile, 'id' | 'username'>[]> => {
   const profilesCol = collection(db, 'profiles');
-  // Consider adding orderBy('username') if you want suggestions to be alphabetically sorted by default
-  // Add limit if the number of users is very large and you want to implement server-side search instead
-  const q = query(profilesCol); 
+  const q = query(profilesCol, orderBy('username')); 
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(docSnap => {
     const data = docSnap.data();
     return { 
       id: docSnap.id, 
-      username: data.username || 'Unnamed User' // Fallback for safety
+      username: data.username || 'Unnamed User' 
     } as Pick<UserProfile, 'id' | 'username'>;
   });
 };
@@ -372,8 +414,6 @@ export const followUser = async (targetUserIdToFollow: string): Promise<void> =>
     followingId: targetUserIdToFollow,
     followedAt: Timestamp.now(),
   };
-  // Use a composite ID for the document to easily check existence and prevent duplicates
-  // This also makes unfollowing easier if we know both IDs.
   const followDocId = `${currentUserId}_${targetUserIdToFollow}`;
   const followDocRef = doc(followsCollection, followDocId);
   
@@ -393,7 +433,7 @@ export const unfollowUser = async (targetUserIdToUnfollow: string): Promise<void
 export const checkIfFollowing = async (targetUserId: string): Promise<boolean> => {
   const currentUserId = getUserId();
   if (!currentUserId) return false;
-  if (currentUserId === targetUserId) return false; // Cannot follow self
+  if (currentUserId === targetUserId) return false; 
 
   const followDocId = `${currentUserId}_${targetUserId}`;
   const followDocRef = doc(followsCollection, followDocId);
@@ -411,4 +451,57 @@ export const getFollowingCount = async (targetUserId: string): Promise<number> =
   const q = query(followsCollection, where('followerId', '==', targetUserId));
   const snapshot = await getCountFromServer(q);
   return snapshot.data().count;
+};
+
+// --- Team Affiliation for User Profiles ---
+export const addUserToTeamAffiliation = async (userId: string, teamId: string): Promise<void> => {
+  const profileDocRef = doc(db, 'profiles', userId);
+  try {
+    await updateDoc(profileDocRef, {
+      teamIds: arrayUnion(teamId)
+    });
+    console.log(`Team ${teamId} added to profile ${userId}`);
+  } catch (error) {
+    console.error(`Failed to add team ${teamId} to profile ${userId}:`, error);
+    // Optionally, try to set if arrayUnion fails (e.g. field doesn't exist)
+    // This is more complex and usually arrayUnion is sufficient if field might not exist.
+    // Firestore's arrayUnion will create the array field if it doesn't exist.
+  }
+};
+
+export const removeUserFromTeamAffiliation = async (userId: string, teamId: string): Promise<void> => {
+  const profileDocRef = doc(db, 'profiles', userId);
+  try {
+    await updateDoc(profileDocRef, {
+      teamIds: arrayRemove(teamId)
+    });
+    console.log(`Team ${teamId} removed from profile ${userId}`);
+  } catch (error) {
+    console.error(`Failed to remove team ${teamId} from profile ${userId}:`, error);
+  }
+};
+
+export const getTeamsInfoByIds = async (teamIds: string[]): Promise<Array<Pick<Team, 'id' | 'name'>>> => {
+  if (!teamIds || teamIds.length === 0) {
+    return [];
+  }
+  const teamsCol = collection(db, 'teams');
+  // Firestore 'in' query supports up to 30 elements per query.
+  // If teamIds can exceed this, batching is needed. For now, assume <30.
+  // Newer SDK versions might lift this limit or offer better batching.
+  // For simplicity here, we'll do one query. If more than 30, this needs chunking.
+  if (teamIds.length > 30) {
+    console.warn("Fetching more than 30 teams by ID at once, this might hit Firestore limits or be inefficient. Consider batching.");
+  }
+  
+  const q = query(teamsCol, where('__name__', 'in', teamIds)); // '__name__' refers to document ID
+  const querySnapshot = await getDocs(q);
+  
+  return querySnapshot.docs.map(docSnap => {
+    const data = docSnap.data();
+    return { 
+      id: docSnap.id, 
+      name: data.name || 'Unnamed Team' 
+    } as Pick<Team, 'id' | 'name'>;
+  });
 };
