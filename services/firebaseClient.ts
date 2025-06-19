@@ -1,23 +1,29 @@
 
-import { initializeApp, getApps, getApp } from 'firebase/app'; // Value imports
-import type { FirebaseApp } from 'firebase/app'; // Type import
-import { getAuth, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
-import { getStorage, type FirebaseStorage } from 'firebase/storage';
+import firebase from 'firebase/compat/app'; // Firebase v8 style default import with compat
+import 'firebase/compat/auth';             // Side-effect import for auth with compat
+import 'firebase/compat/firestore';        // Side-effect import for firestore with compat
+import 'firebase/compat/storage';          // Side-effect import for storage with compat
 
-let app: FirebaseApp; // Use imported type
+// Type for the Firebase app instance in v8 (compat layer mimics this)
+type FirebaseAppV8 = firebase.app.App;
+
+// Types for Firebase services in v8 (compat layer mimics this)
+type AuthV8 = firebase.auth.Auth;
+type FirestoreV8 = firebase.firestore.Firestore;
+type FirebaseStorageV8 = firebase.storage.Storage;
+
+let app: FirebaseAppV8;
 
 // @ts-ignore window.firebaseConfig is defined in index.html
 const firebaseConfigFromWindow = window.firebaseConfig;
 
-if (getApps().length > 0) { // Check if any Firebase app is already initialized using top-level getApps
-  app = getApp(); // Get the default initialized app using top-level getApp
+if (firebase.apps.length > 0) { // v8 style: check existing apps
+  app = firebase.app(); // v8 style: get default app
 } else {
-  // Fallback: If no app is initialized (e.g., if this script runs before index.html's init,
-  // or if index.html init fails), try to initialize it here using window.firebaseConfig.
+  // Fallback: If no app is initialized, try to initialize it here using window.firebaseConfig.
   if (firebaseConfigFromWindow) {
-    console.warn("Firebase app not pre-initialized by index.html. Initializing in firebaseClient.ts using window.firebaseConfig.");
-    app = initializeApp(firebaseConfigFromWindow); // Use top-level initializeApp
+    console.warn("Firebase app not pre-initialized by index.html. Initializing in firebaseClient.ts using window.firebaseConfig (v8 compat style).");
+    app = firebase.initializeApp(firebaseConfigFromWindow); // v8 style: initializeApp
   } else {
     const errorMessage = "CRITICAL: Firebase app is not initialized, and no firebaseConfig was found on window. Bat 'n' Ball cannot function.";
     console.error(errorMessage);
@@ -29,9 +35,9 @@ if (getApps().length > 0) { // Check if any Firebase app is already initialized 
   }
 }
 
-// Initialize services with the app instance.
-const auth: Auth = getAuth(app);
-const db: Firestore = getFirestore(app);
-const storage: FirebaseStorage = getStorage(app);
+// Initialize services using v8 style (works with compat)
+const authInstance: AuthV8 = firebase.auth(app);
+const dbInstance: FirestoreV8 = firebase.firestore(app);
+const storageInstance: FirebaseStorageV8 = firebase.storage(app);
 
-export { app, auth, db, storage };
+export { app, authInstance as auth, dbInstance as db, storageInstance as storage };

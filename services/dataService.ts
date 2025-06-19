@@ -2,7 +2,7 @@
 import { Match, Tournament, UserProfile, Team } from '../types';
 import { db, auth, storage } from './firebaseClient';
 import { 
-  collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, Timestamp, writeBatch, DocumentData
+  collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, Timestamp, writeBatch, DocumentData, collectionGroup,getCountFromServer 
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { User, updateProfile as updateFirebaseUserProfile } from 'firebase/auth';
@@ -115,7 +115,7 @@ export const getOngoingTournaments = async (count: number = 2): Promise<Tourname
   const querySnapshot = await getDocs(q);
   const ongoing = querySnapshot.docs
     .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Tournament))
-    .filter(t => t.endDate && Timestamp.fromDate(new Date(t.endDate as string)) >= currentDate) // Ensure endDate is treated as string for Date constructor
+    .filter(t => t.endDate && Timestamp.fromDate(new Date(t.endDate as string)) >= currentDate) // Ensure string for Date constructor
     .slice(0, count);
   return ongoing;
 };
@@ -126,7 +126,7 @@ export const getTournamentById = async (id: string): Promise<Tournament | null> 
   if (docSnap.exists()) {
     const tournamentData = { id: docSnap.id, ...docSnap.data() } as Tournament;
     const currentUserId = getUserId();
-     if (tournamentData.user_id === currentUserId) {
+     if (tournamentData.user_id === currentUserId) { // Only owner can view details for now
       return tournamentData;
     } else {
       console.warn(`[dataService] User ${currentUserId} attempted to access tournament ${id} owned by ${tournamentData.user_id}. Access denied.`);
@@ -187,7 +187,7 @@ export const getTeamById = async (id: string): Promise<Team | null> => {
   if (docSnap.exists()) {
     const teamData = { id: docSnap.id, ...docSnap.data() } as Team;
     const currentUserId = getUserId();
-    if (teamData.user_id === currentUserId) {
+    if (teamData.user_id === currentUserId) { // Only owner can view team details for now
       return teamData;
     } else {
       console.warn(`[dataService] User ${currentUserId} attempted to access team ${id} owned by ${teamData.user_id}. Access denied.`);
@@ -208,8 +208,7 @@ export const updateTeam = async (teamId: string, updates: Partial<Omit<Team, 'id
 };
 
 export const deleteTeam = async (teamId: string): Promise<void> => {
-  // Optional: Before deleting, verify ownership if not handled by security rules
-  const teamToDelete = await getTeamById(teamId);
+  const teamToDelete = await getTeamById(teamId); // Verifies ownership for now
   if (!teamToDelete) {
     throw new Error("Team not found or user does not have permission to delete.");
   }
@@ -220,49 +219,40 @@ export const deleteTeam = async (teamId: string): Promise<void> => {
 
 // --- User Profile Functions ---
 
-// Fetches combined profile from Firebase Auth and Firestore "profiles" collection
-export const getFullUserProfile = async (userId: string): Promise<UserProfile | null> => {
-  const currentUser = auth.currentUser;
-  if (!currentUser || currentUser.uid !== userId) {
-    console.warn("Attempted to fetch profile for a different or non-authenticated user.");
-    return null;
-  }
-
-  const profileDocRef = doc(db, 'profiles', userId);
+// Fetches combined profile from Firebase Auth and Firestore "profiles" collection for a given userId
+export const getFullUserProfile = async (targetUserId: string): Promise<UserProfile | null> => {
+  const profileDocRef = doc(db, 'profiles', targetUserId);
   const profileDocSnap = await getDoc(profileDocRef);
 
-  let firestoreRawData: DocumentData | undefined;
-  if (profileDocSnap.exists()) {
-    firestoreRawData = profileDocSnap.data();
-  } else {
-    firestoreRawData = {}; // Initialize to empty object if no profile exists
+  if (!profileDocSnap.exists()) {
+    console.warn(`Profile for user ID ${targetUserId} not found in Firestore.`);
+    // Attempt to create a basic profile if user exists in Auth but not Firestore (e.g., edge case)
+    // This is less common now with onAuthStateChanged handling.
+    return null; 
   }
   
-  // Cast known fields to Partial<UserProfile> for easier access, but handle Timestamp separately
+  const firestoreRawData: DocumentData = profileDocSnap.data();
   const dbProfileData: Partial<UserProfile> = firestoreRawData as Partial<UserProfile>;
 
   let dobString: string | null = null;
-  const rawDobFromFirestore = firestoreRawData?.date_of_birth; // Access original field from Firestore data
+  const rawDobFromFirestore = firestoreRawData?.date_of_birth;
 
   if (rawDobFromFirestore instanceof Timestamp) {
     dobString = rawDobFromFirestore.toDate().toISOString().split('T')[0];
   } else if (typeof rawDobFromFirestore === 'string') {
-    // It might be already a string if it was stored that way
     dobString = rawDobFromFirestore;
   }
 
-
   return {
-    id: currentUser.uid,
-    email: currentUser.email || dbProfileData.email || '',
-    username: currentUser.displayName || dbProfileData.username || currentUser.email?.split('@')[0] || 'User',
-    profileType: dbProfileData.profileType || 'Fan', // Default to Fan if not set
-    profilePicUrl: currentUser.photoURL || dbProfileData.profilePicUrl || null,
+    id: targetUserId,
+    email: dbProfileData.email || '', 
+    username: dbProfileData.username || 'User',
+    profileType: dbProfileData.profileType || 'Fan',
+    profilePicUrl: dbProfileData.profilePicUrl || null,
     achievements: dbProfileData.achievements || [],
-
     location: dbProfileData.location ?? null,
-    date_of_birth: dobString, // Use the converted/validated dobString
-    mobile_number: dbProfileData.mobile_number ?? null,
+    date_of_birth: dobString,
+    mobile_number: dbProfileData.mobile_number ?? null, 
     player_role: dbProfileData.player_role ?? null,
     batting_style: dbProfileData.batting_style ?? null,
     bowling_style: dbProfileData.bowling_style ?? null,
@@ -270,36 +260,35 @@ export const getFullUserProfile = async (userId: string): Promise<UserProfile | 
 };
 
 export const updateUserProfile = async (
-  userId: string,
+  userId: string, 
   profileUpdates: Partial<UserProfile>
 ): Promise<{ user: User | null, profile: UserProfile | null, error?: any }> => {
   const currentUser = auth.currentUser;
   if (!currentUser || currentUser.uid !== userId) {
-    return { user: currentUser, profile: null, error: new Error("User mismatch or not authenticated.") };
+    return { user: currentUser, profile: null, error: new Error("User mismatch or not authenticated for profile update.") };
   }
 
   const authProfileUpdates: { displayName?: string, photoURL?: string | null } = {};
   if (profileUpdates.username !== undefined && profileUpdates.username !== currentUser.displayName) {
      authProfileUpdates.displayName = profileUpdates.username;
   }
-  // Allow setting photoURL to null to remove it
   if (profileUpdates.profilePicUrl !== undefined && profileUpdates.profilePicUrl !== currentUser.photoURL) {
      authProfileUpdates.photoURL = profileUpdates.profilePicUrl;
   }
 
-
   try {
-    // Update Firebase Auth profile if there are changes
     if (Object.keys(authProfileUpdates).length > 0) {
       await updateFirebaseUserProfile(currentUser, authProfileUpdates);
     }
 
-    // Prepare updates for Firestore "profiles" collection
     const { id, email, achievements, ...firestoreProfileUpdatesInput } = profileUpdates;
-    
-    // Create a mutable copy for Firestore updates
     const firestoreProfileUpdates: Partial<UserProfile> = { ...firestoreProfileUpdatesInput };
 
+    if (authProfileUpdates.displayName || authProfileUpdates.photoURL) {
+        firestoreProfileUpdates.email = currentUser.email; 
+        firestoreProfileUpdates.username = authProfileUpdates.displayName || currentUser.displayName || undefined;
+        firestoreProfileUpdates.profilePicUrl = authProfileUpdates.photoURL === undefined ? currentUser.photoURL : authProfileUpdates.photoURL;
+    }
 
     if (firestoreProfileUpdates.date_of_birth && typeof firestoreProfileUpdates.date_of_birth === 'string') {
         firestoreProfileUpdates.date_of_birth = Timestamp.fromDate(new Date(firestoreProfileUpdates.date_of_birth)) as any;
@@ -307,18 +296,13 @@ export const updateUserProfile = async (
         firestoreProfileUpdates.date_of_birth = null;
     }
 
-
     if (Object.keys(firestoreProfileUpdates).length > 0) {
       const profileDocRef = doc(db, 'profiles', userId);
-      // Ensure specific fields that can be null are explicitly set to null if passed as such
       const finalUpdatesForFirestore: any = {};
       for (const key in firestoreProfileUpdates) {
           if (Object.prototype.hasOwnProperty.call(firestoreProfileUpdates, key)) {
               const typedKey = key as keyof Partial<UserProfile>;
-              if (firestoreProfileUpdates[typedKey] === undefined) {
-                  // This case should ideally not happen if profileUpdates is well-formed
-                  // We can choose to delete the field or ignore it. For merge: true, ignoring is fine.
-              } else {
+              if (firestoreProfileUpdates[typedKey] !== undefined) { 
                   finalUpdatesForFirestore[typedKey] = firestoreProfileUpdates[typedKey];
               }
           }
@@ -343,16 +327,12 @@ export const uploadProfilePicture = async (userId: string, file: File): Promise<
   const storageRef = ref(storage, filePath);
 
   try {
-    // Optional: Delete old profile picture if one exists and you want to manage storage
-    // This would require storing the old picture's path or guessing it, which can be complex.
-    // For simplicity, this example doesn't delete the old picture.
-
     await uploadBytes(storageRef, file, { contentType: file.type });
     const downloadUrl = await getDownloadURL(storageRef);
     return downloadUrl;
   } catch (error) {
     console.error('Error uploading profile picture to Firebase Storage:', error);
-    throw error; // Rethrow to be caught by the calling function in ProfilePage
+    throw error; 
   }
 };
 
@@ -360,4 +340,59 @@ export const getCurrentUserProfile = async (): Promise<UserProfile | null> => {
   const userId = getUserId();
   if (!userId) return null;
   return getFullUserProfile(userId);
+};
+
+
+// --- Follow System ---
+const followsCollection = collection(db, 'follows');
+
+export const followUser = async (targetUserIdToFollow: string): Promise<void> => {
+  const currentUserId = getUserId();
+  if (!currentUserId) throw new Error("User must be logged in to follow.");
+  if (currentUserId === targetUserIdToFollow) throw new Error("Cannot follow yourself.");
+
+  const followData = {
+    followerId: currentUserId,
+    followingId: targetUserIdToFollow,
+    followedAt: Timestamp.now(),
+  };
+  // Use a composite ID for the document to easily check existence and prevent duplicates
+  // This also makes unfollowing easier if we know both IDs.
+  const followDocId = `${currentUserId}_${targetUserIdToFollow}`;
+  const followDocRef = doc(followsCollection, followDocId);
+  
+  await setDoc(followDocRef, followData);
+};
+
+export const unfollowUser = async (targetUserIdToUnfollow: string): Promise<void> => {
+  const currentUserId = getUserId();
+  if (!currentUserId) throw new Error("User must be logged in to unfollow.");
+
+  const followDocId = `${currentUserId}_${targetUserIdToUnfollow}`;
+  const followDocRef = doc(followsCollection, followDocId);
+  
+  await deleteDoc(followDocRef);
+};
+
+export const checkIfFollowing = async (targetUserId: string): Promise<boolean> => {
+  const currentUserId = getUserId();
+  if (!currentUserId) return false;
+  if (currentUserId === targetUserId) return false; // Cannot follow self
+
+  const followDocId = `${currentUserId}_${targetUserId}`;
+  const followDocRef = doc(followsCollection, followDocId);
+  const docSnap = await getDoc(followDocRef);
+  return docSnap.exists();
+};
+
+export const getFollowersCount = async (targetUserId: string): Promise<number> => {
+  const q = query(followsCollection, where('followingId', '==', targetUserId));
+  const snapshot = await getCountFromServer(q);
+  return snapshot.data().count;
+};
+
+export const getFollowingCount = async (targetUserId: string): Promise<number> => {
+  const q = query(followsCollection, where('followerId', '==', targetUserId));
+  const snapshot = await getCountFromServer(q);
+  return snapshot.data().count;
 };
