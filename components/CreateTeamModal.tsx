@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Team, UserProfile } from '../types';
 import { createTeam, getAllUserProfilesForSuggestions, addUserToTeamAffiliation } from '../services/dataService';
 import Button from './Button';
-import { XMarkIcon, PlusIcon, TrashIcon, UserPlusIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import LoadingSpinner from './LoadingSpinner';
 
 interface CreateTeamModalProps {
@@ -20,15 +20,19 @@ interface ModalPlayer {
 
 const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTeamCreated }) => {
   const [teamName, setTeamName] = useState('');
-  const [inputPlayerName, setInputPlayerName] = useState(''); // For the text input
+  const [inputPlayerName, setInputPlayerName] = useState('');
   const [players, setPlayers] = useState<ModalPlayer[]>([]);
   const [loading, setLoading] = useState(false);
-  const [pageLoading, setPageLoading] = useState(false); // For initial profile fetch
+  const [pageLoading, setPageLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [allUserProfiles, setAllUserProfiles] = useState<PlayerSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<PlayerSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedPlayerIdForAdd, setSelectedPlayerIdForAdd] = useState<string | undefined>(undefined);
   
   const inputRef = useRef<HTMLInputElement>(null);
+  const suggestionBoxRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -46,61 +50,92 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
       };
       fetchProfiles();
     } else {
-      // Reset form state when modal closes
-      setTeamName('');
-      setInputPlayerName('');
-      setPlayers([]);
-      setError(null);
-      setAllUserProfiles([]); // Clear profiles to ensure fresh fetch on reopen if needed
+      resetFormAndClose(false); // Don't call onClose again
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  const filteredAvailableProfiles = useMemo(() => {
-    if (!inputPlayerName.trim()) {
-      return allUserProfiles;
-    }
-    return allUserProfiles.filter(profile =>
-      profile.username.toLowerCase().includes(inputPlayerName.toLowerCase())
-    );
-  }, [allUserProfiles, inputPlayerName]);
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        suggestionBoxRef.current &&
+        !suggestionBoxRef.current.contains(event.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(event.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
 
-  const handleAddPlayerFromList = (profile: PlayerSuggestion) => {
-    if (!players.some(p => p.userId === profile.id || p.name === profile.username)) {
-      setPlayers(prevPlayers => [...prevPlayers, { name: profile.username, userId: profile.id }]);
-      setError(null);
+    if (showSuggestions) {
+      document.addEventListener('mousedown', handleClickOutside);
     } else {
-      setError(`${profile.username} is already in the team or added.`);
+      document.removeEventListener('mousedown', handleClickOutside);
     }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showSuggestions]);
+
+
+  const handleInputPlayerNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInputPlayerName(value);
+    setSelectedPlayerIdForAdd(undefined); // Clear selected ID if user types
+    setError(null);
+
+    if (value.trim() && allUserProfiles.length > 0) {
+      const filtered = allUserProfiles.filter(profile =>
+        profile.username.toLowerCase().includes(value.toLowerCase()) &&
+        !players.some(p => (p.userId && p.userId === profile.id) || p.name.toLowerCase() === profile.username.toLowerCase())
+      ).slice(0, 5); // Limit suggestions
+      setSuggestions(filtered);
+      setShowSuggestions(filtered.length > 0);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSuggestionClick = (suggestion: PlayerSuggestion) => {
+    setInputPlayerName(suggestion.username);
+    setSelectedPlayerIdForAdd(suggestion.id);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    inputRef.current?.focus();
   };
   
   const handleAddPlayerFromInput = () => {
     const nameToAdd = inputPlayerName.trim();
     if (!nameToAdd) {
       setError("Player name cannot be empty.");
+      setShowSuggestions(false);
       return;
     }
     
     if (players.some(p => p.name.toLowerCase() === nameToAdd.toLowerCase())) {
       setError("This player is already in the list.");
+      setShowSuggestions(false);
       return;
     }
 
-    const existingProfile = allUserProfiles.find(p => p.username.toLowerCase() === nameToAdd.toLowerCase());
-    if (existingProfile) { // Matched a registered user
-        if (!players.some(p => p.userId === existingProfile.id)) {
-            setPlayers(prevPlayers => [...prevPlayers, { name: existingProfile.username, userId: existingProfile.id }]);
-        } else {
-             setError(`${existingProfile.username} (registered user) is already added.`);
-             return;
-        }
-    } else { // Add as custom player
-        setPlayers(prevPlayers => [...prevPlayers, { name: nameToAdd, userId: undefined }]);
+    let playerToAdd: ModalPlayer;
+
+    if (selectedPlayerIdForAdd) { // A suggestion was clicked
+      playerToAdd = { name: nameToAdd, userId: selectedPlayerIdForAdd };
+    } else { // No suggestion clicked, try to match by name
+      const existingProfile = allUserProfiles.find(p => p.username.toLowerCase() === nameToAdd.toLowerCase());
+      if (existingProfile && !players.some(p => p.userId === existingProfile.id)) {
+        playerToAdd = { name: existingProfile.username, userId: existingProfile.id };
+      } else {
+        playerToAdd = { name: nameToAdd, userId: undefined }; // Custom player
+      }
     }
     
+    setPlayers(prevPlayers => [...prevPlayers, playerToAdd]);
     setInputPlayerName('');
+    setSelectedPlayerIdForAdd(undefined);
+    setShowSuggestions(false);
     setError(null);
   };
-
 
   const handleRemovePlayer = (playerToRemoveName: string) => {
     setPlayers(prevPlayers => prevPlayers.filter(player => player.name !== playerToRemoveName));
@@ -136,7 +171,7 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
       await Promise.all(profileUpdatePromises);
 
       onTeamCreated(createdTeam);
-      resetFormAndClose();
+      resetFormAndClose(true); // Calls onClose
     } catch (err: any) {
       console.error("Failed to create team or update profiles:", err);
       setError(err.message || "Could not create team. Please try again.");
@@ -145,21 +180,20 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
     }
   };
   
-  const resetFormAndClose = () => {
+  const resetFormAndClose = (callOnClose: boolean = true) => {
     setTeamName('');
     setInputPlayerName('');
     setPlayers([]);
     setError(null);
     setLoading(false);
     setPageLoading(false);
-    onClose();
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setSelectedPlayerIdForAdd(undefined);
+    setAllUserProfiles([]); 
+    if(callOnClose) onClose();
   };
   
-  const handleClose = () => {
-    resetFormAndClose();
-  };
-
-
   if (!isOpen) return null;
 
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
@@ -174,13 +208,13 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
       aria-modal="true"
       aria-labelledby="create-team-modal-title"
     >
-      <div className="bg-gray-800 p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-2xl border border-gray-700 max-h-[90vh] flex flex-col">
+      <div className="bg-gray-800 p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-lg border border-gray-700 max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center mb-6">
           <h2 id="create-team-modal-title" className="text-xl sm:text-2xl font-bold text-gray-50">
             Create New Team
           </h2>
           <button
-            onClick={handleClose}
+            onClick={() => resetFormAndClose(true)}
             aria-label="Close create team modal"
             className="p-1 text-gray-400 hover:text-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800"
           >
@@ -209,69 +243,54 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
             />
           </div>
 
-          {/* Player Input and List Section */}
           <div className="space-y-3">
             <div>
-              <label htmlFor="inputPlayerNameModal" className={labelClass}>Add Player by Name (or filter list below)</label>
-              <div className="flex space-x-2">
+              <label htmlFor="inputPlayerNameModal" className={labelClass}>Add Player</label>
+              <div className="flex space-x-2 relative">
                 <input
                   ref={inputRef}
                   type="text"
                   id="inputPlayerNameModal"
                   value={inputPlayerName}
-                  onChange={(e) => setInputPlayerName(e.target.value)}
+                  onChange={handleInputPlayerNameChange}
+                  onFocus={() => { if (inputPlayerName.trim() && suggestions.length > 0) setShowSuggestions(true);}}
                   className={inputClass}
-                  placeholder="Type name or pick from list"
+                  placeholder="Type name to add or find registered player"
                   autoComplete="off"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
-                      handleAddPlayerFromInput();
+                      if(!showSuggestions || suggestions.length === 0) handleAddPlayerFromInput();
                     }
                   }}
                 />
                 <Button type="button" variant="secondary" onClick={handleAddPlayerFromInput} leftIcon={<PlusIcon className="w-5 h-5"/>} className="px-3" disabled={loading}>
                   Add
                 </Button>
+                {pageLoading && <div className="absolute right-14 top-1/2 -translate-y-1/2"><LoadingSpinner size="sm"/></div>}
               </div>
-            </div>
-
-            <div className="mt-3 p-3 bg-gray-750 rounded-md border border-gray-650">
-                <label className={`${labelClass} mb-2`}>Available Registered Players ({filteredAvailableProfiles.length})</label>
-                {pageLoading ? <div className="py-4"><LoadingSpinner size="sm"/></div> :
-                filteredAvailableProfiles.length > 0 ? (
-                    <ul className="max-h-48 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar-inner">
-                        {filteredAvailableProfiles.map((profile) => {
-                            const isAdded = players.some(p => p.userId === profile.id || p.name === profile.username);
-                            return (
-                                <li 
-                                    key={profile.id} 
-                                    className={`flex justify-between items-center p-2 rounded-md text-sm transition-colors ${
-                                        isAdded ? 'bg-gray-600 text-gray-400' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
-                                    }`}
-                                >
-                                    <span className="truncate">{profile.username}</span>
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        variant={isAdded ? "outline" : "secondary"}
-                                        onClick={() => handleAddPlayerFromList(profile)}
-                                        disabled={isAdded || loading}
-                                        leftIcon={!isAdded ? <UserPlusIcon className="w-4 h-4"/> : undefined}
-                                        className="px-2 py-1 text-xs"
-                                    >
-                                        {isAdded ? 'Added' : 'Add to Team'}
-                                    </Button>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                ) : (
-                    <p className="text-sm text-gray-400 italic py-2">
-                        {inputPlayerName.trim() ? "No matching registered players found." : "No registered players available or all added."}
-                    </p>
+               {showSuggestions && suggestions.length > 0 && (
+                  <ul 
+                    ref={suggestionBoxRef} 
+                    className="absolute z-20 w-[calc(100%-110px)] mt-1 max-h-40 overflow-y-auto bg-gray-600 border border-gray-500 rounded-md shadow-lg"
+                    role="listbox"
+                    aria-label="Player suggestions"
+                  >
+                    {suggestions.map((suggestion) => (
+                      <li
+                        key={suggestion.id}
+                        onClick={() => handleSuggestionClick(suggestion)}
+                        className="px-3 py-2 text-sm text-gray-200 hover:bg-red-700 hover:text-white cursor-pointer"
+                        role="option"
+                        aria-selected={selectedPlayerIdForAdd === suggestion.id} 
+                      >
+                        {suggestion.username}
+                      </li>
+                    ))}
+                  </ul>
                 )}
             </div>
+            
           </div>
           
           {players.length > 0 && (
@@ -280,7 +299,7 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
               <ul className="max-h-48 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar-inner">
                 {players.map(player => (
                   <li key={player.name} className="flex justify-between items-center bg-gray-600 p-2 rounded-md text-sm text-gray-100">
-                    <span className="truncate">{player.name}{player.userId && <span className="text-xs text-green-400 ml-1">(R)</span>}</span>
+                    <span className="truncate">{player.name}{player.userId && <span className="text-xs text-green-400 ml-1" title="Registered Player">(R)</span>}</span>
                     <button
                       type="button"
                       onClick={() => handleRemovePlayer(player.name)}
@@ -310,7 +329,7 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
             .custom-scrollbar::-webkit-scrollbar-thumb:hover {
                 background: #6b7280; /* gray-500 */
             }
-            .custom-scrollbar-inner::-webkit-scrollbar {
+            .custom-scrollbar-inner::-webkit-scrollbar { /* For nested scrollable lists if any */
                 width: 4px;
             }
             .custom-scrollbar-inner::-webkit-scrollbar-track {
@@ -328,7 +347,7 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
         </form>
         
         <div className="mt-8 pt-5 border-t border-gray-700 flex flex-col sm:flex-row sm:justify-end sm:space-x-3 space-y-3 sm:space-y-0">
-          <Button type="button" variant="outline" onClick={handleClose} className="w-full sm:w-auto" disabled={loading}>
+          <Button type="button" variant="outline" onClick={() => resetFormAndClose(true)} className="w-full sm:w-auto" disabled={loading}>
             Cancel
           </Button>
           <Button type="submit" form="create-team-form-modal" isLoading={loading} disabled={loading || !teamName.trim() || players.length === 0} className="w-full sm:w-auto" variant="primary">
