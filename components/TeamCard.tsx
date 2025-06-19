@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LocationMarkerIcon, QrCodeIcon as QrCodeIconOutline, ShieldCheckIcon } from '@heroicons/react/24/outline'; // Using outline for consistency
+import { LocationMarkerIcon, QrCodeIcon as QrCodeIconOutline, ShieldCheckIcon } from '@heroicons/react/24/outline';
 import { UserCircleIcon } from '@heroicons/react/24/solid'; // Solid for captain icon potentially
 
 interface TeamCardProps {
