@@ -50,20 +50,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         let dbProfileData = profileDocSnap.exists() ? profileDocSnap.data() : {};
 
         if (!profileDocSnap.exists()) {
-            // Default profileType for new Google sign-ups or if signUpWithPassword didn't set one (though it should)
             let defaultProfileType: UserProfile['profileType'] = 'Fan'; 
-            // If the firebaseUser object has a profileType (e.g., passed during signup or from a custom claim), use it.
-            // This is a placeholder for a more complex scenario; typically, profileType comes from options.data.
-            // For Google Sign-In, we rely on the options.data.profileType if provided, otherwise default.
-            // The crucial part is that `signUpWithPassword` sets it, and for Google, it's 'Fan' or what's in Firestore.
-
-            // The profile type for Google users will be 'Fan' unless they update it later.
-            // Username and photoURL will come directly from Google.
+            
             dbProfileData = { 
                 username: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-                profilePicUrl: firebaseUser.photoURL, // This will pick up Google's photo
+                profilePicUrl: firebaseUser.photoURL,
                 profileType: defaultProfileType, 
-                // Ensure other fields have defaults if necessary
                 location: null,
                 date_of_birth: null,
                 mobile_number: null,
@@ -71,10 +63,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 batting_style: null,
                 bowling_style: null,
                 achievements: [],
+                teamIds: [], // Ensure teamIds is initialized for new profiles
             };
             await setDoc(profileDocRef, {
-                ...dbProfileData, // Persist default data for new user
-                email: firebaseUser.email, // Store email in profile as well
+                ...dbProfileData, 
+                email: firebaseUser.email, 
             }, { merge: true });
         }
         
@@ -93,7 +86,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         setUserProfile({
           id: firebaseUser.uid,
-          email: firebaseUser.email || dbProfile.email || '', // Ensure email is present
+          email: firebaseUser.email || dbProfile.email || '', 
           username: firebaseUser.displayName || dbProfile.username || firebaseUser.email?.split('@')[0] || 'User',
           profileType: dbProfile.profileType || 'Fan',
           profilePicUrl: firebaseUser.photoURL || dbProfile.profilePicUrl,
@@ -104,6 +97,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           batting_style: dbProfile.batting_style ?? null,
           bowling_style: dbProfile.bowling_style ?? null,
           achievements: dbProfile.achievements || [],
+          teamIds: dbProfile.teamIds || [], // Ensure teamIds is always an array
         });
 
       } else {
@@ -121,7 +115,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       if (!credentials.password) throw new Error("Password is required for login.");
       await signInWithEmailAndPassword(auth, credentials.email, credentials.password);
-      // onAuthStateChanged will handle setting user and userProfile
     } catch (e:any) {
       setError(e as AuthError);
       console.error("Login error:", e);
@@ -144,23 +137,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           await updateProfile(firebaseUser, { displayName });
         }
 
-        // Prepare UserProfile data for Firestore
-        const profileDataToSave: Omit<UserProfile, 'id' | 'achievements'> & { achievements?: string[] } = {
+        const profileDataToSave: Omit<UserProfile, 'id' | 'achievements'> & { achievements?: string[], teamIds?: string[] } = {
           username: displayName || firebaseUser.email?.split('@')[0] || 'User',
           email: firebaseUser.email || '', 
           profileType: credentials.options?.data?.profileType || 'Fan',
-          profilePicUrl: firebaseUser.photoURL || null, // Firebase user photoURL might be null initially
+          profilePicUrl: firebaseUser.photoURL || null, 
           location: null,
           date_of_birth: null,
           mobile_number: null,
           player_role: null,
           batting_style: null,
           bowling_style: null,
-          achievements: [], // Initialize achievements
+          achievements: [], 
+          teamIds: [], // Initialize teamIds
         };
         const profileDocRef = doc(db, 'profiles', firebaseUser.uid);
         await setDoc(profileDocRef, profileDataToSave); 
-        // onAuthStateChanged will set userProfile based on this
       }
     } catch (e:any) {
       setError(e as AuthError);
@@ -176,7 +168,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      // User state and profile creation/update will be handled by onAuthStateChanged
     } catch (e: any) {
       setError(e as AuthError);
       console.error("Google sign-in error:", e);
@@ -190,7 +181,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setError(null);
     try {
       await signOut(auth);
-      // onAuthStateChanged will clear user and userProfile
     } catch (e:any) {
       setError(e as AuthError);
       console.error("Logout error:", e);

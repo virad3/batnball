@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import React, { useState, useEffect, ChangeEvent, FormEvent, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
@@ -21,7 +21,7 @@ import { ArrowLeftIcon, UserPlusIcon, UserMinusIcon, UserGroupIcon } from '@hero
 const ProfilePage: React.FC = () => {
   const { userId: paramsUserId } = useParams<{ userId?: string }>();
   const navigate = useNavigate();
-  const { user: authUserHook, userProfile: authContextProfile, loading: authLoadingHook, logout } = useAuth();
+  const { user: authUserHook, loading: authLoadingHook } = useAuth(); // Removed authContextProfile from direct destructuring here
 
   const [profileData, setProfileData] = useState<Partial<UserProfile>>({});
   const [initialProfileData, setInitialProfileData] = useState<Partial<UserProfile>>({});
@@ -45,94 +45,97 @@ const ProfilePage: React.FC = () => {
   const [teamsLoading, setTeamsLoading] = useState(false);
 
 
-  useEffect(() => {
-    const targetUserId = paramsUserId || authUserHook?.uid;
-    setViewedUserId(targetUserId || null);
+  const loadProfileAndRelatedData = useCallback(async () => {
+    setPageLoading(true);
+    setError(null);
+    setAffiliatedTeams([]); // Reset teams
 
-    if (targetUserId && authUserHook?.uid) {
-        setIsOwnProfile(targetUserId === authUserHook.uid);
-    } else if (!targetUserId && authUserHook?.uid) {
-        setIsOwnProfile(true);
-        setViewedUserId(authUserHook.uid);
-    } else {
-        setIsOwnProfile(false);
-    }
+    const effectiveUserId = paramsUserId || authUserHook?.uid;
+    setViewedUserId(effectiveUserId || null);
 
-    const loadProfileAndRelatedData = async () => {
-      setPageLoading(true);
-      setError(null);
-      setAffiliatedTeams([]);
-
-      const effectiveUserId = paramsUserId || authUserHook?.uid;
-
-      if (!effectiveUserId) {
-        if (!authLoadingHook) {
-            setError("User profile not found or user not authenticated.");
-        }
-        setPageLoading(false);
-        return;
-      }
-
-      let profileToSet: Partial<UserProfile> | null = null;
-      if (isOwnProfile && authContextProfile && authContextProfile.id === effectiveUserId) {
-        profileToSet = authContextProfile;
-      } else {
-        try {
-          profileToSet = await getFullUserProfile(effectiveUserId);
-        } catch (err: any) {
-          setError(err.message || `Failed to load profile data for user ID ${effectiveUserId}.`);
-          console.error("Error loading profile:", err);
-          setPageLoading(false);
-          return;
-        }
-      }
-
-      if (profileToSet) {
-        setProfileData(profileToSet);
-        setInitialProfileData(profileToSet);
-        setProfilePicPreview(profileToSet.profilePicUrl || null);
-
-        // Fetch follow data
-        try {
-            const [isFollowing, followers, following] = await Promise.all([
-                authUserHook?.uid && authUserHook.uid !== effectiveUserId ? checkIfFollowing(effectiveUserId) : Promise.resolve(false),
-                getFollowersCount(effectiveUserId),
-                getFollowingCount(effectiveUserId)
-            ]);
-            setIsFollowingCurrentUser(isFollowing);
-            setFollowersCount(followers);
-            setFollowingCount(following);
-        } catch (followError: any) {
-            console.error("Error fetching follow data:", followError);
-        }
-
-        // Fetch affiliated teams
-        if (profileToSet.teamIds && profileToSet.teamIds.length > 0) {
-            setTeamsLoading(true);
-            try {
-                const teams = await getTeamsInfoByIds(profileToSet.teamIds);
-                setAffiliatedTeams(teams);
-            } catch (teamsError: any) {
-                console.error("Error fetching affiliated teams:", teamsError);
-                // Optionally set a specific error for teams loading
-            } finally {
-                setTeamsLoading(false);
-            }
-        }
-
-      } else {
-        setError(`Profile for user ID ${effectiveUserId} not found.`);
+    if (!effectiveUserId) {
+      if (!authLoadingHook) { // Only set error if auth loading is complete
+        setError("User profile not found or user not authenticated.");
       }
       setPageLoading(false);
-    };
-
-    if (!authLoadingHook) {
-        loadProfileAndRelatedData();
-    } else {
-        setPageLoading(true);
+      return;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paramsUserId, authUserHook, authContextProfile, authLoadingHook]); // Removed isOwnProfile dependency for now, as it's set based on authUserHook and paramsUserId
+    
+    // Determine if it's the user's own profile
+    if (authUserHook?.uid) {
+        setIsOwnProfile(effectiveUserId === authUserHook.uid);
+    } else {
+        setIsOwnProfile(false); // If no authUser, cannot be own profile
+    }
+    
+    let fetchedProfile: Partial<UserProfile> | null = null;
+    try {
+      fetchedProfile = await getFullUserProfile(effectiveUserId); // Always fetch fresh profile
+    } catch (err: any) {
+      setError(err.message || `Failed to load profile data for user ID ${effectiveUserId}.`);
+      console.error("Error loading profile:", err);
+      setPageLoading(false);
+      return;
+    }
+
+    if (fetchedProfile) {
+      setProfileData(fetchedProfile);
+      setInitialProfileData(fetchedProfile); // For tracking changes if editable
+      setProfilePicPreview(fetchedProfile.profilePicUrl || null);
+
+      // Fetch follow data
+      if (authUserHook?.uid && authUserHook.uid !== effectiveUserId) { // Only if viewing another user's profile and logged in
+        try {
+            const isFollowing = await checkIfFollowing(effectiveUserId);
+            setIsFollowingCurrentUser(isFollowing);
+        } catch (followError: any) {
+            console.error("Error fetching follow status:", followError);
+        }
+      } else {
+        setIsFollowingCurrentUser(false); // Not applicable for own profile or if not logged in
+      }
+      try {
+        const [followers, following] = await Promise.all([
+            getFollowersCount(effectiveUserId),
+            getFollowingCount(effectiveUserId)
+        ]);
+        setFollowersCount(followers);
+        setFollowingCount(following);
+      } catch (followCountError: any) {
+        console.error("Error fetching follow counts:", followCountError);
+      }
+
+
+      // Fetch affiliated teams
+      if (fetchedProfile.teamIds && fetchedProfile.teamIds.length > 0) {
+          setTeamsLoading(true);
+          try {
+              const teams = await getTeamsInfoByIds(fetchedProfile.teamIds);
+              setAffiliatedTeams(teams);
+          } catch (teamsError: any) {
+              console.error("Error fetching affiliated teams:", teamsError);
+              setAffiliatedTeams([]); // Ensure it's an empty array on error
+          } finally {
+              setTeamsLoading(false);
+          }
+      } else {
+          setAffiliatedTeams([]); // Ensure teams are cleared if no teamIds or empty
+      }
+
+    } else {
+      setError(`Profile for user ID ${effectiveUserId} not found.`);
+      setAffiliatedTeams([]); // Ensure teams are cleared if profile not found
+    }
+    setPageLoading(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps 
+  }, [paramsUserId, authUserHook?.uid, authLoadingHook]); // Dependencies: only re-run if these key identifiers change
+
+
+  useEffect(() => {
+    if (!authLoadingHook) { // Ensure auth state is resolved before loading profile
+        loadProfileAndRelatedData();
+    }
+  }, [loadProfileAndRelatedData, authLoadingHook]);
 
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -178,12 +181,9 @@ const ProfilePage: React.FC = () => {
       const updatesToSave: Partial<UserProfile> = {};
       (Object.keys(profileData) as Array<keyof UserProfile>).forEach(<K extends keyof UserProfile>(key: K) => {
         if (key === 'date_of_birth') {
-            const initialDbDate = initialProfileData.date_of_birth; // This is "YYYY-MM-DD" string or null
-            const currentFormDate = profileData.date_of_birth; // This is "YYYY-MM-DD" string from form, or empty string, or null
-
-            // Normalize empty string from form to null for comparison and saving
+            const initialDbDate = initialProfileData.date_of_birth; 
+            const currentFormDate = profileData.date_of_birth; 
             const normalizedCurrentFormDate = currentFormDate === '' ? null : currentFormDate;
-
             if (normalizedCurrentFormDate !== initialDbDate) {
                  updatesToSave.date_of_birth = normalizedCurrentFormDate;
             }
@@ -196,7 +196,6 @@ const ProfilePage: React.FC = () => {
          updatesToSave.profilePicUrl = updatedPicUrl;
       }
 
-      // Ensure teamIds is not part of user-editable form fields being saved this way
       if (updatesToSave.hasOwnProperty('teamIds')) {
         delete updatesToSave.teamIds;
       }
@@ -210,8 +209,6 @@ const ProfilePage: React.FC = () => {
           setProfileData(newProfileData);
           setInitialProfileData(newProfileData);
           if (newProfileData.profilePicUrl) setProfilePicPreview(newProfileData.profilePicUrl);
-           // Re-fetch teams if profileData (which might include teamIds if they were part of UserProfile directly) changed.
-          // This ensures consistency, though teamIds are typically managed by affiliation functions.
           if (newProfileData.teamIds && newProfileData.teamIds.length > 0) {
               setTeamsLoading(true);
               getTeamsInfoByIds(newProfileData.teamIds).then(setAffiliatedTeams).finally(() => setTeamsLoading(false));
@@ -276,7 +273,7 @@ const ProfilePage: React.FC = () => {
         </div>
     );
   }
-  if (!profileData.id && !pageLoading) {
+  if (!profileData.id && !pageLoading) { // Check profileData.id as indicator of fetched profile
      return (
         <div className="text-center p-8 text-xl text-gray-300 max-w-2xl mx-auto">
             <p>Could not load profile data for the requested user.</p>
@@ -292,17 +289,15 @@ const ProfilePage: React.FC = () => {
   const readOnlyValueClass = "mt-1 text-sm text-gray-200 py-2";
 
   const renderField = (fieldName: keyof UserProfile, label: string, type: string = "text", options?: { value: string; label: string }[], placeholder?: string) => {
-    if (!isOwnProfile && fieldName !== 'teamIds' && fieldName !== 'achievements') { // teamIds and achievements are display-only sections
+    if (!isOwnProfile && fieldName !== 'teamIds' && fieldName !== 'achievements') { 
       let displayValue: React.ReactNode = profileData[fieldName] || 'Not specified';
       if (fieldName === 'profilePicUrl' && profileData[fieldName]) {
-        // Profile pic already displayed in header section
         return null;
       } else if (fieldName === 'date_of_birth' && profileData[fieldName]) {
          try {
-           // Ensure profileData[fieldName] is a valid date string or Timestamp
            const dateVal = profileData[fieldName];
-           if (dateVal) { // Check if dateVal is not null or undefined
-             displayValue = new Date(dateVal as any).toLocaleDateString('en-CA'); // 'en-CA' gives YYYY-MM-DD
+           if (dateVal) { 
+             displayValue = new Date(dateVal as any).toLocaleDateString('en-CA'); 
            } else {
              displayValue = 'Not specified';
            }
@@ -313,13 +308,12 @@ const ProfilePage: React.FC = () => {
       return (
         <div>
           <label className={labelClass}>{label}</label>
-          <div className={`${readOnlyValueClass} bg-gray-750 p-2 rounded-md border border-gray-650`}> {/* Subtle bg for readonly fields */}
+          <div className={`${readOnlyValueClass} bg-gray-750 p-2 rounded-md border border-gray-650`}>
             {displayValue}
           </div>
         </div>
       );
     }
-    // For own profile or specific fields like email (which is always readonly after creation)
     if (type === "select") {
       return (
         <div>
