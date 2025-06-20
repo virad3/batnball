@@ -5,9 +5,9 @@ import CoinTossModal from '../components/CoinTossModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
 import { useMatchContext } from '../contexts/MatchContext';
-import { Match, Team, MatchFormat } from '../types';
+import { Match, Team, MatchFormat } from '../types'; // Team might not be fully needed if we pass names/squads
 import { ArrowLeftIcon } from '@heroicons/react/24/solid';
-import { Timestamp } from '../services/firebaseClient'; // Import Timestamp
+import { Timestamp } from '../services/firebaseClient';
 
 const TossPage: React.FC = () => {
   const [isCoinModalOpen, setIsCoinModalOpen] = useState(false);
@@ -20,8 +20,10 @@ const TossPage: React.FC = () => {
   const context = useMatchContext();
 
   // State for new immediate match (Mode 1)
-  const [teamA, setTeamA] = useState<Team | null>(null);
-  const [teamB, setTeamB] = useState<Team | null>(null);
+  const [teamAName, setTeamAName] = useState<string | null>(null);
+  const [teamBName, setTeamBName] = useState<string | null>(null);
+  const [teamASquad, setTeamASquad] = useState<string[]>([]);
+  const [teamBSquad, setTeamBSquad] = useState<string[]>([]);
   const [matchSettings, setMatchSettings] = useState<Partial<Pick<Match, 'venue' | 'format' | 'overs_per_innings' | 'date'>>>({});
 
   // State for existing upcoming match (Mode 2)
@@ -38,14 +40,23 @@ const TossPage: React.FC = () => {
       setPageLoading(true);
       setError(null);
       if (mode === 'newMatch') {
-        const { teamA: stateTeamA, teamB: stateTeamB, matchSettings: stateMatchSettings } = location.state || {};
-        if (stateTeamA && stateTeamB && stateMatchSettings) {
-          setTeamA(stateTeamA);
-          setTeamB(stateTeamB);
+        const { 
+          teamAName: stateTeamAName, 
+          teamBName: stateTeamBName, 
+          teamASquad: stateTeamASquad,
+          teamBSquad: stateTeamBSquad,
+          matchSettings: stateMatchSettings 
+        } = location.state || {};
+        
+        if (stateTeamAName && stateTeamBName && stateTeamASquad && stateTeamBSquad && stateMatchSettings) {
+          setTeamAName(stateTeamAName);
+          setTeamBName(stateTeamBName);
+          setTeamASquad(stateTeamASquad);
+          setTeamBSquad(stateTeamBSquad);
           setMatchSettings(stateMatchSettings);
-          setTossWinnerName(stateTeamA.name); // Default toss winner selection
+          setTossWinnerName(stateTeamAName); // Default toss winner selection
         } else {
-          setError("Required team information for a new match is missing.");
+          setError("Required team and squad information for a new match is missing.");
           navigate('/home', {replace: true});
         }
       } else if (mode === 'existingMatch' && paramMatchId) {
@@ -56,20 +67,9 @@ const TossPage: React.FC = () => {
             setTimeout(() => navigate(`/matches/${paramMatchId}/score`, {replace: true}), 2000);
           } else {
             setExistingMatchDetails(loadedMatch);
-            setTeamA({ 
-                id: 'teamA_placeholder', 
-                name: loadedMatch.teamAName, 
-                players: loadedMatch.teamASquad || [], 
-                createdAt: Timestamp.now(), // Use Timestamp.now()
-                user_id: loadedMatch.user_id || '' // Add user_id
-            });
-            setTeamB({ 
-                id: 'teamB_placeholder', 
-                name: loadedMatch.teamBName, 
-                players: loadedMatch.teamBSquad || [], 
-                createdAt: Timestamp.now(), // Use Timestamp.now()
-                user_id: loadedMatch.user_id || '' // Add user_id
-            });
+            setTeamAName(loadedMatch.teamAName); // Set names for UI
+            setTeamBName(loadedMatch.teamBName);
+            // Squads are already in loadedMatch, no need to set them in separate state for this mode
             setTossWinnerName(loadedMatch.teamAName); // Default
           }
         } else {
@@ -94,17 +94,17 @@ const TossPage: React.FC = () => {
     setError(null);
 
     try {
-      if (mode === 'newMatch' && teamA && teamB && matchSettings) {
+      if (mode === 'newMatch' && teamAName && teamBName && teamASquad.length > 0 && teamBSquad.length > 0 && matchSettings) {
         const matchDataForCreation: Partial<Match> & { tossWinnerName: string, electedTo: "Bat" | "Bowl" } = {
-          teamAName: teamA.name,
-          teamBName: teamB.name,
-          teamASquad: teamA.players,
-          teamBSquad: teamB.players,
+          teamAName: teamAName,
+          teamBName: teamBName,
+          teamASquad: teamASquad, // Use confirmed squad
+          teamBSquad: teamBSquad, // Use confirmed squad
           venue: matchSettings.venue || "Local Ground",
           format: matchSettings.format || MatchFormat.T20,
           overs_per_innings: matchSettings.overs_per_innings || 20,
-          date: new Date().toISOString(), // Match is now
-          status: "Live", // Will be handled by startNewMatch
+          date: new Date().toISOString(), 
+          status: "Live", 
           tossWinnerName: tossWinnerName,
           electedTo: electedTo,
         };
@@ -115,6 +115,8 @@ const TossPage: React.FC = () => {
           throw new Error("Failed to create and start the new match.");
         }
       } else if (mode === 'existingMatch' && existingMatchDetails && paramMatchId) {
+        // For existing matches, squads are already part of existingMatchDetails
+        // updateTossAndStartInnings will use them from context.
         await context.updateTossAndStartInnings(tossWinnerName, electedTo);
         navigate(`/matches/${paramMatchId}/score`, { replace: true });
       } else {
@@ -127,10 +129,10 @@ const TossPage: React.FC = () => {
     }
   };
 
-  const currentTeamAName = mode === 'newMatch' ? teamA?.name : existingMatchDetails?.teamAName;
-  const currentTeamBName = mode === 'newMatch' ? teamB?.name : existingMatchDetails?.teamBName;
+  const currentDisplayTeamAName = mode === 'newMatch' ? teamAName : existingMatchDetails?.teamAName;
+  const currentDisplayTeamBName = mode === 'newMatch' ? teamBName : existingMatchDetails?.teamBName;
 
-  if (pageLoading && !error) { // Show loading only if no error yet
+  if (pageLoading && !error) { 
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
         <LoadingSpinner size="lg" />
@@ -148,7 +150,7 @@ const TossPage: React.FC = () => {
     );
   }
 
-  if (!currentTeamAName || !currentTeamBName) { // Should be caught by error above, but as a safeguard
+  if (!currentDisplayTeamAName || !currentDisplayTeamBName) {
      return <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4"><p className="text-red-400">Team information missing.</p></div>;
   }
 
@@ -185,8 +187,8 @@ const TossPage: React.FC = () => {
                 aria-label="Select toss winning team"
             >
               <option value="" disabled>Select Team</option>
-              {currentTeamAName && <option value={currentTeamAName}>{currentTeamAName}</option>}
-              {currentTeamBName && <option value={currentTeamBName}>{currentTeamBName}</option>}
+              {currentDisplayTeamAName && <option value={currentDisplayTeamAName}>{currentDisplayTeamAName}</option>}
+              {currentDisplayTeamBName && <option value={currentDisplayTeamBName}>{currentDisplayTeamBName}</option>}
             </select>
           </div>
 
@@ -237,7 +239,6 @@ const TossPage: React.FC = () => {
         onClose={() => setIsCoinModalOpen(false)}
         onProceed={() => { 
             setIsCoinModalOpen(false); 
-            // Note: Visual toss doesn't dictate winner, user selects winner above
         }}
       />
     </>

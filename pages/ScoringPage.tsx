@@ -6,8 +6,8 @@ import ScoreDisplay from '../components/ScoreDisplay';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useMatchContext } from '../contexts/MatchContext';
-import BallDisplayIcon from '../components/BallDisplayIcon'; // New import
-import EditBallModal from '../components/EditBallModal'; // New import
+import BallDisplayIcon from '../components/BallDisplayIcon'; 
+import EditBallModal from '../components/EditBallModal'; 
 
 const SQUAD_SIZE = 11;
 
@@ -30,7 +30,7 @@ const ScoringPage: React.FC = () => {
   const { 
     matchDetails, loadMatch, addBall, switchInnings, saveMatchState, endMatch,
     currentStrikerName, currentNonStrikerName, currentBowlerName, setPlayerRoles, currentInningsNumber, target,
-    updateBallEvent // New context function
+    updateBallEvent 
   } = context;
 
   const [pageLoading, setPageLoading] = useState(true);
@@ -51,7 +51,6 @@ const ScoringPage: React.FC = () => {
   const [showWicketModal, setShowWicketModal] = useState(false);
   const [wicketDetails, setWicketDetails] = useState<{ batsmanOut: string; dismissalType: DismissalType; bowler?: string; fielder?: string; }>({ batsmanOut: '', dismissalType: DismissalType.BOWLED });
 
-  // State for editing a ball
   const [isEditBallModalOpen, setIsEditBallModalOpen] = useState(false);
   const [editingBallTimelineIndex, setEditingBallTimelineIndex] = useState<number | null>(null);
 
@@ -99,11 +98,22 @@ const ScoringPage: React.FC = () => {
     setPageLoading(false);
     console.log('[ScoringPage] initializePage finished.');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, navigate, loadMatch, context.matchDetails, currentStrikerName, currentBowlerName]);
+  }, [matchId, navigate, loadMatch, context.matchDetails]); // Removed currentStrikerName, currentBowlerName as they are from context and change separately
 
   useEffect(() => {
     initializePage();
   }, [initializePage]);
+  
+  // Effect to re-open player roles modal if roles become unset during a live match
+  useEffect(() => {
+    if (matchDetails?.status === "Live" && (!currentStrikerName || !currentBowlerName) && !showPlayerRolesModal && !showSquadSelectionModal && !pageLoading && !isEditBallModalOpen && !showWicketModal) {
+      console.log("[ScoringPage] Roles became unset during live match, prompting modal.");
+      setModalStriker(matchDetails.current_striker_name || '');
+      setModalNonStriker(matchDetails.current_non_striker_name || '');
+      setModalBowler(matchDetails.current_bowler_name || '');
+      setShowPlayerRolesModal(true);
+    }
+  }, [matchDetails, currentStrikerName, currentBowlerName, showPlayerRolesModal, showSquadSelectionModal, pageLoading, isEditBallModalOpen, showWicketModal]);
 
 
   const handleSquadPlayerSelection = (playerName: string, team: 'A' | 'B') => {
@@ -148,7 +158,7 @@ const ScoringPage: React.FC = () => {
         context.setMatchDetails(updatedMatchWithSquads); 
         await saveMatchState(); 
         setShowSquadSelectionModal(false);
-        setModalStriker('');
+        setModalStriker(''); // Reset for PlayerRolesModal
         setModalNonStriker('');
         setModalBowler('');
         setShowPlayerRolesModal(true); 
@@ -183,7 +193,7 @@ const ScoringPage: React.FC = () => {
   };
 
   const handleWicketSubmit = async () => {
-    if (!currentStrikerName || !currentBowlerName) return; 
+    if (!currentStrikerName || !currentBowlerName || !matchDetails) return; 
     console.log('[ScoringPage] handleWicketSubmit called.');
     const ballEvent: BallEvent = {
         runs: 0, 
@@ -197,11 +207,19 @@ const ScoringPage: React.FC = () => {
     await addBall(ballEvent);
     setShowWicketModal(false);
     
+    // Check if new batsman is needed
     const currentInningsData = currentInningsNumber === 1 ? matchDetails?.innings1Record : matchDetails?.innings2Record;
-    if (currentInningsData && currentInningsData.totalWickets < SQUAD_SIZE -1) { 
-        setModalStriker(''); 
+    // The matchDetails in context might not be updated immediately after addBall.
+    // We rely on addBall to correctly increment wicket count in context.
+    // For prompting new batsman, check against SQUAD_SIZE-1.
+    // Total wickets in InningsRecord is the source of truth for match end conditions.
+    const wicketsAfterThisBall = (currentInningsData?.totalWickets || 0) + 1; // Anticipate the wicket just added
+
+    if (wicketsAfterThisBall < SQUAD_SIZE -1) { 
+        setModalStriker(''); // New striker needed
+        // Non-striker remains the same unless they were the one out
         setModalNonStriker(wicketDetails.batsmanOut === currentStrikerName ? currentNonStrikerName! : currentStrikerName!); 
-        setModalBowler(currentBowlerName!);
+        setModalBowler(currentBowlerName!); // Bowler usually continues
         setShowPlayerRolesModal(true); 
     }
   };
@@ -215,8 +233,8 @@ const ScoringPage: React.FC = () => {
     console.log(`[ScoringPage] handleSimpleBallEvent: runs=${runs}, isWicket=${isWicket}, extraType=${extraType}, extraRuns=${extraRuns}`);
     if(isWicket) {
         setWicketDetails({ 
-            batsmanOut: currentStrikerName, 
-            dismissalType: DismissalType.BOWLED, 
+            batsmanOut: currentStrikerName, // Default to current striker
+            dismissalType: DismissalType.BOWLED, // Default dismissal
             bowler: currentBowlerName,
             fielder: ''
         });
@@ -251,16 +269,14 @@ const ScoringPage: React.FC = () => {
     const ballsThisOverCount = currentMatchInningsData.totalBallsBowled % 6;
     const ballsInTimeline = currentMatchInningsData.timeline.length;
     
-    // If it's the start of an over (0 balls bowled in this over, but not 0 total balls in innings)
-    // or if we have bowled some balls in this over.
     if (ballsThisOverCount > 0 || (ballsThisOverCount === 0 && currentMatchInningsData.totalBallsBowled > 0)) {
         let startIndexInTimeline = ballsInTimeline - ballsThisOverCount;
-        if (ballsThisOverCount === 0 && currentMatchInningsData.totalBallsBowled > 0) { // Full over just completed
+        if (ballsThisOverCount === 0 && currentMatchInningsData.totalBallsBowled > 0) { 
             startIndexInTimeline = ballsInTimeline - 6;
         }
         
         for (let i = 0; i < 6; i++) {
-            if (startIndexInTimeline + i < ballsInTimeline && i < (ballsThisOverCount === 0 && currentMatchInningsData.totalBallsBowled > 0 ? 6 : ballsThisOverCount) ) {
+            if (startIndexInTimeline + i < ballsInTimeline && startIndexInTimeline +i >= 0 && i < (ballsThisOverCount === 0 && currentMatchInningsData.totalBallsBowled > 0 ? 6 : ballsThisOverCount) ) {
                 events[i] = currentMatchInningsData.timeline[startIndexInTimeline + i];
             }
         }
@@ -274,10 +290,10 @@ const ScoringPage: React.FC = () => {
     const totalBallsBowledInOverSoFar = currentMatchInningsData.totalBallsBowled % 6;
     let actualBallsInOver = totalBallsBowledInOverSoFar;
     if (totalBallsBowledInOverSoFar === 0 && currentMatchInningsData.totalBallsBowled > 0) {
-        actualBallsInOver = 6; // A full over was just completed
+        actualBallsInOver = 6; 
     }
 
-    if (ballIndexInOver >= actualBallsInOver) return; // Cannot edit a ball not yet bowled in this display
+    if (ballIndexInOver >= actualBallsInOver) return; 
 
     const ballsBowledBeforeThisOver = currentMatchInningsData.totalBallsBowled - actualBallsInOver;
     const timelineIdx = ballsBowledBeforeThisOver + ballIndexInOver;
@@ -492,15 +508,9 @@ const ScoringPage: React.FC = () => {
         </div>
     );
   }
-  if (matchDetails.status === "Live" && (!currentStrikerName || !currentBowlerName)) {
-    return (
-        <div className="text-center p-8 text-xl text-gray-300">
-            <p className="mb-3">Player roles (striker, bowler) not set.</p>
-            <Button onClick={() => setShowPlayerRolesModal(true)} className="mt-2" variant="primary">Set Player Roles</Button>
-            <Link to="/matches" className="block mt-4 text-teal-400 hover:underline">Go to Matches</Link>
-        </div>
-    );
-  }
+  // This condition should already be handled by the useEffect that re-prompts if roles are unset.
+  // if (matchDetails.status === "Live" && (!currentStrikerName || !currentBowlerName)) { ... }
+
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
@@ -508,7 +518,15 @@ const ScoringPage: React.FC = () => {
         {matchDetails.teamAName} vs {matchDetails.teamBName}
       </h1>
       
-      <ScoreDisplay score={scoreForDisplay} target={target} currentInnings={currentInningsNumber} totalOvers={matchDetails.overs_per_innings} />
+      <ScoreDisplay 
+        score={scoreForDisplay} 
+        target={target} 
+        currentInnings={currentInningsNumber} 
+        totalOvers={matchDetails.overs_per_innings}
+        strikerName={currentStrikerName}
+        nonStrikerName={currentNonStrikerName}
+        bowlerName={currentBowlerName}
+      />
       
       <div className="p-2 bg-gray-800 rounded-lg shadow border border-gray-700 text-sm text-gray-300 text-center">
         <p>Striker: <span className="font-semibold text-gray-100">{currentStrikerName || "N/A"}</span></p>
@@ -517,7 +535,6 @@ const ScoringPage: React.FC = () => {
         <Button size="sm" variant="outline" className="mt-1" onClick={() => setShowPlayerRolesModal(true)}>Change Roles</Button>
       </div>
 
-      {/* Ball Display Icons */}
       <div className="p-3 bg-gray-800 rounded-lg shadow border border-gray-700">
         <h3 className="text-md font-semibold text-gray-200 mb-2 text-center">Current Over:</h3>
         <div className="flex justify-center space-x-1.5 sm:space-x-2">
@@ -527,7 +544,7 @@ const ScoringPage: React.FC = () => {
                     ballEvent={ballEvent} 
                     ballNumberInOver={index + 1}
                     onClick={ballEvent ? () => handleEditBall(index) : undefined}
-                    isCurrentBall={!ballEvent && scoreForDisplay?.ballsThisOver === index && scoreForDisplay.wickets < SQUAD_SIZE -1}
+                    isCurrentBall={!ballEvent && scoreForDisplay?.ballsThisOver === index && (scoreForDisplay.wickets < SQUAD_SIZE -1 || (matchDetails?.overs_per_innings ? scoreForDisplay.overs < matchDetails.overs_per_innings : true))}
                 />
             ))}
         </div>

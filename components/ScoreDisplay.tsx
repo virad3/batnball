@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Score } from '../types'; 
 
@@ -6,9 +7,20 @@ interface ScoreDisplayProps {
   target?: number | null;
   currentInnings: 1 | 2;
   totalOvers?: number; 
+  strikerName?: string | null;
+  nonStrikerName?: string | null;
+  bowlerName?: string | null;
 }
 
-const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ score, target, currentInnings, totalOvers }) => {
+const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ 
+    score, 
+    target, 
+    currentInnings, 
+    totalOvers,
+    strikerName,
+    nonStrikerName,
+    bowlerName 
+}) => {
   if (!score) {
     return (
       <div className="p-4 bg-gray-800 rounded-lg shadow text-center text-gray-400">
@@ -51,18 +63,25 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ score, target, currentInnin
                  <p className="text-md text-gray-200">{battingTeamName} need <span className="font-bold text-gray-50">{target - runs}</span> runs to win from <span className="font-bold text-gray-50">{remainingBalls}</span> balls remaining.</p>
             )}
              {target - runs <= 0 && <p className="text-md font-bold text-green-400">{battingTeamName} won!</p>}
-             {remainingBalls !== null && remainingBalls === 0 && target - runs > 0 && <p className="text-md font-bold text-red-500">Bowling team won!</p>} {/* Use a slightly different red if needed */}
+             {remainingBalls !== null && remainingBalls === 0 && target - runs > 0 && <p className="text-md font-bold text-red-500">Bowling team won!</p>}
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-700 mt-2">
         <div>
           <p className="text-xs uppercase text-gray-400">Current Batsmen</p>
-          <p className="font-semibold text-gray-200">N/A</p>
+          <p className="font-semibold text-gray-200 truncate" title={`Striker: ${strikerName || 'N/A'}, Non-Striker: ${nonStrikerName || 'N/A'}`}>
+            {strikerName || 'N/A'} (S)
+          </p>
+          <p className="font-semibold text-gray-200 truncate">
+            {nonStrikerName || 'N/A'}
+          </p>
         </div>
         <div>
           <p className="text-xs uppercase text-gray-400">Current Bowler</p>
-          <p className="font-semibold text-gray-200">N/A</p>
+          <p className="font-semibold text-gray-200 truncate" title={bowlerName || 'N/A'}>
+            {bowlerName || 'N/A'}
+          </p>
         </div>
          <div>
           <p className="text-xs uppercase text-gray-400">Status</p>

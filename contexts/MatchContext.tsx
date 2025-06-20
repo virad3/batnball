@@ -1,7 +1,7 @@
 
 
 import React, { createContext, useState, useContext, useCallback, ReactNode } from 'react';
-import { Match, BallEvent, InningsRecord, PlayerBattingStats, PlayerBowlingStats, DismissalType, MatchContextType, MatchState, Team } from '../types';
+import { Match, BallEvent, InningsRecord, PlayerBattingStats, PlayerBowlingStats, DismissalType, MatchContextType, MatchState, Team, MatchFormat } from '../types';
 import { createMatch, getMatchById, updateMatch } from '../services/dataService'; 
 import { Timestamp } from '../services/firebaseClient'; // Use re-exported Timestamp
 
@@ -124,6 +124,34 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   }, [setMatchDetails]);
 
+  const saveMatchState = useCallback(async (matchToSaveParam?: Match | null) => {
+    const matchDataToSave = matchToSaveParam || state.matchDetails; 
+    if (!matchDataToSave) {
+        console.warn("[MatchContext] saveMatchState: No match data to save.");
+        return;
+    }
+    console.log('[MatchContext] saveMatchState called for match ID:', matchDataToSave.id);
+
+    const finalMatchData: Partial<Match> = {
+        ...matchDataToSave,
+        current_striker_name: state.currentStrikerName,
+        current_non_striker_name: state.currentNonStrikerName,
+        current_bowler_name: state.currentBowlerName,
+    };
+    
+    try {
+        const savedMatchFromDb = await updateMatch(finalMatchData.id!, finalMatchData);
+        // Ensure state is updated with the version from DB (especially if timestamps were converted by Firestore)
+        // Check if the currently loaded match is still the one being saved to avoid race conditions.
+        if (state.matchDetails && savedMatchFromDb && savedMatchFromDb.id === state.matchDetails.id) {
+           setMatchDetails(savedMatchFromDb); 
+        }
+    } catch (error) {
+        console.error("Error saving match state:", error);
+    }
+  }, [state.matchDetails, state.currentStrikerName, state.currentNonStrikerName, state.currentBowlerName, setMatchDetails]);
+
+
   const startNewMatch = useCallback(async (
     partialMatchData: Partial<Match> & { tossWinnerName?: string, electedTo?: "Bat" | "Bowl" }
     ): Promise<Match | null> => {
@@ -137,7 +165,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         let matchDate = partialMatchData.date || new Date().toISOString();
         let status: Match['status'] = "Upcoming";
         let innings1Record: InningsRecord | null = null;
-        let currentBattingTeam: string | undefined = undefined;
+        let currentBattingTeam: string | undefined = undefined; // Local variable for logic
 
         if (partialMatchData.tossWinnerName && partialMatchData.electedTo) {
             status = "Live";
@@ -148,20 +176,36 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             const bowlingSquadForInit = battingFirstTeam === teamAName ? teamBSquad : teamASquad;
 
             innings1Record = initializeInningsRecord(battingFirstTeam, battingSquad, bowlingSquadForInit);
-            currentBattingTeam = battingFirstTeam;
+            currentBattingTeam = battingFirstTeam; // Local var set
         }
+        
+        const defaultOvers = (partialMatchData.format || MatchFormat.T20) === MatchFormat.TEST ? null : 20;
 
         const newMatchData: Partial<Match> = {
-            ...partialMatchData,
-            date: matchDate,
-            teamAName,
-            teamBName,
-            teamASquad,
-            teamBSquad,
-            status,
-            innings1Record: innings1Record,
-            current_batting_team: currentBattingTeam,
+            teamAName: teamAName,
+            teamBName: teamBName,
+            teamASquad: teamASquad,
+            teamBSquad: teamBSquad,
+            venue: partialMatchData.venue || "Default Venue",
+            format: partialMatchData.format || MatchFormat.T20,
+            overs_per_innings: partialMatchData.overs_per_innings !== undefined ? partialMatchData.overs_per_innings : defaultOvers,
+            tournament_id: partialMatchData.tournament_id !== undefined ? partialMatchData.tournament_id : null,
+
+            date: matchDate, 
+            status: status, 
+            innings1Record: innings1Record, 
+            current_batting_team: status === "Live" && currentBattingTeam ? currentBattingTeam : null,
+
+            tossWinnerName: status === "Live" && partialMatchData.tossWinnerName ? partialMatchData.tossWinnerName : null,
+            electedTo: status === "Live" && partialMatchData.electedTo ? partialMatchData.electedTo : null,
+            
+            innings2Record: null,
+            result_summary: null,
+            current_striker_name: null,
+            current_non_striker_name: null,
+            current_bowler_name: null,
         };
+        
         const createdMatchFromDb = await createMatch(newMatchData);
         console.log('[MatchContext] Match CREATED/STARTED by dataService:', createdMatchFromDb);
 
@@ -220,33 +264,6 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
 
   }, [state.matchDetails, setMatchDetails]);
-
-  const saveMatchState = useCallback(async (matchToSaveParam?: Match | null) => {
-    const matchDataToSave = matchToSaveParam || state.matchDetails; 
-    if (!matchDataToSave) {
-        console.warn("[MatchContext] saveMatchState: No match data to save.");
-        return;
-    }
-    console.log('[MatchContext] saveMatchState called for match ID:', matchDataToSave.id);
-
-    const finalMatchData: Partial<Match> = {
-        ...matchDataToSave,
-        current_striker_name: state.currentStrikerName,
-        current_non_striker_name: state.currentNonStrikerName,
-        current_bowler_name: state.currentBowlerName,
-    };
-    
-    try {
-        const savedMatchFromDb = await updateMatch(finalMatchData.id!, finalMatchData);
-        // Ensure state is updated with the version from DB (especially if timestamps were converted by Firestore)
-        // Check if the currently loaded match is still the one being saved to avoid race conditions.
-        if (state.matchDetails && savedMatchFromDb && savedMatchFromDb.id === state.matchDetails.id) {
-           setMatchDetails(savedMatchFromDb); 
-        }
-    } catch (error) {
-        console.error("Error saving match state:", error);
-    }
-  }, [state.matchDetails, state.currentStrikerName, state.currentNonStrikerName, state.currentBowlerName, setMatchDetails]);
 
 
   const addBall = useCallback(async (event: BallEvent) => {
