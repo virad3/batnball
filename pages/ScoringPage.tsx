@@ -116,6 +116,45 @@ const ScoringPage: React.FC = () => {
     }
   }, [matchDetails, currentStrikerName, currentBowlerName, showPlayerRolesModal, showSquadSelectionModal, pageLoading, isEditBallModalOpen, showWicketModal]);
 
+  const currentMatchInningsData = useMemo(() => {
+    if (!matchDetails) return null;
+    return currentInningsNumber === 1 ? matchDetails.innings1Record : matchDetails.innings2Record;
+  }, [matchDetails, currentInningsNumber]);
+
+  // Effect to automatically end the match if conditions are met
+  useEffect(() => {
+    if (matchDetails?.status === "Live" && currentInningsNumber === 2 && target && currentMatchInningsData) {
+      const { totalRuns, totalWickets, totalOversBowled, teamName: battingTeamName } = currentMatchInningsData;
+      const maxWickets = SQUAD_SIZE - 1;
+      const bowlingTeamName = matchDetails.teamAName === battingTeamName ? matchDetails.teamBName : matchDetails.teamAName;
+
+      let resultSummary = "";
+      let matchShouldEnd = false;
+
+      if (totalRuns >= target) {
+        resultSummary = `${battingTeamName} won by ${maxWickets - totalWickets} wicket(s).`;
+        matchShouldEnd = true;
+      } else {
+        const oversCompleted = matchDetails.overs_per_innings && totalOversBowled >= matchDetails.overs_per_innings;
+        if (totalWickets >= maxWickets || oversCompleted) {
+          if (totalRuns < target - 1) { // Target - 1 is the score of the team that batted first
+            resultSummary = `${bowlingTeamName} won by ${(target - 1) - totalRuns} run(s).`;
+          } else if (totalRuns === target - 1) {
+            resultSummary = "Match Tied.";
+          } else { // Should not happen if target logic is correct, but as a fallback
+            resultSummary = "Match Completed (Result needs review).";
+          }
+          matchShouldEnd = true;
+        }
+      }
+
+      if (matchShouldEnd) {
+        console.log(`[ScoringPage] Auto-ending match. Result: ${resultSummary}`);
+        endMatch(resultSummary);
+      }
+    }
+  }, [matchDetails, currentInningsNumber, target, currentMatchInningsData, endMatch]);
+
 
   const handleSquadPlayerSelection = (playerName: string, team: 'A' | 'B') => {
     if (team === 'A') {
@@ -150,7 +189,7 @@ const ScoringPage: React.FC = () => {
         alert(`Please select ${SQUAD_SIZE} players for each team.`);
         return;
     }
-    const updatedMatchWithSquads = { // This updates the top-level Match.teamASquad/BSquad
+    const updatedMatchWithSquads = { 
         ...matchDetails,
         teamASquad: selectedTeamASquad,
         teamBSquad: selectedTeamBSquad,
@@ -158,7 +197,6 @@ const ScoringPage: React.FC = () => {
     try {
         context.setMatchDetails(updatedMatchWithSquads); 
         
-        // Determine which squad is batting and which is bowling for the refresh function
         let battingSquadForRefresh: string[];
         let bowlingSquadForRefresh: string[];
 
@@ -170,11 +208,8 @@ const ScoringPage: React.FC = () => {
             bowlingSquadForRefresh = selectedTeamASquad;
         }
         
-        // Refresh the player performance lists within the current innings record
-        // This ensures PlayerBattingStats and PlayerBowlingStats objects are based on the confirmed 11 players
         await refreshActiveInningsPlayerLists(battingSquadForRefresh, bowlingSquadForRefresh);
-        // saveMatchState will be called by refreshActiveInningsPlayerLists, no need to call again immediately.
-
+        
         setShowSquadSelectionModal(false);
         setModalStriker(''); 
         setModalNonStriker('');
@@ -225,14 +260,15 @@ const ScoringPage: React.FC = () => {
     await addBall(ballEvent);
     setShowWicketModal(false);
     
-    const currentInningsData = currentInningsNumber === 1 ? matchDetails?.innings1Record : matchDetails?.innings2Record;
-    const wicketsAfterThisBall = (currentInningsData?.totalWickets || 0); // addBall updates this, so just read it
-
-    if (wicketsAfterThisBall < SQUAD_SIZE -1) { 
-        setModalStriker(''); 
-        setModalNonStriker(wicketDetails.batsmanOut === currentStrikerName ? currentNonStrikerName! : currentStrikerName!); 
-        setModalBowler(currentBowlerName!); 
-        setShowPlayerRolesModal(true); 
+    // Check if the match is NOT completed after this wicket
+    if (context.matchDetails?.status !== "Completed") {
+        const wicketsAfterThisBall = (currentMatchInningsData?.totalWickets || 0) + (ballEvent.isWicket ? 1 : 0);
+        if (wicketsAfterThisBall < SQUAD_SIZE -1) { 
+            setModalStriker(''); // Let user pick new striker
+            setModalNonStriker(wicketDetails.batsmanOut === currentStrikerName ? currentNonStrikerName! : currentStrikerName!); 
+            setModalBowler(currentBowlerName!); 
+            setShowPlayerRolesModal(true); 
+        }
     }
   };
   
@@ -303,7 +339,6 @@ const ScoringPage: React.FC = () => {
   };
 
 
-  const currentMatchInningsData = currentInningsNumber === 1 ? matchDetails?.innings1Record : matchDetails?.innings2Record;
   const scoreForDisplay: Score | null = currentMatchInningsData && matchDetails?.current_batting_team ? {
       runs: currentMatchInningsData.totalRuns,
       wickets: currentMatchInningsData.totalWickets,
@@ -346,14 +381,18 @@ const ScoringPage: React.FC = () => {
 
     if (ballIndexInOver >= actualBallsInOver) return; 
 
-    const ballsBowledBeforeThisOver = currentMatchInningsData.totalBallsBowled - actualBallsInOver;
-    const timelineIdx = ballsBowledBeforeThisOver + ballIndexInOver;
+    // Calculate how many balls were bowled *before* the start of the current displayed over.
+    // This is total balls bowled minus the number of balls *legally* bowled in this over display.
+    let ballsBeforeThisDisplayedOver = currentMatchInningsData.totalBallsBowled - actualBallsInOver;
+
+
+    const timelineIdx = ballsBeforeThisDisplayedOver + ballIndexInOver;
 
     if (timelineIdx >= 0 && timelineIdx < currentMatchInningsData.timeline.length) {
         setEditingBallTimelineIndex(timelineIdx);
         setIsEditBallModalOpen(true);
     } else {
-        console.error("Calculated timeline index for edit is out of bounds.");
+        console.error("Calculated timeline index for edit is out of bounds.", {timelineIdx, ballIndexInOver, actualBallsInOver, ballsBeforeThisDisplayedOver, totalTimeline: currentMatchInningsData.timeline.length});
     }
   };
 
@@ -444,12 +483,11 @@ const ScoringPage: React.FC = () => {
     );
   }
 
-  if (showPlayerRolesModal && matchDetails) {
+  if (showPlayerRolesModal && matchDetails && matchDetails.status === "Live") { // Only show if match is Live
     const currentBattingTeamSquad = matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamASquad : matchDetails.teamBSquad;
     const currentBowlingTeamSquad = matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamBSquad : matchDetails.teamASquad;
 
     const activeInningsRecord = currentInningsNumber === 1 ? matchDetails.innings1Record : matchDetails.innings2Record;
-    // Batsmen available for selection are those in the confirmed squad who are not out
     const availableBatsmen = currentBattingTeamSquad?.filter(pName => {
         const pStat = activeInningsRecord?.battingPerformances.find(bp => bp.playerName === pName);
         return !pStat || pStat.status === DismissalType.NOT_OUT;
@@ -491,7 +529,7 @@ const ScoringPage: React.FC = () => {
     );
   }
   
-  if (showWicketModal && matchDetails) {
+  if (showWicketModal && matchDetails && matchDetails.status === "Live") { // Only show if match is Live
     const activeBatsmen = [currentStrikerName, currentNonStrikerName].filter(Boolean) as string[];
     const currentBowlingTeamSquad = matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamBSquad : matchDetails.teamASquad;
 
@@ -560,6 +598,31 @@ const ScoringPage: React.FC = () => {
         </div>
     );
   }
+  
+  // If match is completed, show summary and link to full scorecard
+  if (matchDetails.status === "Completed" || matchDetails.status === "Abandoned") {
+    return (
+        <div className="space-y-6 max-w-2xl mx-auto text-center p-4">
+            <h1 className="text-3xl font-bold text-gray-50">
+                {matchDetails.teamAName} vs {matchDetails.teamBName}
+            </h1>
+            <div className="bg-gray-800 p-6 rounded-xl shadow-xl border border-gray-700">
+                <h2 className="text-2xl font-semibold text-gray-100 mb-2">{matchDetails.status === "Completed" ? "Match Result" : "Match Status"}</h2>
+                <p className="text-lg text-gray-300 mb-4">{matchDetails.result_summary || (matchDetails.status === "Abandoned" ? "This match was abandoned." : "Result not available.")}</p>
+                <ScoreDisplay 
+                    score={scoreForDisplay} 
+                    target={target} 
+                    currentInnings={currentInningsNumber} 
+                    totalOvers={matchDetails.overs_per_innings}
+                />
+                <Link to="/matches">
+                    <Button variant="primary" className="w-full mt-6">View All Matches</Button>
+                </Link>
+            </div>
+        </div>
+    );
+  }
+
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
