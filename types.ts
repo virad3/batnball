@@ -181,11 +181,7 @@ export interface MatchContextType extends MatchState {
   updateBallEvent: (ballTimelineIndex: number, updatedEventData: BallEvent) => Promise<void>; // For editing a ball
   switchInnings: (matchToSwitch: Match) => Promise<void>; // Updated signature to accept Match
   saveMatchState: (matchToSave?: Match | null) => Promise<void>; // Explicit save, can take optional match
-  endMatch: (
-    resultSummary: string,
-    finalInnings1Data?: InningsRecord | null,
-    finalInnings2Data?: InningsRecord | null
-  ) => Promise<void>;
+  endMatch: (finalCompleteMatch: Match) => Promise<void>; // Updated signature
   setPlayerRoles: (striker?: string, nonStriker?: string, bowler?: string) => void;
   refreshActiveInningsPlayerLists: (confirmedBattingSquad: string[], confirmedBowlingSquad: string[]) => Promise<void>;
 }
