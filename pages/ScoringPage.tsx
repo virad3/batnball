@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Match, BallEvent, Score, MatchFormat, PlayerBattingStats, PlayerBowlingStats, DismissalType, InningsRecord } from '../types';
@@ -404,6 +403,58 @@ const ScoringPage: React.FC = () => {
     setEditingBallTimelineIndex(null);
   };
   
+  const handleSaveAndExit = async () => {
+    if (!matchDetails) {
+        await saveMatchState(); // Save whatever is there
+        navigate('/matches');
+        return;
+    }
+
+    let shouldEndMatchCheck = false;
+    let resultSummaryForEndCheck = "";
+    const { status, teamAName, teamBName, overs_per_innings } = matchDetails;
+    
+    // Check completion only if data is available and match is Live
+    if (status === "Live" && currentMatchInningsData) {
+        const { totalRuns, totalWickets, totalOversBowled, teamName: battingTeam } = currentMatchInningsData;
+        const maxWicketsAllowed = SQUAD_SIZE - 1;
+
+        if (currentInningsNumber === 2 && target) { // Only check for 2nd innings completion against target
+            const bowlingTeam = battingTeam === teamAName ? teamBName : teamAName;
+            const oversCompletedInInnings = overs_per_innings && totalOversBowled >= overs_per_innings;
+
+            if (totalRuns >= target) {
+                shouldEndMatchCheck = true;
+                resultSummaryForEndCheck = `${battingTeam} won by ${maxWicketsAllowed - totalWickets} wicket(s).`;
+            } else if (totalWickets >= maxWicketsAllowed || oversCompletedInInnings) {
+                shouldEndMatchCheck = true;
+                if (totalRuns < target - 1) { // target -1 is first innings score
+                    resultSummaryForEndCheck = `${bowlingTeam} won by ${(target - 1) - totalRuns} run(s).`;
+                } else if (totalRuns === target - 1) {
+                    resultSummaryForEndCheck = "Match Tied.";
+                } else { // Should not be reached with correct logic
+                     resultSummaryForEndCheck = "Match Completed (Result needs review).";
+                }
+            }
+        }
+        // Note: This does not currently handle 1st innings completion as an end-of-match scenario.
+        // Match completion is primarily determined by the useEffect hook or this explicit check for 2nd innings.
+    }
+
+    try {
+        if (shouldEndMatchCheck && resultSummaryForEndCheck) {
+            await endMatch(resultSummaryForEndCheck); // endMatch calls saveMatchState internally
+        } else {
+            await saveMatchState(); // Save current state if not ending based on this check
+        }
+        navigate('/matches');
+    } catch (e) {
+        console.error("Error during Save & Exit:", e);
+        // Fallback: still try to navigate
+        navigate('/matches');
+    }
+  };
+
 
   const modalInputBaseClass = "w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
   const modalInputFocusClass = "focus:ring-teal-500 focus:border-teal-500"; 
@@ -681,7 +732,7 @@ const ScoringPage: React.FC = () => {
           {currentInningsNumber === 1 && currentMatchInningsData && (currentMatchInningsData.totalWickets >= SQUAD_SIZE -1 || (matchDetails.overs_per_innings && currentMatchInningsData.totalOversBowled >= matchDetails.overs_per_innings)) && (
             <Button onClick={switchInnings} variant="primary" className="w-full mb-3">End Innings & Start 2nd Innings</Button>
           )}
-          <Button onClick={async () => { await saveMatchState(); navigate('/matches');}} variant="outline" className="w-full">Save & Exit to Matches</Button>
+          <Button onClick={handleSaveAndExit} variant="outline" className="w-full">Save & Exit to Matches</Button>
       </div>
 
       <div className="p-4 bg-gray-800 rounded-lg shadow mt-4 border border-gray-700">
