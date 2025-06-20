@@ -5,7 +5,7 @@ import { HashRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigate }
 import AppHeader from './components/AppHeader';
 import MainUITabs from './components/MainUITabs';
 import BottomNav from './components/BottomNav';
-import { SearchOverlay } from './components/SearchOverlay'; // Use named import
+import { SearchOverlay } from './components/SearchOverlay'; // Changed to named import
 import SideMenu from './components/SideMenu'; // Import SideMenu
 import HomePage from './pages/HomePage';
 import MatchesPage from './pages/MatchesPage';

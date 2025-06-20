@@ -331,3 +331,5 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSe
     </div>
   );
 };
+// Removed default export line as it's now a named export.
+// export default SearchOverlayComponent;
