@@ -5,7 +5,12 @@ import { APP_NAME } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
 import { Bars3Icon, MagnifyingGlassIcon, ChatBubbleLeftEllipsisIcon } from '@heroicons/react/24/outline';
 
-const AppHeader: React.FC = () => {
+interface AppHeaderProps {
+  onSearchClick?: () => void;
+  onMenuClick?: () => void; // Added for hamburger menu
+}
+
+const AppHeader: React.FC<AppHeaderProps> = ({ onSearchClick, onMenuClick }) => {
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const { user, userProfile, logout, loading: authLoading } = useAuth();
   
@@ -44,24 +49,29 @@ const AppHeader: React.FC = () => {
   const profilePic = userProfile?.profilePicUrl || user?.photoURL || `https://picsum.photos/seed/${user?.uid || 'default'}/40/40`;
 
   return (
-    <header className="bg-gray-800 text-gray-200 shadow-md sticky top-0 z-50 border-b border-gray-700">
-      <div className="container mx-auto px-3 sm:px-4 py-2.5 flex justify-between items-center">
+    <header className="bg-gray-800 text-gray-200 shadow-md sticky top-0 z-30 border-b border-gray-700 h-[57px] sm:h-[61px] flex items-center"> {/* Fixed height and z-index */}
+      <div className="container mx-auto px-3 sm:px-4 flex justify-between items-center">
         <div className="flex items-center">
           <button
             aria-label="Open menu"
             className="p-2 mr-1 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600 sm:hidden" 
-            onClick={() => {/* Implement mobile drawer if needed */}}
+            onClick={onMenuClick} // Use onMenuClick to toggle side menu
           >
             <Bars3Icon className="w-6 h-6" />
           </button>
           
           <Link to="/home" className="flex items-center">
             <img src="/logo.png" alt={`${APP_NAME} Logo`} className="h-8 sm:h-9 w-auto mr-2 rounded-full" />
+            {/* <span className="hidden sm:block text-xl font-graduate font-bold text-gray-50">{APP_NAME}</span> */}
           </Link>
         </div>
 
         <div className="flex items-center space-x-2 sm:space-x-3">
-          <button aria-label="Search" className="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600">
+          <button 
+            aria-label="Search" 
+            className="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600"
+            onClick={onSearchClick}
+          >
             <MagnifyingGlassIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-300" />
           </button>
           <button aria-label="Chat" className="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600">

@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -32,13 +33,14 @@
     ::-webkit-scrollbar-thumb:hover {
       background: #6b7280; /* Tailwind gray-500 */
     }
-    .main-content-area { /* Added for potential sticky header/tab calculations */
-        padding-top: 112px; /* Approx height of AppHeader + MainUITabs */
-    }
-    @media (min-width: 640px) { /* sm breakpoint */
-      .main-content-area {
-        padding-top: 0; /* Reset padding-top if BottomNav is hidden and TopNav isn't fixed, or adjust as needed */
-      }
+    /* main-content-area padding is now dynamic based on AppHeader/MainUITabs visibility and their fixed heights */
+    /* AppHeader fixed height: 57px (sm: 61px) */
+    /* MainUITabs fixed height (if shown): 48px (sm: 56px) */
+    /* Total combined fixed height: 105px (sm: 117px) */
+
+    #root {
+        position: relative; /* Ensure z-index context if needed */
+        z-index: 1; /* Default z-index for root content */
     }
   </style>
 <script type="importmap">

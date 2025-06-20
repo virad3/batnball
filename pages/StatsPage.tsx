@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
-import Button from '../components/Button';
+
+type StatsFilterTabs = 'overview' | 'matches';
 
 const StatsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'matches'>('overview'); 
+  const [activeTab, setActiveTab] = useState<StatsFilterTabs>('overview'); 
 
   useEffect(() => {
     const loadData = async () => {
@@ -16,23 +17,39 @@ const StatsPage: React.FC = () => {
     loadData();
   }, []);
 
+  const TabButton: React.FC<{
+    label: string;
+    filterKey: StatsFilterTabs;
+  }> = ({ label, filterKey }) => {
+    const isActive = activeTab === filterKey;
+    return (
+      <button
+        onClick={() => setActiveTab(filterKey)}
+        className={`px-4 py-3 sm:px-6 text-sm font-medium focus:outline-none transition-colors duration-150
+          ${isActive 
+            ? 'bg-gray-100 text-gray-900 rounded-t-lg shadow' 
+            : 'text-gray-400 hover:text-gray-200'
+          }
+        `}
+        role="tab"
+        aria-selected={isActive}
+      >
+        {label}
+      </button>
+    );
+  };
+
   if (loading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-gray-50">Statistics</h1>
 
-      <div className="flex space-x-2 border-b border-gray-700 pb-2 mb-4">
-        <Button 
-            variant={activeTab === 'overview' ? 'primary' : 'outline'}
-            onClick={() => setActiveTab('overview')}
-            size="sm"
-        >Overview</Button>
-        <Button 
-            variant={activeTab === 'matches' ? 'primary' : 'outline'}
-            onClick={() => setActiveTab('matches')}
-            size="sm"
-        >Match Stats (Coming Soon)</Button>
+      <div className="border-b border-gray-700">
+        <nav className="-mb-px flex space-x-1 sm:space-x-2" aria-label="Stats Filters">
+          <TabButton label="Overview" filterKey="overview" />
+          <TabButton label="Match Stats (Soon)" filterKey="matches" />
+        </nav>
       </div>
 
       {activeTab === 'overview' && (

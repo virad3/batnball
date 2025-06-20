@@ -125,10 +125,10 @@ const MyTeamsPage: React.FC = () => {
   const TabButton: React.FC<{tabKey: 'my' | 'opponents' | 'following', label: string}> = ({ tabKey, label }) => (
     <button
       onClick={() => setActiveTab(tabKey)}
-      className={`py-3 px-4 sm:px-6 text-sm sm:text-base font-medium transition-colors duration-150 ease-in-out focus:outline-none
+      className={`px-4 py-3 sm:px-6 text-sm font-medium focus:outline-none transition-colors duration-150
         ${activeTab === tabKey 
-          ? 'border-b-2 border-red-600 text-red-500 bg-gray-800' 
-          : 'text-gray-400 hover:text-gray-200 hover:bg-gray-750'
+          ? 'bg-gray-100 text-gray-900 rounded-t-lg shadow' 
+          : 'text-gray-400 hover:text-gray-200'
         }
       `}
       role="tab"
@@ -142,13 +142,18 @@ const MyTeamsPage: React.FC = () => {
     <div className="space-y-6">
       <div className="bg-gray-800 p-4 rounded-lg shadow-md flex justify-between items-center border border-gray-700">
         <p className="text-gray-100 text-sm sm:text-base">Want to create a new team?</p>
-        <Button variant="primary" size="sm" onClick={() => setIsCreateModalOpen(true)} leftIcon={<PlusIcon className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />}>
+        <Button 
+          size="sm" 
+          onClick={() => setIsCreateModalOpen(true)} 
+          leftIcon={<PlusIcon className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />}
+          className="bg-teal-600 hover:bg-teal-500 text-white font-semibold"
+        >
           CREATE
         </Button>
       </div>
 
       <div className="border-b border-gray-700">
-        <nav className="-mb-px flex space-x-2 sm:space-x-4" aria-label="Tabs" role="tablist">
+        <nav className="-mb-px flex space-x-1 sm:space-x-2" aria-label="Tabs" role="tablist">
           <TabButton tabKey="my" label="My" />
           <TabButton tabKey="opponents" label="Opponents" />
           <TabButton tabKey="following" label="Following" />
