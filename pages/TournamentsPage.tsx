@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useHistory } from 'react-router-dom';
 import { Tournament } from '../types';
 import { getAllTournaments } from '../services/dataService'; 
 import TournamentCard from '../components/TournamentCard';
@@ -13,25 +14,22 @@ const TournamentsPage: React.FC = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilterTab, setActiveFilterTab] = useState<TournamentFilterTabs>('my');
-  const navigate = useNavigate();
-  const { user } = useAuth(); // To potentially filter based on user for "My"
+  const history = useHistory();
+  const { user } = useAuth(); 
 
   useEffect(() => {
     const fetchTournaments = async () => {
-      if (!user && activeFilterTab === 'my') { // Only fetch "my" tournaments if user is logged in
+      if (!user && activeFilterTab === 'my') { 
         setLoading(false);
         setTournaments([]);
         return;
       }
       setLoading(true);
       try {
-        // For "My" tab, fetch tournaments created by the user.
-        // For other tabs, this might fetch from a different endpoint or apply different filters.
         if (activeFilterTab === 'my') {
             const allUserTournaments = await getAllTournaments(); 
             setTournaments(allUserTournaments);
         } else {
-            // Placeholder: For "Participate", "Network", "Nearby", we'll show empty or sample data for now.
             setTournaments([]);
         }
         
@@ -46,11 +44,10 @@ const TournamentsPage: React.FC = () => {
   }, [user, activeFilterTab]);
 
   const handleCreateTournament = () => {
-    navigate('/tournaments/new');
+    history.push('/tournaments/new');
   };
 
   const filteredTournaments = useMemo(() => {
-    // This logic can be expanded for other tabs if data is fetched for them
     return tournaments; 
   }, [tournaments]);
 
@@ -78,12 +75,11 @@ const TournamentsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* "Want to host a tournament?" Banner */}
       <div className="bg-gray-800 p-4 rounded-lg shadow-md flex justify-between items-center border border-gray-700">
         <p className="text-gray-100 text-sm sm:text-base">Want to host a tournament?</p>
         <Button 
           variant="primary" 
-          className="bg-teal-600 hover:bg-teal-500 text-white font-semibold" // Teal/Green style
+          className="bg-teal-600 hover:bg-teal-500 text-white font-semibold" 
           onClick={handleCreateTournament}
           size="sm"
         >
@@ -91,7 +87,6 @@ const TournamentsPage: React.FC = () => {
         </Button>
       </div>
       
-      {/* Tabbed Filters */}
       <div className="border-b border-gray-700">
         <nav className="-mb-px flex space-x-1 sm:space-x-2" aria-label="Tournament Filters">
           <TabButton label="My" filterKey="my" />

@@ -1,16 +1,17 @@
+
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // useNavigate for v7
+import { useHistory } from 'react-router-dom'; 
 import { Tournament, TournamentFormat } from '../types'; 
 import { createTournament } from '../services/dataService'; 
 import Button from '../components/Button';
 
 const CreateTournamentPage: React.FC = () => {
-  const navigate = useNavigate(); // v7 hook
+  const history = useHistory(); 
   const [tournamentName, setTournamentName] = useState('');
   const [format, setFormat] = useState<TournamentFormat>(TournamentFormat.LEAGUE);
   const [startDate, setStartDate] = useState(''); 
   const [endDate, setEndDate] = useState('');   
-  const [location, setLocation] = useState(''); // Added location state
+  const [location, setLocation] = useState(''); 
   const [selectedTeamNames, setSelectedTeamNames] = useState<string[]>([]);
   const [customTeamName, setCustomTeamName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
@@ -49,7 +50,7 @@ const CreateTournamentPage: React.FC = () => {
       format,
       startDate, 
       endDate,   
-      location, // Added location
+      location, 
       teamNames: selectedTeamNames,
       logoUrl: logoUrl || undefined,
     };
@@ -57,7 +58,7 @@ const CreateTournamentPage: React.FC = () => {
     try {
       const createdTournament = await createTournament(newTournamentData); 
       setLoading(false);
-      navigate(`/tournaments/${createdTournament.id}`); 
+      history.push(`/tournaments/${createdTournament.id}`); 
     } catch (err: any) {
       setError(err.message || "Failed to create tournament. Please try again.");
       setLoading(false);
@@ -152,7 +153,7 @@ const CreateTournamentPage: React.FC = () => {
         <div className="pt-2 flex flex-col sm:flex-row sm:justify-end sm:space-x-3 space-y-3 sm:space-y-0">
           <Button 
             type="button" 
-            onClick={() => navigate('/tournaments')} 
+            onClick={() => history.push('/tournaments')} 
             variant="outline" 
             size="lg"
             className="w-full sm:w-auto"

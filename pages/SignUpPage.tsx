@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom'; // useNavigate for v7
+import { Link, useHistory } from 'react-router-dom'; 
 import Button from '../components/Button';
 import { APP_NAME } from '../constants';
 import { UserProfile } from '../types'; 
@@ -16,7 +16,7 @@ const GoogleIcon = () => (
 );
 
 const SignUpPage: React.FC = () => {
-  const navigate = useNavigate(); // v7 hook
+  const history = useHistory(); 
   const { signUpWithPassword, signInWithGoogle, loading: authLoading, error: authErrorHook, user } = useAuth();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -30,11 +30,11 @@ const SignUpPage: React.FC = () => {
     if (user && !authErrorHook) {
         setSignupSuccess(true); 
         const timer = setTimeout(() => {
-            navigate('/home', { replace: true }); 
+            history.replace('/home'); 
         }, 2000); 
         return () => clearTimeout(timer);
     }
-  }, [user, authErrorHook, navigate]);
+  }, [user, authErrorHook, history]);
   
   useEffect(() => {
     if (authErrorHook) {

@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';  // useParams and Link are fine for v5
+import { useParams, Link } from 'react-router-dom';
 import { Tournament, Match } from '../types'; 
-import { getTournamentById } from '../services/dataService'; // Now uses Firebase
-import { db } from '../services/firebaseClient'; // Direct Firestore client for specific query
+import { getTournamentById } from '../services/dataService'; 
+import { db } from '../services/firebaseClient'; 
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -23,15 +23,14 @@ const TournamentDetailPage: React.FC = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const tournamentDetails = await getTournamentById(tournamentId); // Uses Firebase
+        const tournamentDetails = await getTournamentById(tournamentId); 
         setTournament(tournamentDetails);
         if (tournamentDetails) {
-          // Fetch matches associated with this tournament_id from Firestore
           const matchesCol = collection(db, 'matches');
           const q = query(
             matchesCol, 
             where('tournament_id', '==', tournamentDetails.id),
-            orderBy('date', 'asc') // Example ordering
+            orderBy('date', 'asc') 
           );
           const matchesSnapshot = await getDocs(q);
           const tournamentMatches = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
@@ -61,11 +60,9 @@ const TournamentDetailPage: React.FC = () => {
   
   const displayDate = (dateInput: any) => {
     if (!dateInput) return 'N/A';
-    // Check if it's a Firebase Timestamp object
     if (dateInput && typeof dateInput.toDate === 'function') {
       return dateInput.toDate().toLocaleDateString();
     }
-    // Assume it's an ISO string or a Date object already
     return new Date(dateInput).toLocaleDateString();
   };
 
@@ -100,10 +97,6 @@ const TournamentDetailPage: React.FC = () => {
       {activeTab === 'fixtures' && (
         <section>
           <h2 className="text-2xl font-bold text-gray-100 mb-4">Fixtures & Results</h2>
-          {/* TODO: Add button to create a new match FOR THIS TOURNAMENT */}
-          {/* <Link to={`/matches/newmatch/score?tournamentId=${tournament.id}`}>
-             <Button variant="secondary" size="sm" className="mb-4">Add Match to Tournament</Button>
-          </Link> */}
           {matches.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {matches.map(match => <MatchCard key={match.id} match={match} />)}

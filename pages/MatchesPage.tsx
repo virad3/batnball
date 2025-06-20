@@ -5,31 +5,30 @@ import { getAllMatches } from '../services/dataService';
 import MatchCard from '../components/MatchCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext'; // To get current user for "My" filter
+import { useHistory } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext'; 
 
 const MatchesPage: React.FC = () => {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilterTab, setActiveFilterTab] = useState<'my' | 'played' | 'network' | 'nearby'>('my');
-  const navigate = useNavigate();
+  const history = useHistory();
   const { user } = useAuth();
 
   useEffect(() => {
     const fetchMatches = async () => {
-      if (!user) { // Don't fetch if user isn't loaded, relevant for "my" and "played"
+      if (!user) { 
         setLoading(false);
         setMatches([]);
         return;
       }
       setLoading(true);
       try {
-        // getAllMatches typically fetches for the logged-in user by default from dataService.
         const allUserMatches = await getAllMatches(); 
         setMatches(allUserMatches);
       } catch (error) {
         console.error("Failed to fetch matches:", error);
-        setMatches([]); // Clear matches on error
+        setMatches([]); 
       } finally {
         setLoading(false);
       }
@@ -38,20 +37,20 @@ const MatchesPage: React.FC = () => {
   }, [user]);
 
   const handleStartNewMatchFlow = () => {
-    navigate('/start-match/select-teams'); // Navigate to new team selection page
+    history.push('/start-match/select-teams'); 
   };
 
   const filteredMatches = useMemo(() => {
     if (!user) return [];
     switch (activeFilterTab) {
       case 'my':
-        return matches; // Assuming getAllMatches already filters by user_id
+        return matches; 
       case 'played':
         return matches.filter(match => match.status === "Completed");
       case 'network':
-        return []; // Placeholder
+        return []; 
       case 'nearby':
-        return []; // Placeholder
+        return []; 
       default:
         return matches;
     }
@@ -82,12 +81,11 @@ const MatchesPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* "Want to start a match?" Banner */}
       <div className="bg-gray-800 p-4 rounded-lg shadow-md flex justify-between items-center border border-gray-700">
         <p className="text-gray-100 text-sm sm:text-base">Want to start a match?</p>
         <Button 
           variant="primary" 
-          className="bg-teal-600 hover:bg-teal-500 text-white font-semibold" // Override for teal/green
+          className="bg-teal-600 hover:bg-teal-500 text-white font-semibold" 
           onClick={handleStartNewMatchFlow}
           size="sm"
         >
@@ -95,7 +93,6 @@ const MatchesPage: React.FC = () => {
         </Button>
       </div>
       
-      {/* Tabbed Filters */}
       <div className="border-b border-gray-700">
         <nav className="-mb-px flex space-x-1 sm:space-x-2" aria-label="Match Filters">
           <TabButton label="My" filterKey="my" />

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom'; // useNavigate for v7
+import { Link, useHistory } from 'react-router-dom'; 
 import { APP_NAME } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
 import { Bars3Icon, MagnifyingGlassIcon, ChatBubbleLeftEllipsisIcon } from '@heroicons/react/24/outline';
@@ -11,7 +11,7 @@ const AppHeader: React.FC = () => {
   
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const userAvatarButtonRef = useRef<HTMLButtonElement>(null);
-  const navigate = useNavigate(); // v7 hook
+  const history = useHistory(); 
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -37,7 +37,7 @@ const AppHeader: React.FC = () => {
   const handleLogout = async () => {
     await logout();
     setIsUserDropdownOpen(false);
-    navigate('/login'); 
+    history.push('/login'); 
   };
   
   const displayName = userProfile?.username || user?.displayName || user?.email?.split('@')[0] || "User";
@@ -46,12 +46,10 @@ const AppHeader: React.FC = () => {
   return (
     <header className="bg-gray-800 text-gray-200 shadow-md sticky top-0 z-50 border-b border-gray-700">
       <div className="container mx-auto px-3 sm:px-4 py-2.5 flex justify-between items-center">
-        {/* Left Section: Hamburger (optional) & App Logo/Name */}
         <div className="flex items-center">
-          {/* Hamburger Icon - can be re-enabled if needed for a drawer */}
           <button
             aria-label="Open menu"
-            className="p-2 mr-1 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600 sm:hidden" // Hidden on sm and up for now
+            className="p-2 mr-1 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600 sm:hidden" 
             onClick={() => {/* Implement mobile drawer if needed */}}
           >
             <Bars3Icon className="w-6 h-6" />
@@ -59,17 +57,10 @@ const AppHeader: React.FC = () => {
           
           <Link to="/home" className="flex items-center">
             <img src="/logo.png" alt={`${APP_NAME} Logo`} className="h-8 sm:h-9 w-auto mr-2 rounded-full" />
-            {/* App Name can be hidden on very small screens if space is an issue */}
-            {/* <span className="font-graduate text-lg sm:text-xl font-normal text-gray-100 hidden sm:block">
-              {APP_NAME}
-            </span> */}
           </Link>
         </div>
 
-        {/* Center/Right Section: Icons, User Profile */}
         <div className="flex items-center space-x-2 sm:space-x-3">
-          {/* PRO Button Removed */}
-          
           <button aria-label="Search" className="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600">
             <MagnifyingGlassIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-300" />
           </button>

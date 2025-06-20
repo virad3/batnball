@@ -11,11 +11,10 @@ const MainUITabs: React.FC = () => {
   const inactiveTabStyles = "text-gray-300 hover:text-yellow-300";
 
   return (
-    <nav className="bg-gray-800 shadow-sm sticky top-[57px] sm:top-[61px] z-40 border-b border-gray-700"> {/* Adjust top value based on AppHeader height */}
+    <nav className="bg-gray-800 shadow-sm sticky top-[57px] sm:top-[61px] z-40 border-b border-gray-700"> 
       <div className="container mx-auto px-2 sm:px-4">
         <div className="flex justify-around items-center h-12 sm:h-14">
           {MAIN_NAVIGATION_TAB_ITEMS.map((item) => {
-            // Special handling for "Matches" tab to be active for "/my-cricket" as well
             const isMyCricketContextActiveForMatches = item.name === "Matches" && location.pathname === "/my-cricket";
             
             return (

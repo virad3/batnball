@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Tournament, TournamentStatus } from '../types';
@@ -23,7 +24,7 @@ const formatDateForCard = (dateInput: string | Timestamp | Date | undefined | nu
   } else if (typeof dateInput === 'string') {
     d = new Date(dateInput);
   } else {
-    d = dateInput; // Already a Date object
+    d = dateInput; 
   }
 
   if (isNaN(d.getTime())) return 'Invalid Date';
@@ -89,7 +90,7 @@ const TournamentCard: React.FC<TournamentCardProps> = ({ tournament }) => {
             </div>
           )}
            {(status === "Upcoming" || status === "Past") && (
-             <div className="h-[29px]"></div> // Placeholder to keep card height consistent
+             <div className="h-[29px]"></div> 
            )}
         </div>
       </div>

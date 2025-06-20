@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom'; // useNavigate for v7
+import { useHistory } from 'react-router-dom'; 
 import { Team, UserProfile } from '../types';
 import { getTeamsByUserId, getTeamById, getFullUserProfile } from '../services/dataService'; 
 import { useAuth } from '../contexts/AuthContext';
@@ -30,7 +30,7 @@ const MyTeamsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   
-  const navigate = useNavigate(); // v7 hook
+  const history = useHistory(); 
   const { user: authUser, userProfile, loading: authLoading } = useAuth();
 
   const fetchMyTeamsData = useCallback(async () => {
@@ -42,10 +42,8 @@ const MyTeamsPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      // 1. Fetch owned teams
       const ownedTeamsRaw = await getTeamsByUserId();
       
-      // 2. Fetch affiliated teams (user is a member but not necessarily owner)
       let affiliatedTeamsRaw: Team[] = [];
       if (userProfile.teamIds && userProfile.teamIds.length > 0) {
         const affiliatedIdsToFetch = userProfile.teamIds.filter(id => !ownedTeamsRaw.some(ot => ot.id === id));
@@ -57,7 +55,6 @@ const MyTeamsPage: React.FC = () => {
         }
       }
 
-      // 3. Combine owned and affiliated teams, ensuring uniqueness
       const allUserRelatedTeamsMap = new Map<string, Team>();
       ownedTeamsRaw.forEach(team => allUserRelatedTeamsMap.set(team.id, team));
       affiliatedTeamsRaw.forEach(team => {
@@ -67,8 +64,6 @@ const MyTeamsPage: React.FC = () => {
       });
       const allUserRelatedTeams = Array.from(allUserRelatedTeamsMap.values());
 
-
-      // 4. Fetch owner profiles for all these teams
       const ownerIds = new Set<string>(allUserRelatedTeams.map(team => team.user_id).filter(id => !!id));
       const ownerProfilesMap = new Map<string, UserProfile>();
 
@@ -83,7 +78,6 @@ const MyTeamsPage: React.FC = () => {
         }
       }
       
-      // 5. Process teams for card display
       const processedList: ProcessedTeamForCard[] = allUserRelatedTeams.map(team => {
         const isOwner = team.user_id === authUser.uid;
         const ownerProfile = ownerProfilesMap.get(team.user_id);
@@ -125,7 +119,7 @@ const MyTeamsPage: React.FC = () => {
   };
 
   const handleTeamCardClick = (team: ProcessedTeamForCard) => {
-    navigate(`/teams/${team.id}`); 
+    history.push(`/teams/${team.id}`); 
   };
 
   const TabButton: React.FC<{tabKey: 'my' | 'opponents' | 'following', label: string}> = ({ tabKey, label }) => (

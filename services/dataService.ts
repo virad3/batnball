@@ -22,6 +22,22 @@ export const getAllMatches = async (): Promise<Match[]> => {
   return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Match));
 };
 
+export const getRecentMatches = async (count: number = 3): Promise<Match[]> => {
+  const userId = getUserId();
+  if (!userId) return [];
+
+  const matchesCol = collection(db, 'matches');
+  const q = query(
+    matchesCol,
+    where('user_id', '==', userId),
+    orderBy('date', 'desc'), // Get the most recent dates first
+    limit(count)
+  );
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Match));
+};
+
+
 export const getUpcomingMatches = async (count: number = 3): Promise<Match[]> => {
   const userId = getUserId();
   if (!userId) return [];

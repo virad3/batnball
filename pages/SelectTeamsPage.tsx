@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useHistory } from 'react-router-dom';
 import { Team, MatchFormat } from '../types';
 import { useMatchContext } from '../contexts/MatchContext';
 import Button from '../components/Button';
@@ -9,7 +9,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { ArrowLeftIcon, PlayIcon, PlusIcon, UserGroupIcon } from '@heroicons/react/24/solid';
 
 const SelectTeamsPage: React.FC = () => {
-  const navigate = useNavigate();
+  const history = useHistory();
   const { startNewMatch } = useMatchContext();
   const [selectedTeamA, setSelectedTeamA] = useState<Team | null>(null);
   const [selectedTeamB, setSelectedTeamB] = useState<Team | null>(null);
@@ -63,7 +63,7 @@ const SelectTeamsPage: React.FC = () => {
       // @ts-ignore
       const newMatch = await startNewMatch(partialMatchData);
       if (newMatch && newMatch.id) {
-        navigate(`/matches/${newMatch.id}/score`);
+        history.push(`/matches/${newMatch.id}/score`);
       } else {
         throw new Error("Failed to create a new match instance.");
       }
@@ -102,11 +102,10 @@ const SelectTeamsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col">
-      {/* Custom Header */}
       <header className="bg-gray-800 text-gray-100 p-4 shadow-md sticky top-0 z-10 border-b border-gray-700">
         <div className="container mx-auto flex justify-between items-center">
           <button 
-            onClick={() => navigate(-1)} 
+            onClick={() => history.goBack()} 
             aria-label="Go back" 
             className="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800"
           >
@@ -125,7 +124,6 @@ const SelectTeamsPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-grow flex flex-col items-center justify-center p-4 space-y-8">
         {error && <p className="text-red-300 bg-red-900 bg-opacity-50 p-3 rounded-md text-sm w-full max-w-md text-center border border-red-700">{error}</p>}
         

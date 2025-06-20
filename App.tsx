@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { HashRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'; // Updated imports for v7
+import { HashRouter, Switch, Route, Redirect, useLocation, useHistory } from 'react-router-dom';
 import AppHeader from './components/AppHeader';
 import MainUITabs from './components/MainUITabs';
 import BottomNav from './components/BottomNav';
@@ -20,15 +20,15 @@ import MyPerformancePage from './pages/MyPerformancePage';
 import MyCricketPage from './pages/MyCricketPage';
 import LookingPage from './pages/LookingPage';
 import HighlightsPage from './pages/HighlightsPage';
-import SelectTeamsPage from './pages/SelectTeamsPage'; // New Page
+import SelectTeamsPage from './pages/SelectTeamsPage';
 import { MatchProvider } from './contexts/MatchContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoadingSpinner from './components/LoadingSpinner';
 
 const pathsToShowMainUITabs = ['/my-cricket', '/matches', '/tournaments', '/teams', '/stats', '/highlights'];
 
-// Layout for authenticated users
-const ProtectedLayout: React.FC<{ fullPageOverride?: boolean }> = ({ fullPageOverride = false }) => {
+// Layout for authenticated users, adapted for v5
+const ProtectedLayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
 
@@ -41,11 +41,14 @@ const ProtectedLayout: React.FC<{ fullPageOverride?: boolean }> = ({ fullPageOve
   }
 
   if (!user && !authLoading) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Redirect to={{ pathname: "/login", state: { from: location } }} />;
   }
+  
+  const fullPageOverridePaths = ['/start-match/select-teams'];
+  const isFullPageOverride = fullPageOverridePaths.some(p => location.pathname.startsWith(p));
 
-  if (fullPageOverride) {
-    return <Outlet />; // Render child route directly without standard layout
+  if (isFullPageOverride) {
+    return <>{children}</>; // Render child route directly without standard layout
   }
   
   const showTabs = pathsToShowMainUITabs.some(p => location.pathname.startsWith(p) || location.pathname === p);
@@ -54,23 +57,54 @@ const ProtectedLayout: React.FC<{ fullPageOverride?: boolean }> = ({ fullPageOve
     mainContentPaddingTopClasses = "pt-[105px] sm:pt-[117px]"; // AppHeader + MainUITabs height
   }
 
-
   return (
     <div className="flex flex-col min-h-screen bg-gray-900">
       <AppHeader />
       {showTabs && <MainUITabs />}
       <main className={`flex-grow container mx-auto px-4 pb-4 mb-16 sm:mb-0 ${mainContentPaddingTopClasses}`}>
-        <Outlet />
+        {children} {/* Renders the matched component from the inner Switch */}
       </main>
       <BottomNav />
     </div>
   );
 };
 
+// This component will contain all routes that need the ProtectedLayoutWrapper
+const ProtectedRoutesContainer: React.FC = () => {
+  const { user } = useAuth(); // Used for the final fallback redirect
+  return (
+    <ProtectedLayoutWrapper>
+      <Switch>
+        <Route exact path="/" render={() => <Redirect to="/home" />} />
+        <Route path="/home" component={HomePage} />
+        <Route path="/matches/:matchId/score" component={ScoringPage} />
+        <Route path="/matches" component={MatchesPage} />
+        <Route path="/tournaments/new" component={CreateTournamentPage} />
+        <Route path="/tournaments/:tournamentId" component={TournamentDetailPage} />
+        <Route path="/tournaments" component={TournamentsPage} />
+        <Route path="/teams/:teamId" component={TeamDetailsPage} />
+        <Route path="/teams" component={MyTeamsPage} />
+        <Route path="/stats" component={StatsPage} />
+        <Route path="/highlights" component={HighlightsPage} />
+        <Route path="/profile/:userId" component={ProfilePage} />
+        <Route exact path="/profile" component={ProfilePage} />
+        <Route path="/my-teams" component={MyTeamsPage} />
+        <Route path="/my-performance" component={MyPerformancePage} />
+        <Route path="/my-cricket" component={MyCricketPage} />
+        <Route path="/looking" component={LookingPage} />
+        <Route path="/start-match/select-teams" component={SelectTeamsPage} />
+        
+        {/* Fallback for authenticated users if no inner route matches */}
+        <Route path="*" render={() => user ? <Redirect to="/home" /> : <Redirect to="/login" />} />
+      </Switch>
+    </ProtectedLayoutWrapper>
+  );
+};
+
 
 // Component to handle the main routing logic
 const AppRoutes: React.FC = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { loading: authLoading } = useAuth();
 
   if (authLoading) {
     return (
@@ -82,41 +116,12 @@ const AppRoutes: React.FC = () => {
   }
 
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/signup" element={<SignUpPage />} />
-
-      {/* Protected Routes with Standard Layout */}
-      <Route element={<ProtectedLayout />}>
-        <Route path="/" element={<Navigate to="/home" replace />} />
-        <Route path="/home" element={<HomePage />} />
-        <Route path="/matches" element={<MatchesPage />} />
-        <Route path="/matches/:matchId/score" element={<ScoringPage />} />
-        <Route path="/tournaments" element={<TournamentsPage />} />
-        <Route path="/tournaments/new" element={<CreateTournamentPage />} />
-        <Route path="/tournaments/:tournamentId" element={<TournamentDetailPage />} />
-        <Route path="/teams/:teamId" element={<TeamDetailsPage />} />
-        <Route path="/teams" element={<MyTeamsPage />} />
-        <Route path="/stats" element={<StatsPage />} />
-        <Route path="/highlights" element={<HighlightsPage />} />
-        
-        <Route path="/profile/:userId" element={<ProfilePage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-          
-        <Route path="/my-teams" element={<MyTeamsPage />} /> 
-        <Route path="/my-performance" element={<MyPerformancePage />} />
-        <Route path="/my-cricket" element={<MyCricketPage />} />
-        <Route path="/looking" element={<LookingPage />} />
-      </Route>
-
-      {/* Protected Routes with Full Page Override Layout (e.g. for custom headers) */}
-      <Route element={<ProtectedLayout fullPageOverride />}>
-        <Route path="/start-match/select-teams" element={<SelectTeamsPage />} />
-      </Route>
-      
-      {/* Fallback for any other path */}
-      <Route path="*" element={user ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />} />
-    </Routes>
+    <Switch>
+      <Route path="/login" component={LoginPage} />
+      <Route path="/signup" component={SignUpPage} />
+      {/* All other routes are handled by ProtectedRoutesContainer which applies the layout and auth */}
+      <Route component={ProtectedRoutesContainer} />
+    </Switch>
   );
 }
 
