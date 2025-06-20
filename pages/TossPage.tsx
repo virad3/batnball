@@ -5,9 +5,12 @@ import CoinTossModal from '../components/CoinTossModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
 import { useMatchContext } from '../contexts/MatchContext';
-import { Match, Team, MatchFormat } from '../types'; // Team might not be fully needed if we pass names/squads
+import { Match, MatchFormat } from '../types';
 import { ArrowLeftIcon } from '@heroicons/react/24/solid';
-import { Timestamp } from '../services/firebaseClient';
+// Timestamp is not directly used here, can be removed if not needed for other logic
+// import { Timestamp } from '../services/firebaseClient';
+
+const DEFAULT_OVERS = 20;
 
 const TossPage: React.FC = () => {
   const [isCoinModalOpen, setIsCoinModalOpen] = useState(false);
@@ -19,14 +22,15 @@ const TossPage: React.FC = () => {
   const { matchId: paramMatchId } = useParams<{ matchId?: string }>();
   const context = useMatchContext();
 
-  // State for new immediate match (Mode 1)
+  // State for new immediate match (Mode 1 - 'newMatch')
   const [teamAName, setTeamAName] = useState<string | null>(null);
   const [teamBName, setTeamBName] = useState<string | null>(null);
   const [teamASquad, setTeamASquad] = useState<string[]>([]);
   const [teamBSquad, setTeamBSquad] = useState<string[]>([]);
-  const [matchSettings, setMatchSettings] = useState<Partial<Pick<Match, 'venue' | 'format' | 'overs_per_innings' | 'date'>>>({});
+  const [matchSettingsFromPrevPage, setMatchSettingsFromPrevPage] = useState<Partial<Pick<Match, 'venue' | 'format' | 'overs_per_innings' | 'date'>>>({});
+  const [localMatchOvers, setLocalMatchOvers] = useState<number>(DEFAULT_OVERS);
 
-  // State for existing upcoming match (Mode 2)
+  // State for existing upcoming match (Mode 2 - 'existingMatch')
   const [existingMatchDetails, setExistingMatchDetails] = useState<Match | null>(null);
 
   // General toss decision state
@@ -45,16 +49,18 @@ const TossPage: React.FC = () => {
           teamBName: stateTeamBName, 
           teamASquad: stateTeamASquad,
           teamBSquad: stateTeamBSquad,
-          matchSettings: stateMatchSettings 
+          matchSettings // Renamed to avoid conflict
         } = location.state || {};
         
-        if (stateTeamAName && stateTeamBName && stateTeamASquad && stateTeamBSquad && stateMatchSettings) {
+        if (stateTeamAName && stateTeamBName && stateTeamASquad && stateTeamBSquad && matchSettings) {
           setTeamAName(stateTeamAName);
           setTeamBName(stateTeamBName);
           setTeamASquad(stateTeamASquad);
           setTeamBSquad(stateTeamBSquad);
-          setMatchSettings(stateMatchSettings);
-          setTossWinnerName(stateTeamAName); // Default toss winner selection
+          setMatchSettingsFromPrevPage(matchSettings);
+          setTossWinnerName(stateTeamAName); 
+          // Initialize localMatchOvers from previous page settings or default
+          setLocalMatchOvers(matchSettings.overs_per_innings !== undefined && matchSettings.overs_per_innings !== null ? matchSettings.overs_per_innings : DEFAULT_OVERS);
         } else {
           setError("Required team and squad information for a new match is missing.");
           navigate('/home', {replace: true});
@@ -67,10 +73,10 @@ const TossPage: React.FC = () => {
             setTimeout(() => navigate(`/matches/${paramMatchId}/score`, {replace: true}), 2000);
           } else {
             setExistingMatchDetails(loadedMatch);
-            setTeamAName(loadedMatch.teamAName); // Set names for UI
+            setTeamAName(loadedMatch.teamAName); 
             setTeamBName(loadedMatch.teamBName);
-            // Squads are already in loadedMatch, no need to set them in separate state for this mode
-            setTossWinnerName(loadedMatch.teamAName); // Default
+            setTossWinnerName(loadedMatch.teamAName); 
+            // For existing matches, overs_per_innings is from DB, no localMatchOvers input needed
           }
         } else {
           setError("Failed to load match details.");
@@ -90,19 +96,28 @@ const TossPage: React.FC = () => {
       setError("Please select the toss winner and their decision.");
       return;
     }
+    
+    // Validate overs for new match, if not a Test match
+    const currentFormat = mode === 'newMatch' ? matchSettingsFromPrevPage.format : existingMatchDetails?.format;
+    if (mode === 'newMatch' && currentFormat !== MatchFormat.TEST && localMatchOvers <=0) {
+        setError("Number of overs must be greater than 0 for this format.");
+        return;
+    }
+
     setPageLoading(true);
     setError(null);
 
     try {
-      if (mode === 'newMatch' && teamAName && teamBName && teamASquad.length > 0 && teamBSquad.length > 0 && matchSettings) {
+      if (mode === 'newMatch' && teamAName && teamBName && teamASquad.length > 0 && teamBSquad.length > 0 && matchSettingsFromPrevPage) {
         const matchDataForCreation: Partial<Match> & { tossWinnerName: string, electedTo: "Bat" | "Bowl" } = {
           teamAName: teamAName,
           teamBName: teamBName,
-          teamASquad: teamASquad, // Use confirmed squad
-          teamBSquad: teamBSquad, // Use confirmed squad
-          venue: matchSettings.venue || "Local Ground",
-          format: matchSettings.format || MatchFormat.T20,
-          overs_per_innings: matchSettings.overs_per_innings || 20,
+          teamASquad: teamASquad, 
+          teamBSquad: teamBSquad, 
+          venue: matchSettingsFromPrevPage.venue || "Local Ground",
+          format: matchSettingsFromPrevPage.format || MatchFormat.T20,
+          // Use localMatchOvers for new matches, unless it's a Test match
+          overs_per_innings: matchSettingsFromPrevPage.format === MatchFormat.TEST ? undefined : localMatchOvers,
           date: new Date().toISOString(), 
           status: "Live", 
           tossWinnerName: tossWinnerName,
@@ -115,8 +130,7 @@ const TossPage: React.FC = () => {
           throw new Error("Failed to create and start the new match.");
         }
       } else if (mode === 'existingMatch' && existingMatchDetails && paramMatchId) {
-        // For existing matches, squads are already part of existingMatchDetails
-        // updateTossAndStartInnings will use them from context.
+        // For existing matches, overs_per_innings is already set and will be used by updateTossAndStartInnings
         await context.updateTossAndStartInnings(tossWinnerName, electedTo);
         navigate(`/matches/${paramMatchId}/score`, { replace: true });
       } else {
@@ -131,6 +145,7 @@ const TossPage: React.FC = () => {
 
   const currentDisplayTeamAName = mode === 'newMatch' ? teamAName : existingMatchDetails?.teamAName;
   const currentDisplayTeamBName = mode === 'newMatch' ? teamBName : existingMatchDetails?.teamBName;
+  const currentMatchFormat = mode === 'newMatch' ? matchSettingsFromPrevPage.format : existingMatchDetails?.format;
 
   if (pageLoading && !error) { 
     return (
@@ -157,14 +172,13 @@ const TossPage: React.FC = () => {
   const labelClass = "block text-sm font-medium text-gray-300 mb-1";
   const inputClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 sm:text-sm text-gray-100 placeholder-gray-400";
 
-
   return (
     <>
       <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col items-center justify-center p-4 space-y-8">
          <header className="fixed top-0 left-0 right-0 bg-gray-800 text-gray-100 p-4 shadow-md z-10 border-b border-gray-700">
             <div className="container mx-auto flex items-center">
             <button 
-                onClick={() => navigate(mode === 'newMatch' ? '/start-match/select-teams' : `/matches`, {state: mode === 'newMatch' ? { mode: 'startNow' } : undefined, replace: true})} 
+                onClick={() => navigate(mode === 'newMatch' ? '/start-match/select-teams' : `/matches`, {state: mode === 'newMatch' ? location.state : undefined, replace: true})} 
                 aria-label="Go back" 
                 className="p-2 mr-4 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
@@ -175,8 +189,24 @@ const TossPage: React.FC = () => {
         </header>
 
         <div className="w-full max-w-md bg-gray-800 p-6 rounded-xl shadow-xl border border-gray-700 mt-20">
-          <h2 className="text-2xl font-bold text-center mb-6">Who Won the Toss?</h2>
+          <h2 className="text-2xl font-bold text-center mb-6">Toss Details</h2>
           
+          {/* Conditional Overs Input for New Match Mode */}
+          {mode === 'newMatch' && currentMatchFormat !== MatchFormat.TEST && (
+            <div className="mb-4">
+              <label htmlFor="localMatchOvers" className={labelClass}>Number of Overs:</label>
+              <input
+                type="number"
+                id="localMatchOvers"
+                value={localMatchOvers}
+                onChange={(e) => setLocalMatchOvers(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                min="1"
+                className={inputClass}
+                aria-label="Set number of overs for the match"
+              />
+            </div>
+          )}
+
           <div className="mb-4">
             <label htmlFor="tossWinner" className={labelClass}>Toss Won By:</label>
             <select 
@@ -224,7 +254,7 @@ const TossPage: React.FC = () => {
 
           <Button 
             onClick={handleStartMatchWithToss} 
-            disabled={!tossWinnerName || !electedTo || pageLoading} 
+            disabled={!tossWinnerName || !electedTo || pageLoading || (mode === 'newMatch' && currentMatchFormat !== MatchFormat.TEST && localMatchOvers <= 0)} 
             isLoading={pageLoading}
             className="w-full text-lg" 
             variant="primary" 
