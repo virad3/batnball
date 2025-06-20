@@ -3,16 +3,16 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Match, InningsRecord, MatchFormat } from '../types'; 
 import Button from './Button'; 
-import { Timestamp } from 'firebase/firestore';
+import { FirebaseTimestamp, Timestamp } from '../services/firebaseClient'; // Use re-exported Timestamp
 
 interface MatchCardProps {
   match: Match;
 }
 
-const formatDateForCard = (dateInput: string | Timestamp | undefined | null): string => {
+const formatDateForCard = (dateInput: string | FirebaseTimestamp | undefined | null): string => {
   if (!dateInput) return 'N/A';
   let d: Date;
-  if (dateInput instanceof Timestamp) {
+  if (dateInput instanceof Timestamp) { // Use the imported Timestamp
     d = dateInput.toDate();
   } else {
     d = new Date(dateInput as string | Date); 

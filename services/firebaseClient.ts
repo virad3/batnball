@@ -1,11 +1,8 @@
 
-
-import { initializeApp } from 'firebase/app'; 
-import type { FirebaseApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import type { Auth } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
-import { getStorage, FirebaseStorage } from 'firebase/storage';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
+import 'firebase/compat/firestore';
+import 'firebase/compat/storage';
 
 // Define the expected structure of the Firebase config object
 interface FirebaseConfig {
@@ -20,8 +17,6 @@ interface FirebaseConfig {
 
 // @ts-ignore window.firebaseConfig is defined in index.html
 const firebaseConfigFromWindow = window.firebaseConfig as FirebaseConfig | undefined;
-
-let app: FirebaseApp;
 
 if (
   !firebaseConfigFromWindow ||
@@ -42,20 +37,25 @@ if (
 }
 
 // Initialize Firebase here, ONCE.
-try {
-  app = initializeApp(firebaseConfigFromWindow);
-} catch (e) {
-  console.error("CRITICAL: Firebase initialization failed. This might be due to an invalid configuration.", e);
-  const rootElement = document.getElementById('root');
-  if (rootElement) {
-      rootElement.innerHTML = `<div style="color: red; padding: 20px; text-align: center; font-family: sans-serif; background-color: #fff;">CRITICAL: Firebase initialization failed. Check console and Firebase config.</div>`;
-  }
-  throw e; // Re-throw to stop execution
+let app: firebase.app.App;
+if (!firebase.apps.length) {
+  app = firebase.initializeApp(firebaseConfigFromWindow);
+} else {
+  app = firebase.app(); // if already initialized
 }
 
+const authInstance = firebase.auth();
+const dbInstance = firebase.firestore();
+const storageInstance = firebase.storage();
 
-const authInstance: Auth = getAuth(app);
-const dbInstance: Firestore = getFirestore(app);
-const storageInstance: FirebaseStorage = getStorage(app);
+const Timestamp = firebase.firestore.Timestamp;
+const FieldValue = firebase.firestore.FieldValue;
 
-export { app, authInstance as auth, dbInstance as db, storageInstance as storage };
+export { app, authInstance as auth, dbInstance as db, storageInstance as storage, Timestamp, FieldValue, firebase };
+export type FirebaseTimestamp = firebase.firestore.Timestamp;
+export type FirebaseDocumentData = firebase.firestore.DocumentData;
+export type FirebaseQuery = firebase.firestore.Query;
+export type FirebaseCollectionReference = firebase.firestore.CollectionReference;
+export type FirebaseDocumentReference = firebase.firestore.DocumentReference;
+export type FirebaseQuerySnapshot = firebase.firestore.QuerySnapshot;
+export type FirebaseDocumentSnapshot = firebase.firestore.DocumentSnapshot;

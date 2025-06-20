@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { ChevronLeftIcon, XMarkIcon, QrCodeIcon, UserIcon, UserGroupIcon, CalendarDaysIcon, TrophyIcon, DocumentTextIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-import { simulateGlobalSearch } from '../services/geminiService';
-import { SearchResultItem } from '../types';
+import { searchPlayersByName, searchMatchesByTerm, searchTournamentsByName } from '../services/dataService';
+import { SearchResultItem, UserProfile, Match, Tournament } from '../types';
 import LoadingSpinner from './LoadingSpinner';
+import { Timestamp } from '../services/firebaseClient'; // Use re-exported Timestamp
 
 interface SearchOverlayProps {
   searchQuery: string;
@@ -10,7 +12,6 @@ interface SearchOverlayProps {
   onClose: () => void;
 }
 
-// Debounce utility function
 const debounce = <F extends (...args: any[]) => any>(func: F, delay: number) => {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
   return (...args: Parameters<F>): void => {
@@ -56,14 +57,62 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
       setIsSearching(true);
       setApiError(null);
       try {
-        const results = await simulateGlobalSearch(query);
-        setSearchResults(results || []);
-        if (!results) {
-            setApiError("Could not retrieve search results at this time.");
-        }
+        const [playerResultsRaw, matchResultsRaw, tournamentResultsRaw] = await Promise.all([
+          searchPlayersByName(query, 5),
+          searchMatchesByTerm(query, 5),
+          searchTournamentsByName(query, 5)
+        ]);
+
+        const combinedResults: SearchResultItem[] = [];
+
+        playerResultsRaw.forEach(player => {
+          combinedResults.push({
+            title: player.username,
+            description: player.profileType || `View ${player.username}'s profile`,
+            type: "Player",
+            // id: player.id // Can be used for navigation
+          });
+        });
+
+        matchResultsRaw.forEach(match => {
+          const dateStr = match.date instanceof Timestamp 
+            ? match.date.toDate().toLocaleDateString() 
+            : (typeof match.date === 'string' ? new Date(match.date).toLocaleDateString() : 'N/A');
+          combinedResults.push({
+            title: `${match.teamAName} vs ${match.teamBName}`,
+            description: `${match.venue} on ${dateStr}`,
+            type: "Match",
+            // id: match.id
+          });
+        });
+
+        tournamentResultsRaw.forEach(tournament => {
+          const startDateStr = tournament.startDate instanceof Timestamp 
+            ? tournament.startDate.toDate().toLocaleDateString() 
+            : (typeof tournament.startDate === 'string' ? new Date(tournament.startDate).toLocaleDateString() : 'N/A');
+          combinedResults.push({
+            title: tournament.name,
+            description: `Format: ${tournament.format}, Starts: ${startDateStr}`,
+            type: "Tournament",
+            // id: tournament.id
+          });
+        });
+        
+        // Simple sort: Players, then Teams, Matches, Tournaments, then Other
+        combinedResults.sort((a, b) => {
+            const typeOrder = { "Player": 1, "Team": 2, "Match": 3, "Tournament": 4, "Other": 5 };
+            const orderA = typeOrder[a.type as keyof typeof typeOrder] || 6;
+            const orderB = typeOrder[b.type as keyof typeof typeOrder] || 6;
+            if (orderA !== orderB) return orderA - orderB;
+            return a.title.localeCompare(b.title); // Alphabetical within type
+        });
+
+
+        setSearchResults(combinedResults.slice(0, 15)); // Limit total results displayed
+
       } catch (e) {
-        console.error("Search API call failed:", e);
-        setApiError("Failed to fetch search results.");
+        console.error("Internal search failed:", e);
+        setApiError("Failed to fetch search results. Please try again.");
         setSearchResults([]);
       } finally {
         setIsSearching(false);
@@ -77,9 +126,10 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
   }, [searchQuery, debouncedSearch]);
   
   const handleResultItemClick = (result: SearchResultItem) => {
-    console.log("Search result clicked:", result);
-    // Potentially navigate to a detail page or perform an action
-    // For now, it just logs to console as results are simulated.
+    console.log("Search result clicked (internal search):", result);
+    // TODO: Implement navigation based on result.type and result.id
+    // Example: if (result.type === 'Player' && result.id) navigate(`/profile/${result.id}`);
+    onClose(); // Close search overlay after clicking a result
   };
 
   return (
@@ -141,7 +191,7 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
                   onClick={() => handleResultItemClick(result)}
                   className="w-full text-left p-4 hover:bg-gray-200 focus:outline-none focus:bg-gray-200 transition-colors"
                   role="option"
-                  aria-selected="false"
+                  aria-selected="false" // This would be dynamic if keyboard navigation was implemented
                 >
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0 pt-0.5">
@@ -169,5 +219,4 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
   );
 };
 
-// Add ChevronRightIcon to imports if not already there, for result items
 export default SearchOverlay;

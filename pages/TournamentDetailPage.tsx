@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Tournament, Match } from '../types'; 
 import { getTournamentById } from '../services/dataService'; 
 import { db } from '../services/firebaseClient'; 
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import type { FirebaseCollectionReference, FirebaseQuerySnapshot, FirebaseQuery } from '../services/firebaseClient';
 
 import LoadingSpinner from '../components/LoadingSpinner';
 import MatchCard from '../components/MatchCard';
@@ -26,13 +26,11 @@ const TournamentDetailPage: React.FC = () => {
         const tournamentDetails = await getTournamentById(tournamentId); 
         setTournament(tournamentDetails);
         if (tournamentDetails) {
-          const matchesCol = collection(db, 'matches');
-          const q = query(
-            matchesCol, 
-            where('tournament_id', '==', tournamentDetails.id),
-            orderBy('date', 'asc') 
-          );
-          const matchesSnapshot = await getDocs(q);
+          const matchesCol = db.collection('matches') as FirebaseCollectionReference;
+          const q = matchesCol
+            .where('tournament_id', '==', tournamentDetails.id)
+            .orderBy('date', 'asc') as FirebaseQuery;
+          const matchesSnapshot = await q.get() as FirebaseQuerySnapshot;
           const tournamentMatches = matchesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
           setMatches(tournamentMatches);
         }
@@ -60,10 +58,13 @@ const TournamentDetailPage: React.FC = () => {
   
   const displayDate = (dateInput: any) => {
     if (!dateInput) return 'N/A';
-    if (dateInput && typeof dateInput.toDate === 'function') {
+    if (dateInput && typeof dateInput.toDate === 'function') { // Check if it's a Firebase Timestamp
       return dateInput.toDate().toLocaleDateString();
     }
-    return new Date(dateInput).toLocaleDateString();
+    // If it's a string or Date object
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return 'Invalid Date';
+    return d.toLocaleDateString();
   };
 
 

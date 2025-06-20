@@ -9,8 +9,8 @@ import Button from '../components/Button';
 import TeamCard from '../components/TeamCard';
 import CreateTeamModal from '../components/CreateTeamModal';
 import { PlusIcon, UserGroupIcon, QrCodeIcon as QrCodeIconOutline } from '@heroicons/react/24/outline'; 
-import { collection, query, where, getDocs, documentId } from 'firebase/firestore';
-import { db } from '../services/firebaseClient';
+import { db, firebase } from '../services/firebaseClient'; // Import db and firebase for FieldPath
+import type { FirebaseCollectionReference, FirebaseQuerySnapshot, FirebaseQuery } from '../services/firebaseClient';
 
 
 interface ProcessedTeamForCard {
@@ -49,9 +49,20 @@ const MyTeamsPage: React.FC = () => {
         const affiliatedIdsToFetch = userProfile.teamIds.filter(id => !ownedTeamsRaw.some(ot => ot.id === id));
         
         if (affiliatedIdsToFetch.length > 0) {
-            const teamsQuery = query(collection(db, 'teams'), where(documentId(), 'in', affiliatedIdsToFetch));
-            const affiliatedSnapshot = await getDocs(teamsQuery);
-            affiliatedTeamsRaw = affiliatedSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Team));
+            // Firestore 'in' query limit for v8 compat is 10
+            const chunks: string[][] = [];
+            for (let i = 0; i < affiliatedIdsToFetch.length; i += 10) {
+                chunks.push(affiliatedIdsToFetch.slice(i, i + 10));
+            }
+
+            for (const chunk of chunks) {
+                if (chunk.length === 0) continue;
+                const teamsQuery = db.collection('teams').where(firebase.firestore.FieldPath.documentId(), 'in', chunk) as FirebaseQuery;
+                const affiliatedSnapshot = await teamsQuery.get() as FirebaseQuerySnapshot;
+                affiliatedSnapshot.docs.forEach(doc => {
+                    affiliatedTeamsRaw.push({ id: doc.id, ...doc.data() } as Team)
+                });
+            }
         }
       }
 

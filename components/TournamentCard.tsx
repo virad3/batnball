@@ -3,7 +3,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Tournament, TournamentStatus } from '../types';
 import Button from './Button';
-import { Timestamp } from 'firebase/firestore';
+import { FirebaseTimestamp, Timestamp } from '../services/firebaseClient'; // Use re-exported Timestamp
 
 interface TournamentCardProps {
   tournament: Tournament;
@@ -16,10 +16,10 @@ const getTournamentStatus = (startDate: Date, endDate: Date): TournamentStatus =
   return "Ongoing";
 };
 
-const formatDateForCard = (dateInput: string | Timestamp | Date | undefined | null): string => {
+const formatDateForCard = (dateInput: string | FirebaseTimestamp | Date | undefined | null): string => {
   if (!dateInput) return 'N/A';
   let d: Date;
-  if (dateInput instanceof Timestamp) {
+  if (dateInput instanceof Timestamp) { // Use the imported Timestamp
     d = dateInput.toDate();
   } else if (typeof dateInput === 'string') {
     d = new Date(dateInput);

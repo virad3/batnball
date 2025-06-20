@@ -1,8 +1,8 @@
 
 import React, { createContext, useState, useContext, useCallback, ReactNode } from 'react';
 import { Match, BallEvent, InningsRecord, PlayerBattingStats, PlayerBowlingStats, DismissalType, MatchContextType, MatchState, Team } from '../types';
-import { createMatch, getMatchById, updateMatch } from '../services/dataService'; // Now uses Firebase
-import { Timestamp } from 'firebase/firestore'; // Ensure Timestamp is imported
+import { createMatch, getMatchById, updateMatch } from '../services/dataService'; 
+import { Timestamp } from '../services/firebaseClient'; // Use re-exported Timestamp
 
 const SQUAD_SIZE = 11; 
 
@@ -24,7 +24,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!matchWithPotentialTimestamp) return null;
     
     let processedDate: string;
-    if (matchWithPotentialTimestamp.date instanceof Timestamp) {
+    if (matchWithPotentialTimestamp.date instanceof Timestamp) { // Use imported Timestamp
         processedDate = matchWithPotentialTimestamp.date.toDate().toISOString();
     } else if (typeof matchWithPotentialTimestamp.date === 'string') {
         processedDate = matchWithPotentialTimestamp.date;

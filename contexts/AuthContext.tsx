@@ -3,8 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import type { User, AuthError } from 'firebase/auth';
-import { auth, db } from '../services/firebaseClient'; // Use Firebase client
-import { doc, setDoc, getDoc, Timestamp } from 'firebase/firestore'; // Added Timestamp for profile date fields
+import { auth, db, Timestamp } from '../services/firebaseClient'; // Use Firebase client and re-exported Timestamp
 import { UserProfile } from '../types';
 
 interface FirebaseSignUpCredentials {
@@ -45,12 +44,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setError(null);
       setUser(firebaseUser);
       if (firebaseUser) {
-        const profileDocRef = doc(db, 'profiles', firebaseUser.uid);
-        const profileDocSnap = await getDoc(profileDocRef);
+        const profileDocRef = db.collection('profiles').doc(firebaseUser.uid); // v8 compat
+        const profileDocSnap = await profileDocRef.get(); // v8 compat
         
-        let dbProfileData = profileDocSnap.exists() ? profileDocSnap.data() : {};
+        let dbProfileData = profileDocSnap.exists ? profileDocSnap.data() : {};
 
-        if (!profileDocSnap.exists()) {
+        if (!profileDocSnap.exists) {
             let defaultProfileType: UserProfile['profileType'] = 'Fan'; 
             
             dbProfileData = { 
@@ -66,20 +65,36 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 achievements: [],
                 teamIds: [], // Ensure teamIds is initialized for new profiles
             };
-            await setDoc(profileDocRef, {
+            await profileDocRef.set({ // v8 compat
                 ...dbProfileData, 
                 email: firebaseUser.email, 
             }, { merge: true });
         }
         
         let dobString: string | null = null;
-        const rawDob = dbProfileData.date_of_birth; 
+        const rawDob = dbProfileData?.date_of_birth; // Add optional chaining for safety
 
         if (rawDob) { 
             if (rawDob instanceof Timestamp) { 
                 dobString = rawDob.toDate().toISOString().split('T')[0];
             } else if (typeof rawDob === 'string') {
-                dobString = rawDob;
+                // Attempt to parse string to date, then format. Or assume it's already YYYY-MM-DD.
+                try {
+                    const parsedDate = new Date(rawDob);
+                    if (!isNaN(parsedDate.getTime())) {
+                        dobString = parsedDate.toISOString().split('T')[0];
+                    } else {
+                        // If it's not a valid ISO string, but might be 'YYYY-MM-DD'
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(rawDob)) {
+                           dobString = rawDob;
+                        }
+                    }
+                } catch (e) {
+                    // Could not parse, maybe it's already in the desired format or invalid
+                     if (/^\d{4}-\d{2}-\d{2}$/.test(rawDob)) {
+                       dobString = rawDob;
+                     }
+                }
             }
         }
         
@@ -152,8 +167,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           achievements: [], 
           teamIds: [], // Initialize teamIds
         };
-        const profileDocRef = doc(db, 'profiles', firebaseUser.uid);
-        await setDoc(profileDocRef, profileDataToSave); 
+        const profileDocRef = db.collection('profiles').doc(firebaseUser.uid); // v8 compat
+        await profileDocRef.set(profileDataToSave);  // v8 compat
       }
     } catch (e:any) {
       setError(e as AuthError);

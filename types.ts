@@ -1,4 +1,5 @@
-import { Timestamp as FirebaseTimestamp } from 'firebase/firestore';
+
+import { FirebaseTimestamp } from './services/firebaseClient'; // Updated import
 
 export enum MatchFormat {
   T20 = "T20",
