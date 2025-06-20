@@ -1,4 +1,5 @@
 
+
 import { FirebaseTimestamp } from './services/firebaseClient'; // Updated import
 
 export enum MatchFormat {
@@ -179,9 +180,10 @@ export interface MatchContextType extends MatchState {
   addBall: (event: BallEvent) => Promise<void>; // Make async for potential save
   updateBallEvent: (ballTimelineIndex: number, updatedEventData: BallEvent) => Promise<void>; // For editing a ball
   switchInnings: () => Promise<void>; // Make async
-  saveMatchState: () => Promise<void>; // Explicit save
+  saveMatchState: (matchToSave?: Match | null) => Promise<void>; // Explicit save, can take optional match
   endMatch: (resultSummary: string) => Promise<void>;
   setPlayerRoles: (striker?: string, nonStriker?: string, bowler?: string) => void;
+  refreshActiveInningsPlayerLists: (confirmedBattingSquad: string[], confirmedBowlingSquad: string[]) => Promise<void>;
 }
 
 export interface Team {

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Match, BallEvent, Score, MatchFormat, PlayerBattingStats, PlayerBowlingStats, DismissalType, InningsRecord } from '../types';
@@ -30,7 +31,7 @@ const ScoringPage: React.FC = () => {
   const { 
     matchDetails, loadMatch, addBall, switchInnings, saveMatchState, endMatch,
     currentStrikerName, currentNonStrikerName, currentBowlerName, setPlayerRoles, currentInningsNumber, target,
-    updateBallEvent 
+    updateBallEvent, refreshActiveInningsPlayerLists
   } = context;
 
   const [pageLoading, setPageLoading] = useState(true);
@@ -149,21 +150,38 @@ const ScoringPage: React.FC = () => {
         alert(`Please select ${SQUAD_SIZE} players for each team.`);
         return;
     }
-    const updatedMatchWithSquads = {
+    const updatedMatchWithSquads = { // This updates the top-level Match.teamASquad/BSquad
         ...matchDetails,
         teamASquad: selectedTeamASquad,
         teamBSquad: selectedTeamBSquad,
     };
     try {
         context.setMatchDetails(updatedMatchWithSquads); 
-        await saveMatchState(); 
+        
+        // Determine which squad is batting and which is bowling for the refresh function
+        let battingSquadForRefresh: string[];
+        let bowlingSquadForRefresh: string[];
+
+        if (matchDetails.current_batting_team === matchDetails.teamAName) {
+            battingSquadForRefresh = selectedTeamASquad;
+            bowlingSquadForRefresh = selectedTeamBSquad;
+        } else {
+            battingSquadForRefresh = selectedTeamBSquad;
+            bowlingSquadForRefresh = selectedTeamASquad;
+        }
+        
+        // Refresh the player performance lists within the current innings record
+        // This ensures PlayerBattingStats and PlayerBowlingStats objects are based on the confirmed 11 players
+        await refreshActiveInningsPlayerLists(battingSquadForRefresh, bowlingSquadForRefresh);
+        // saveMatchState will be called by refreshActiveInningsPlayerLists, no need to call again immediately.
+
         setShowSquadSelectionModal(false);
-        setModalStriker(''); // Reset for PlayerRolesModal
+        setModalStriker(''); 
         setModalNonStriker('');
         setModalBowler('');
         setShowPlayerRolesModal(true); 
     } catch (error) {
-        console.error("Error saving squads:", error);
+        console.error("Error saving squads and refreshing innings players:", error);
         alert("Failed to save squads. Please try again.");
     }
   };
@@ -207,34 +225,28 @@ const ScoringPage: React.FC = () => {
     await addBall(ballEvent);
     setShowWicketModal(false);
     
-    // Check if new batsman is needed
     const currentInningsData = currentInningsNumber === 1 ? matchDetails?.innings1Record : matchDetails?.innings2Record;
-    // The matchDetails in context might not be updated immediately after addBall.
-    // We rely on addBall to correctly increment wicket count in context.
-    // For prompting new batsman, check against SQUAD_SIZE-1.
-    // Total wickets in InningsRecord is the source of truth for match end conditions.
-    const wicketsAfterThisBall = (currentInningsData?.totalWickets || 0) + 1; // Anticipate the wicket just added
+    const wicketsAfterThisBall = (currentInningsData?.totalWickets || 0); // addBall updates this, so just read it
 
     if (wicketsAfterThisBall < SQUAD_SIZE -1) { 
-        setModalStriker(''); // New striker needed
-        // Non-striker remains the same unless they were the one out
+        setModalStriker(''); 
         setModalNonStriker(wicketDetails.batsmanOut === currentStrikerName ? currentNonStrikerName! : currentStrikerName!); 
-        setModalBowler(currentBowlerName!); // Bowler usually continues
+        setModalBowler(currentBowlerName!); 
         setShowPlayerRolesModal(true); 
     }
   };
   
-  const handleSimpleBallEvent = async (runs: number, isWicket: boolean = false, extraType?: BallEvent['extraType'], extraRuns?: number) => {
+  const handleSimpleBallEvent = async (runs: number, isWicket: boolean = false, extraType?: BallEvent['extraType'], extraRunsForEvent?: number) => {
     if (!currentStrikerName || !currentBowlerName) {
         alert("Please set Striker and Bowler first!");
         setShowPlayerRolesModal(true);
         return;
     }
-    console.log(`[ScoringPage] handleSimpleBallEvent: runs=${runs}, isWicket=${isWicket}, extraType=${extraType}, extraRuns=${extraRuns}`);
+    console.log(`[ScoringPage] handleSimpleBallEvent: runs=${runs}, isWicket=${isWicket}, extraType=${extraType}, extraRunsForEvent=${extraRunsForEvent}`);
     if(isWicket) {
         setWicketDetails({ 
-            batsmanOut: currentStrikerName, // Default to current striker
-            dismissalType: DismissalType.BOWLED, // Default dismissal
+            batsmanOut: currentStrikerName, 
+            dismissalType: DismissalType.BOWLED, 
             bowler: currentBowlerName,
             fielder: ''
         });
@@ -244,13 +256,52 @@ const ScoringPage: React.FC = () => {
             runs, 
             isWicket: false, 
             extraType, 
-            extraRuns, 
+            extraRuns: extraRunsForEvent, 
             strikerName: currentStrikerName, 
             bowlerName: currentBowlerName 
         };
         await addBall(ballEvent);
     }
   };
+
+  const handleExtraButtonClick = (type: BallEvent['extraType']) => {
+    if (!currentStrikerName || !currentBowlerName) {
+        alert("Please set Striker and Bowler first!");
+        setShowPlayerRolesModal(true);
+        return;
+    }
+
+    let runsValue: number | null = null;
+    let extraRunsForEvent: number;
+
+    if (type === "Wide") {
+        const wideRunsStr = prompt(`Enter TOTAL runs for this Wide delivery (e.g., 1 for just wide, 5 if wide + boundary 4):`, "1");
+        runsValue = wideRunsStr !== null ? parseInt(wideRunsStr, 10) : null;
+        if (runsValue === null) return; 
+        if (isNaN(runsValue) || runsValue < 1 || runsValue > 7) { 
+            alert("Invalid input. Total Wide runs must be between 1 and 7."); return;
+        }
+        extraRunsForEvent = runsValue;
+    } else if (type === "NoBall") {
+        const noBallScoredStr = prompt(`Enter runs scored OFF this No Ball (by bat or as other extras like byes/overthrows, enter 0 if none):`, "0");
+        runsValue = noBallScoredStr !== null ? parseInt(noBallScoredStr, 10) : null;
+        if (runsValue === null) return; 
+        if (isNaN(runsValue) || runsValue < 0 || runsValue > 6) { 
+            alert("Invalid input for runs scored off No Ball (0-6)."); return;
+        }
+        extraRunsForEvent = runsValue + 1; 
+    } else { 
+        const byeLegByeRunsStr = prompt(`Enter runs for ${type} (0-6):`, "0");
+        runsValue = byeLegByeRunsStr !== null ? parseInt(byeLegByeRunsStr, 10) : null;
+        if (runsValue === null) return; 
+        if (isNaN(runsValue) || runsValue < 0 || runsValue > 6) {
+            alert(`Invalid input for ${type} runs (0-6).`); return;
+        }
+        extraRunsForEvent = runsValue;
+    }
+    handleSimpleBallEvent(0, false, type, extraRunsForEvent);
+  };
+
 
   const currentMatchInningsData = currentInningsNumber === 1 ? matchDetails?.innings1Record : matchDetails?.innings2Record;
   const scoreForDisplay: Score | null = currentMatchInningsData && matchDetails?.current_batting_team ? {
@@ -398,6 +449,7 @@ const ScoringPage: React.FC = () => {
     const currentBowlingTeamSquad = matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamBSquad : matchDetails.teamASquad;
 
     const activeInningsRecord = currentInningsNumber === 1 ? matchDetails.innings1Record : matchDetails.innings2Record;
+    // Batsmen available for selection are those in the confirmed squad who are not out
     const availableBatsmen = currentBattingTeamSquad?.filter(pName => {
         const pStat = activeInningsRecord?.battingPerformances.find(bp => bp.playerName === pName);
         return !pStat || pStat.status === DismissalType.NOT_OUT;
@@ -508,9 +560,6 @@ const ScoringPage: React.FC = () => {
         </div>
     );
   }
-  // This condition should already be handled by the useEffect that re-prompts if roles are unset.
-  // if (matchDetails.status === "Live" && (!currentStrikerName || !currentBowlerName)) { ... }
-
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
@@ -559,11 +608,7 @@ const ScoringPage: React.FC = () => {
         </div>
         <div className="flex space-x-2">
             {(["Wide", "NoBall", "Byes", "LegByes"] as BallEvent['extraType'][]).map(type => 
-                <ExtraButton key={type} type={type} onClick={() => {
-                    const extraRunsValue = type === "Wide" || type === "NoBall" ? 1 : promptForExtraRuns(type); 
-                    if (extraRunsValue === null) return; 
-                    handleSimpleBallEvent(0, false, type, extraRunsValue); 
-                }} />
+                <ExtraButton key={type} type={type} onClick={() => handleExtraButtonClick(type!)} />
             )}
         </div>
       </div>
@@ -590,17 +635,6 @@ const ScoringPage: React.FC = () => {
       </div>
     </div>
   );
-};
-
-const promptForExtraRuns = (type: string): number | null => {
-    const runsStr = prompt(`Enter ${type} runs (0-6):`);
-    if (runsStr === null) return null; 
-    const runs = parseInt(runsStr, 10);
-    if (isNaN(runs) || runs < 0 || runs > 6) {
-        alert("Invalid number of runs. Please enter a value between 0 and 6.");
-        return null;
-    }
-    return runs;
 };
 
 export default ScoringPage;

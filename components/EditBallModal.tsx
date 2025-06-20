@@ -9,10 +9,10 @@ interface EditBallModalProps {
   onClose: () => void;
   ballEventToEdit: BallEvent | null;
   onSubmit: (updatedEvent: BallEvent) => void;
-  currentStrikerName: string | null; // Needed if dismissal changes and batsmanOut needs to be set
-  currentNonStrikerName: string | null; // For run-out scenarios if applicable
-  bowlingTeamSquad: string[] | undefined; // For fielder selection
-  battingTeamSquad: string[] | undefined; // For batsman selection if run out involving non-striker
+  currentStrikerName: string | null; 
+  currentNonStrikerName: string | null; 
+  bowlingTeamSquad: string[] | undefined; 
+  battingTeamSquad: string[] | undefined; 
 }
 
 const EditBallModal: React.FC<EditBallModalProps> = ({
@@ -33,7 +33,7 @@ const EditBallModal: React.FC<EditBallModalProps> = ({
       setEditedEvent({ ...ballEventToEdit });
       setError(null);
     } else {
-      setEditedEvent({}); // Reset if no ball to edit (e.g., modal closed and re-opened for a new edit)
+      setEditedEvent({}); 
     }
   }, [ballEventToEdit, isOpen]);
 
@@ -45,52 +45,59 @@ const EditBallModal: React.FC<EditBallModalProps> = ({
 
     if (type === 'number') {
       processedValue = parseInt(value, 10);
-      if (isNaN(processedValue as number)) processedValue = 0; // Default to 0 if NaN
+      if (isNaN(processedValue as number)) processedValue = name === 'extraRuns' && (editedEvent.extraType === 'Wide' || editedEvent.extraType === 'NoBall') ? (editedEvent.extraType === 'Wide' ? 1: 0) : 0;
+      else if (name === 'extraRuns' && editedEvent.extraType === 'Wide' && processedValue < 1) processedValue = 1;
+
     } else if (type === 'checkbox') {
       processedValue = (e.target as HTMLInputElement).checked;
     }
     
     setEditedEvent(prev => ({ ...prev, [name]: processedValue }));
-    setError(null); // Clear error on change
+    setError(null); 
   };
 
   const handleExtraTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newExtraType = e.target.value as BallEvent['extraType'] | "";
+    let newExtraRuns = editedEvent.extraRuns;
+
     if (newExtraType === "") { // Clearing extra type
-        setEditedEvent(prev => ({
-            ...prev,
-            extraType: undefined,
-            extraRuns: undefined, // Also clear extra runs if extra type is removed
-        }));
-    } else {
-        setEditedEvent(prev => ({
-            ...prev,
-            extraType: newExtraType as BallEvent['extraType'],
-            extraRuns: (newExtraType === "Wide" || newExtraType === "NoBall") ? 1 : (prev.extraRuns || 0), // Default extraRuns for Wide/NoBall
-        }));
+        newExtraRuns = undefined;
+    } else if (newExtraType === "Wide") {
+        newExtraRuns = editedEvent.extraRuns ?? 1; // Default to 1 for wide, or keep existing if user already set >1
+        if (newExtraRuns < 1) newExtraRuns = 1;
+    } else if (newExtraType === "NoBall") {
+        newExtraRuns = editedEvent.extraRuns ?? 0; // Runs scored OFF the no-ball, 0 if none
+    } else { // Byes, LegByes
+        newExtraRuns = editedEvent.extraRuns ?? 0;
     }
+    
+    setEditedEvent(prev => ({
+        ...prev,
+        extraType: newExtraType === "" ? undefined : newExtraType as BallEvent['extraType'],
+        extraRuns: newExtraRuns,
+    }));
   };
 
 
   const handleWicketChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const isWicket = e.target.checked;
+    const isWicketChecked = e.target.checked;
     setEditedEvent(prev => ({
       ...prev,
-      isWicket,
-      // If unchecking wicket, clear related fields
-      wicketType: isWicket ? (prev.wicketType || DismissalType.BOWLED) : undefined,
-      batsmanOutName: isWicket ? (prev.batsmanOutName || currentStrikerName || '') : undefined,
-      fielderName: isWicket ? prev.fielderName : undefined,
+      isWicket: isWicketChecked,
+      wicketType: isWicketChecked ? (prev.wicketType || DismissalType.BOWLED) : undefined,
+      batsmanOutName: isWicketChecked ? (prev.batsmanOutName || currentStrikerName || '') : undefined,
+      fielderName: isWicketChecked ? prev.fielderName : undefined,
     }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
     if (!editedEvent.strikerName || !editedEvent.bowlerName) {
         setError("Striker and Bowler names are required for each ball event.");
         return;
     }
-    // Basic validation
     if (editedEvent.isWicket && !editedEvent.wicketType) {
         setError("Please select a dismissal type for the wicket.");
         return;
@@ -99,12 +106,19 @@ const EditBallModal: React.FC<EditBallModalProps> = ({
         setError("Please select the batsman who was out.");
         return;
     }
-    if ((editedEvent.extraType === 'Byes' || editedEvent.extraType === 'LegByes') && (editedEvent.extraRuns === undefined || editedEvent.extraRuns < 0)) {
-        setError("Please enter valid runs for Byes/LegByes (0 or more).");
-        return;
+    
+    let calculatedExtraRuns = editedEvent.extraRuns;
+    if (editedEvent.extraType === "NoBall") {
+        // `editedEvent.extraRuns` from input is runs scored OFF the no-ball. Add 1 for the no-ball itself.
+        calculatedExtraRuns = (editedEvent.extraRuns ?? 0) + 1;
+    } else if (editedEvent.extraType === "Wide") {
+        // `editedEvent.extraRuns` from input is total runs for the wide. Min 1.
+        calculatedExtraRuns = Math.max(1, editedEvent.extraRuns ?? 1);
     }
-    if ((editedEvent.extraType === 'Wide' || editedEvent.extraType === 'NoBall') && (editedEvent.extraRuns === undefined || editedEvent.extraRuns < 1)) {
-        setError("Wide/NoBall must have at least 1 extra run.");
+    // For Byes/LegByes, editedEvent.extraRuns is the value itself.
+
+    if (editedEvent.extraType && (calculatedExtraRuns === undefined || calculatedExtraRuns < (editedEvent.extraType === "Wide" || editedEvent.extraType === "NoBall" ? 1 : 0))) {
+        setError(`Invalid extra runs for ${editedEvent.extraType}.`);
         return;
     }
      if (!editedEvent.extraType && (editedEvent.runs === undefined || editedEvent.runs < 0 || editedEvent.runs > 6)) {
@@ -112,23 +126,21 @@ const EditBallModal: React.FC<EditBallModalProps> = ({
         return;
     }
     
-    // Ensure bowlerName is set for the event, defaulting to original if not changed
     const finalEvent: BallEvent = {
-        ballId: ballEventToEdit.ballId, // Preserve original ballId
-        runs: editedEvent.extraType ? 0 : (editedEvent.runs ?? 0), // Runs off bat are 0 if it's an extra
+        ballId: ballEventToEdit.ballId, 
+        runs: editedEvent.extraType ? 0 : (editedEvent.runs ?? 0), 
         isWicket: editedEvent.isWicket ?? false,
         wicketType: editedEvent.isWicket ? (editedEvent.wicketType || DismissalType.OTHER) : undefined,
         batsmanOutName: editedEvent.isWicket ? editedEvent.batsmanOutName : undefined,
         bowlerName: editedEvent.bowlerName || ballEventToEdit.bowlerName || 'Unknown Bowler',
         fielderName: editedEvent.isWicket ? editedEvent.fielderName : undefined,
         extraType: editedEvent.extraType || undefined,
-        extraRuns: editedEvent.extraType ? (editedEvent.extraRuns ?? 0) : undefined,
+        extraRuns: editedEvent.extraType ? calculatedExtraRuns : undefined,
         commentary: editedEvent.commentary || ballEventToEdit.commentary,
         strikerName: editedEvent.strikerName || ballEventToEdit.strikerName || 'Unknown Striker',
     };
     
     onSubmit(finalEvent);
-    onClose();
   };
   
   const inputBaseClass = "w-full p-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
@@ -152,7 +164,6 @@ const EditBallModal: React.FC<EditBallModalProps> = ({
         {error && <p className="text-red-400 bg-red-900 bg-opacity-40 border border-red-700 p-2 rounded-md text-sm mb-3">{error}</p>}
         
         <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto pr-2 custom-scrollbar-modal">
-          {/* Striker and Bowler (usually not editable here, but shown for context) */}
           <div className="grid grid-cols-2 gap-4">
             <div>
                 <label className={labelClass}>Striker on this ball:</label>
@@ -164,8 +175,6 @@ const EditBallModal: React.FC<EditBallModalProps> = ({
             </div>
           </div>
 
-
-          {/* Runs Scored (if not an extra) */}
           {!editedEvent.extraType && (
             <div>
               <label htmlFor="runs" className={labelClass}>Runs off Bat:</label>
@@ -175,7 +184,6 @@ const EditBallModal: React.FC<EditBallModalProps> = ({
             </div>
           )}
 
-          {/* Extras */}
           <div>
             <label htmlFor="extraType" className={labelClass}>Extra Type:</label>
             <select id="extraType" name="extraType" value={editedEvent.extraType || ""} onChange={handleExtraTypeChange} className={inputClass}>
@@ -187,25 +195,31 @@ const EditBallModal: React.FC<EditBallModalProps> = ({
             </select>
           </div>
 
-          {editedEvent.extraType && (editedEvent.extraType === "Byes" || editedEvent.extraType === "LegByes" || editedEvent.extraType === "NoBall") && (
+          {editedEvent.extraType === "Wide" && (
             <div>
-              <label htmlFor="extraRuns" className={labelClass}>
-                {editedEvent.extraType === "NoBall" ? "Runs off No Ball (bat/extras):" : `${editedEvent.extraType} Runs:`}
-              </label>
-              <select id="extraRuns" name="extraRuns" value={editedEvent.extraRuns ?? 0} onChange={handleChange} className={inputClass}>
-                {[0, 1, 2, 3, 4, 5, 6].map(r => <option key={`er-${r}`} value={r}>{r}</option>)}
-              </select>
-            </div>
-          )}
-           {editedEvent.extraType === "Wide" && (
-            <div>
-                <label htmlFor="extraRunsWide" className={labelClass}>Wide Runs (usually 1):</label>
-                <input type="number" id="extraRunsWide" name="extraRuns" value={editedEvent.extraRuns ?? 1} min="1" max="6" onChange={handleChange} className={inputClass} />
+                <label htmlFor="extraRunsWide" className={labelClass}>Total Wide Runs (min 1):</label>
+                <input type="number" id="extraRunsWide" name="extraRuns" value={editedEvent.extraRuns ?? 1} min="1" max="7" onChange={handleChange} className={inputClass} />
             </div>
            )}
+           {editedEvent.extraType === "NoBall" && (
+            <div>
+                <label htmlFor="extraRunsNoBall" className={labelClass}>Runs Scored OFF No Ball (bat/extras, 0-6):</label>
+                 <select id="extraRunsNoBall" name="extraRuns" value={editedEvent.extraRuns ?? 0} onChange={handleChange} className={inputClass}>
+                    {[0, 1, 2, 3, 4, 5, 6].map(r => <option key={`ernb-${r}`} value={r}>{r}</option>)}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">Total for No Ball event will be these runs + 1.</p>
+            </div>
+           )}
+           {(editedEvent.extraType === "Byes" || editedEvent.extraType === "LegByes") && (
+            <div>
+              <label htmlFor="extraRunsOther" className={labelClass}>{editedEvent.extraType} Runs (0-6):</label>
+               <select id="extraRunsOther" name="extraRuns" value={editedEvent.extraRuns ?? 0} onChange={handleChange} className={inputClass}>
+                    {[0, 1, 2, 3, 4, 5, 6].map(r => <option key={`ero-${r}`} value={r}>{r}</option>)}
+                </select>
+            </div>
+          )}
 
 
-          {/* Wicket */}
           <div className="pt-2">
             <label className="flex items-center space-x-2 cursor-pointer">
               <input type="checkbox" name="isWicket" checked={editedEvent.isWicket ?? false} onChange={handleWicketChange} className="form-checkbox h-5 w-5 text-teal-600 border-gray-500 rounded focus:ring-teal-500 bg-gray-600 checked:bg-teal-600" />
@@ -244,7 +258,7 @@ const EditBallModal: React.FC<EditBallModalProps> = ({
 
         <div className="mt-6 pt-4 border-t border-gray-700 flex justify-end space-x-3">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={handleSubmit}>Save Changes</Button>
+          <Button variant="primary" type="submit" form="edit-ball-modal-form" onClick={handleSubmit}>Save Changes</Button>
         </div>
       </div>
     </div>
