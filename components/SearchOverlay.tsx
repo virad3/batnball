@@ -125,7 +125,7 @@ const TournamentResultCard: React.FC<{ tournament: Tournament; onClick: () => vo
               </p>
                <span className={`mt-1 inline-block px-2 py-0.5 text-xs font-semibold rounded-full ${statusBadgeStyles[status]}`}>
                   {status.toUpperCase()}
-              </span>
+               </span>
           </div>
       </div>
     </button>
@@ -333,5 +333,6 @@ export const SearchOverlayComponent: React.FC<SearchOverlayProps> = ({ searchQue
   );
 };
 
-// Remove the default export and keep only the named export
-// export default SearchOverlayComponent;
+// Removed the separate export block, SearchOverlayComponent is now exported directly.
+// Comment about removing default export is no longer relevant as it's directly a named export.
+// export default SearchOverlayComponent; // Ensured this is removed/commented
