@@ -160,7 +160,7 @@ const MatchResultCard: React.FC<{ match: Match; onClick: () => void }> = ({ matc
 );
 
 
-const SearchOverlayComponent: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQuery, onClose }) => {
+export const SearchOverlayComponent: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQuery, onClose }) => {
   const [allFetchedResults, setAllFetchedResults] = useState<SearchResultItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -333,4 +333,5 @@ const SearchOverlayComponent: React.FC<SearchOverlayProps> = ({ searchQuery, set
   );
 };
 
-export { SearchOverlayComponent as SearchOverlay };
+// Remove the default export and keep only the named export
+// export default SearchOverlayComponent;
