@@ -27,14 +27,13 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (matchWithPotentialTimestamp.date instanceof Timestamp) { // Use imported Timestamp
         processedDate = matchWithPotentialTimestamp.date.toDate().toISOString();
     } else if (typeof matchWithPotentialTimestamp.date === 'string') {
-        // Attempt to parse if it's not already ISO, or ensure it is
         try {
             const d = new Date(matchWithPotentialTimestamp.date);
             if(isNaN(d.getTime())) throw new Error("Invalid date string for conversion");
             processedDate = d.toISOString();
         } catch(e) {
             console.warn("Match date string could not be parsed to ISO, using as is:", matchWithPotentialTimestamp.date, e);
-            processedDate = matchWithPotentialTimestamp.date; // Use as is if parsing fails, assuming it's already correct
+            processedDate = matchWithPotentialTimestamp.date; 
         }
     } else {
         console.warn("Match date in unexpected format during conversion:", matchWithPotentialTimestamp.date);
@@ -112,7 +111,6 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         
         if (fetchedMatchFromDb) {
             setMatchDetails(fetchedMatchFromDb); 
-            // State update for roles etc. is handled by setMatchDetails's effect
             return convertMatchTimestampsToStrings(fetchedMatchFromDb);
         } else {
             setMatchDetails(null);
@@ -125,34 +123,59 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   }, [setMatchDetails]);
 
-  const startNewMatch = useCallback(async (partialMatchData: Partial<Match>): Promise<Match | null> => {
-    console.log('[MatchContext] startNewMatch called with partialMatchData:', partialMatchData);
+  const startNewMatch = useCallback(async (
+    partialMatchData: Partial<Match> & { tossWinnerName?: string, electedTo?: "Bat" | "Bowl" }
+    ): Promise<Match | null> => {
+    console.log('[MatchContext] startNewMatch called with:', partialMatchData);
     try {
         const teamAName = partialMatchData.teamAName || "Team A";
         const teamBName = partialMatchData.teamBName || "Team B";
-
         const teamASquad = partialMatchData.teamASquad || Array.from({ length: SQUAD_SIZE }, (_, i) => `${teamAName} Player ${i + 1}`);
         const teamBSquad = partialMatchData.teamBSquad || Array.from({ length: SQUAD_SIZE }, (_, i) => `${teamBName} Player ${i + 1}`);
 
-        // Ensure date is handled correctly. dataService.createMatch will convert string to Timestamp.
-        const matchDate = partialMatchData.date || new Date().toISOString();
+        let matchDate = partialMatchData.date || new Date().toISOString();
+        let status: Match['status'] = "Upcoming";
+        let innings1Record: InningsRecord | null = null;
+        let currentBattingTeam: string | undefined = undefined;
+
+        if (partialMatchData.tossWinnerName && partialMatchData.electedTo) {
+            status = "Live";
+            matchDate = new Date().toISOString(); // If toss happens, match is "now"
+            const battingFirstTeam = partialMatchData.electedTo === "Bat" ? partialMatchData.tossWinnerName : (partialMatchData.tossWinnerName === teamAName ? teamBName : teamAName);
+            const bowlingFirstTeam = battingFirstTeam === teamAName ? teamBName : teamASquad;
+            
+            const battingSquad = battingFirstTeam === teamAName ? teamASquad : teamBSquad;
+            const bowlingSquadForInit = battingFirstTeam === teamAName ? teamBSquad : teamASquad;
+
+            innings1Record = initializeInningsRecord(battingFirstTeam, battingSquad, bowlingSquadForInit);
+            currentBattingTeam = battingFirstTeam;
+        }
 
         const newMatchData: Partial<Match> = {
-            status: "Upcoming", // Default to Upcoming, especially if date is future.
             ...partialMatchData,
-            date: matchDate, // Pass the date through
+            date: matchDate,
             teamAName,
             teamBName,
             teamASquad,
             teamBSquad,
+            status,
+            innings1Record: innings1Record,
+            current_batting_team: currentBattingTeam,
         };
-        const createdMatchFromDb = await createMatch(newMatchData); // createMatch in dataService handles Timestamp conversion
-        console.log('[MatchContext] Match CREATED by dataService in startNewMatch:', createdMatchFromDb);
+        const createdMatchFromDb = await createMatch(newMatchData);
+        console.log('[MatchContext] Match CREATED/STARTED by dataService:', createdMatchFromDb);
 
         if (createdMatchFromDb) {
           setMatchDetails(createdMatchFromDb); 
+          if(status === "Live") { // Set context state for live match
+            setState(prevState => ({
+                ...prevState,
+                currentInningsNumber: 1,
+                target: null,
+            }));
+          }
         } else {
-          console.error('[MatchContext] createMatch returned null or undefined. Cannot set details.');
+          console.error('[MatchContext] createMatch returned null or undefined.');
         }
         return convertMatchTimestampsToStrings(createdMatchFromDb);
     } catch (error) {
@@ -162,7 +185,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, [setMatchDetails]);
 
   const updateTossAndStartInnings = useCallback(async (tossWinner: string, elected: "Bat" | "Bowl") => {
-    if (!state.matchDetails) throw new Error("Match details not available");
+    if (!state.matchDetails) throw new Error("Match details not available for toss update.");
     console.log('[MatchContext] updateTossAndStartInnings. Toss Winner:', tossWinner, 'Elected:', elected);
 
     const match = state.matchDetails;
@@ -178,7 +201,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         ...(match as Match),
         tossWinnerName: tossWinner,
         electedTo: elected,
-        status: "Live", // Status changes to Live once toss is done and innings are about to start
+        status: "Live", 
         innings1Record: innings1,
         current_batting_team: battingFirstTeam,
     };

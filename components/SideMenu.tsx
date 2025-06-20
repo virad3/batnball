@@ -29,11 +29,13 @@ interface SideMenuProps {
 
 interface MenuItem {
   name: string;
-  path: string;
+  path?: string; // Optional if action is present
   icon: React.ElementType;
   badge?: string | React.ReactNode; 
   action?: () => void;
   suffixIcon?: React.ElementType;
+  isExternalLink?: boolean;
+  state?: any; // For react-router-dom state
 }
 
 // Function to calculate profile completion percentage
@@ -78,9 +80,9 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
 
   const menuItems: MenuItem[] = [
     { name: "Add a Tournament/Series", path: "/tournaments/new", icon: TrophyIcon }, 
-    { name: "Start A Match", path: "/start-match/select-teams", icon: PlayCircleIcon }, 
+    { name: "Start A Match", path: "/start-match/select-teams", icon: PlayCircleIcon, state: { mode: 'startNow' } }, 
     { name: "Go Live", path: "/live", icon: VideoCameraIcon }, 
-    { name: "Toss", path: "/toss", icon: CircleStackIcon }, 
+    // { name: "Toss", path: "/toss", icon: CircleStackIcon }, // Toss is part of match flow now
     { name: "My Matches", path: "/matches", icon: CalendarDaysIcon },
     { name: "My Tournaments", path: "/tournaments", icon: TrophyIcon },
     { name: "My Teams", path: "/my-teams", icon: UserGroupIcon },
@@ -153,20 +155,19 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
           <ul>
             {menuItems.map((item) => (
               <li key={item.name}>
-                <NavLink
-                  to={item.path}
+                <button // Changed NavLink to button to handle navigation with state
                   onClick={() => {
                     if (item.action) item.action();
+                    if(item.path) navigate(item.path, {state: item.state});
                     onClose();
                   }}
-                  className={({ isActive }) => // isActive is from react-router-dom
-                    `flex items-center px-4 py-3 text-sm font-medium transition-colors hover:bg-gray-700 ${ // Darker hover
-                      isActive ? 'bg-gray-700 text-yellow-400' : 'text-gray-200' // Active state uses yellow
-                    }`
-                  }
+                  className={
+                    `flex items-center w-full px-4 py-3 text-sm font-medium transition-colors hover:bg-gray-700 text-left
+                    ${location.pathname === item.path ? 'bg-gray-700 text-yellow-400' : 'text-gray-200'} 
+                    `}
                 >
                   <item.icon className={`h-5 w-5 mr-3 ${
-                      location.pathname.startsWith(item.path) && (item.path !== "/" || location.pathname === "/") ? 'text-yellow-400' : 'text-gray-400' // Active icon yellow
+                      location.pathname.startsWith(item.path || ' ') && (item.path !== "/" || location.pathname === "/") ? 'text-yellow-400' : 'text-gray-400' // Active icon yellow
                     }`} />
                   <span className="flex-grow">{item.name}</span>
                   {item.badge && (
@@ -175,7 +176,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
                     </span>
                   )}
                   {item.suffixIcon && <item.suffixIcon className="h-4 w-4 text-gray-400 ml-auto" />}
-                </NavLink>
+                </button>
               </li>
             ))}
           </ul>

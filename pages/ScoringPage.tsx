@@ -26,14 +26,12 @@ const ScoringPage: React.FC = () => {
   const navigate = useNavigate();
   const context = useMatchContext();
   const { 
-    matchDetails, loadMatch, startNewMatch, updateTossAndStartInnings, addBall, switchInnings, saveMatchState, endMatch,
+    matchDetails, loadMatch, addBall, switchInnings, saveMatchState, endMatch,
     currentStrikerName, currentNonStrikerName, currentBowlerName, setPlayerRoles, currentInningsNumber, target
   } = context;
 
   const [pageLoading, setPageLoading] = useState(true);
-  const [showTossModal, setShowTossModal] = useState(false);
-  const [tossWinnerNameState, setTossWinnerNameState] = useState<string | null>(null);
-  const [electedToState, setElectedToState] = useState<"Bat" | "Bowl" | null>(null);
+  // Toss Modal state removed - handled by TossPage
   
   const [showSquadSelectionModal, setShowSquadSelectionModal] = useState(false);
   const [availableTeamAPlayers, setAvailableTeamAPlayers] = useState<string[]>([]);
@@ -57,34 +55,23 @@ const ScoringPage: React.FC = () => {
     setPageLoading(true);
     if (!matchId) { 
       console.log('[ScoringPage] No matchId, navigating to /matches');
-      navigate('/matches'); 
+      navigate('/matches', { replace: true }); 
       return; 
     }
 
     let loadedMatch = context.matchDetails && context.matchDetails.id === matchId ? context.matchDetails : await loadMatch(matchId);
     console.log('[ScoringPage] loadedMatch after initial loadAttempt:', loadedMatch);
 
-    if (matchId === "newmatch" && !loadedMatch) {
-      console.log('[ScoringPage] matchId is "newmatch" and no existing match loaded. Calling startNewMatch.');
-      const tempMatchData: Partial<Match> = {
-        teamAName: "Team A", teamBName: "Team B", date: new Date().toISOString(),
-        venue: "Local Ground", format: MatchFormat.T20, status: "Upcoming", overs_per_innings: 20,
-        teamASquad: [], teamBSquad: [],
-      };
-      loadedMatch = await startNewMatch(tempMatchData);
-      console.log('[ScoringPage] loadedMatch after startNewMatch call:', loadedMatch);
-      if (loadedMatch && loadedMatch.id) {
-        navigate(`/matches/${loadedMatch.id}/score`, { replace: true });
-      }
-    }
-
     if (loadedMatch) {
-      console.log('[ScoringPage] Conditions Check: loadedMatch.id:', loadedMatch.id, 'status:', loadedMatch.status, 'tossWinnerName:', loadedMatch.tossWinnerName);
       if (loadedMatch.status === "Upcoming" && !loadedMatch.tossWinnerName) {
-        console.log('[ScoringPage] CONDITION MET: Show Toss Modal.');
-        setTossWinnerNameState(loadedMatch.teamAName); 
-        setShowTossModal(true);
-      } else if (loadedMatch.status === "Live" && (!loadedMatch.teamASquad || loadedMatch.teamASquad.length < SQUAD_SIZE || !loadedMatch.teamBSquad || loadedMatch.teamBSquad.length < SQUAD_SIZE)) {
+        // Match is upcoming and toss not done, redirect to TossPage
+        console.log('[ScoringPage] Match upcoming and toss not done, redirecting to TossPage.');
+        navigate(`/toss/${loadedMatch.id}`, { replace: true });
+        return;
+      }
+      
+      console.log('[ScoringPage] Conditions Check: loadedMatch.id:', loadedMatch.id, 'status:', loadedMatch.status, 'tossWinnerName:', loadedMatch.tossWinnerName);
+      if (loadedMatch.status === "Live" && (!loadedMatch.teamASquad || loadedMatch.teamASquad.length < SQUAD_SIZE || !loadedMatch.teamBSquad || loadedMatch.teamBSquad.length < SQUAD_SIZE)) {
         console.log('[ScoringPage] CONDITION MET: Show Squad Selection Modal.');
         setAvailableTeamAPlayers(loadedMatch.teamASquad || []);
         setSelectedTeamASquad(loadedMatch.teamASquad || []);
@@ -100,50 +87,20 @@ const ScoringPage: React.FC = () => {
       } else {
         console.log('[ScoringPage] No initial modal condition met for loadedMatch.');
       }
-    } else if (matchId !== "newmatch") {
-      console.log('[ScoringPage] Match not loaded and matchId is not "newmatch", navigating to /matches.');
-      navigate('/matches'); 
     } else {
-      console.log('[ScoringPage] Critical: matchId is "newmatch" but loadedMatch is still null/undefined after trying to create it.');
+      console.log('[ScoringPage] Match not loaded, navigating to /matches.');
+      navigate('/matches', {replace: true}); 
     }
     setPageLoading(false);
     console.log('[ScoringPage] initializePage finished.');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, navigate, loadMatch, startNewMatch, context.matchDetails, currentStrikerName, currentBowlerName]);
+  }, [matchId, navigate, loadMatch, context.matchDetails, currentStrikerName, currentBowlerName]);
 
   useEffect(() => {
     initializePage();
   }, [initializePage]);
 
-
-  const handleTossSubmit = async () => {
-    if (!matchDetails || !tossWinnerNameState || !electedToState) return;
-    console.log('[ScoringPage] handleTossSubmit called.');
-    try {
-      await updateTossAndStartInnings(tossWinnerNameState, electedToState);
-      setShowTossModal(false);
-      const currentMatchDetails = context.matchDetails; 
-      if (!currentMatchDetails) {
-          console.error("Match details are null after toss submission, cannot proceed.");
-          return;
-      }
-
-      if (!currentMatchDetails.teamASquad || currentMatchDetails.teamASquad.length < SQUAD_SIZE || !currentMatchDetails.teamBSquad || currentMatchDetails.teamBSquad.length < SQUAD_SIZE) {
-        setAvailableTeamAPlayers(currentMatchDetails.teamASquad || []);
-        setSelectedTeamASquad(currentMatchDetails.teamASquad || []);
-        setAvailableTeamBPlayers(currentMatchDetails.teamBSquad || []);
-        setSelectedTeamBSquad(currentMatchDetails.teamBSquad || []);
-        setShowSquadSelectionModal(true);
-      } else {
-        setModalStriker(currentMatchDetails.current_striker_name || '');
-        setModalNonStriker(currentMatchDetails.current_non_striker_name || '');
-        setModalBowler(currentMatchDetails.current_bowler_name || '');
-        setShowPlayerRolesModal(true);
-      }
-    } catch (error) {
-        console.error("Error submitting toss:", error);
-    }
-  };
+  // Toss submit logic removed - handled by TossPage
 
   const handleSquadPlayerSelection = (playerName: string, team: 'A' | 'B') => {
     if (team === 'A') {
@@ -280,7 +237,7 @@ const ScoringPage: React.FC = () => {
   } : null;
 
   const modalInputBaseClass = "w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
-  const modalInputFocusClass = "focus:ring-teal-500 focus:border-teal-500"; // Changed focus color
+  const modalInputFocusClass = "focus:ring-teal-500 focus:border-teal-500"; 
   const modalInputClass = `${modalInputBaseClass} ${modalInputFocusClass}`;
   const modalLabelClass = "block text-sm font-medium text-gray-200 mb-1";
 
@@ -305,20 +262,20 @@ const ScoringPage: React.FC = () => {
             value={newPlayerName} 
             onChange={(e) => setNewPlayerName(e.target.value)} 
             placeholder="Enter player name" 
-            className={`flex-grow p-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 placeholder-gray-400 ${modalInputFocusClass}`} // Updated focus
+            className={`flex-grow p-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 placeholder-gray-400 ${modalInputFocusClass}`}
           />
           <Button onClick={() => handleAddPlayer(teamType)} variant="secondary" size="sm">Add Player</Button>
         </div>
         {availablePlayers.length > 0 && <p className="text-xs text-gray-400">Select {SQUAD_SIZE} players:</p>}
         <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
           {availablePlayers.map(player => (
-            <label key={`${teamType}-${player}`} className={`flex items-center space-x-2 p-2 rounded-md cursor-pointer transition-colors ${selectedSquad.includes(player) ? 'bg-teal-700 text-white' : 'bg-gray-700 hover:bg-teal-800 text-gray-200'}`}> {/* Adjusted active color */}
+            <label key={`${teamType}-${player}`} className={`flex items-center space-x-2 p-2 rounded-md cursor-pointer transition-colors ${selectedSquad.includes(player) ? 'bg-teal-700 text-white' : 'bg-gray-700 hover:bg-teal-800 text-gray-200'}`}>
               <input 
                 type="checkbox" 
                 checked={selectedSquad.includes(player)} 
                 onChange={() => handleSquadPlayerSelection(player, teamType)}
                 disabled={!selectedSquad.includes(player) && selectedSquad.length >= SQUAD_SIZE}
-                className="form-checkbox h-4 w-4 text-teal-600 border-gray-500 rounded focus:ring-teal-500 bg-gray-500 checked:bg-teal-600 focus:ring-offset-gray-700" // Adjusted active color
+                className="form-checkbox h-4 w-4 text-teal-600 border-gray-500 rounded focus:ring-teal-500 bg-gray-500 checked:bg-teal-600 focus:ring-offset-gray-700"
               />
               <span className="text-sm">{player}</span>
             </label>
@@ -333,57 +290,7 @@ const ScoringPage: React.FC = () => {
   if (pageLoading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
   if (!matchDetails) return <div className="text-center p-8 text-xl text-gray-300">Match details not loaded or found. <Link to="/matches" className="text-teal-400 hover:underline">Go to Matches</Link></div>;
 
-  if (showTossModal) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
-        <div className="relative bg-gray-800 p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
-          <button onClick={() => {setShowTossModal(false); if(matchId==="newmatch") navigate('/matches')}} aria-label="Close toss modal" className="absolute top-3 right-3 text-gray-400 hover:text-gray-200 p-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
-          <h2 className="text-2xl font-bold text-gray-50 mb-6 text-center">
-            {matchId === "newmatch" ? "Setup New Match & Toss" : "Match Toss"}
-          </h2>
-          {matchId === "newmatch" && (
-            <p className="text-sm text-gray-400 text-center -mt-4 mb-6">
-              Name your teams and decide who bats first.
-            </p>
-          )}
-          {matchId === "newmatch" && (
-            <div className="mb-4 space-y-3">
-                 <div>
-                    <label htmlFor="teamAName" className={modalLabelClass}>Team A Name:</label>
-                    <input type="text" id="teamAName" value={matchDetails.teamAName} 
-                            onChange={(e) => context.setMatchDetails({...matchDetails, teamAName: e.target.value, ...(tossWinnerNameState === matchDetails.teamAName && { tossWinnerNameState: e.target.value}) })} 
-                            className={modalInputClass}/>
-                 </div>
-                 <div>
-                    <label htmlFor="teamBName" className={modalLabelClass}>Team B Name:</label>
-                    <input type="text" id="teamBName" value={matchDetails.teamBName} 
-                            onChange={(e) => context.setMatchDetails({...matchDetails, teamBName: e.target.value, ...(tossWinnerNameState === matchDetails.teamBName && { tossWinnerNameState: e.target.value})})}
-                            className={modalInputClass}/>
-                 </div>
-            </div>
-          )}
-          <div className="mb-4">
-            <label htmlFor="tossWinner" className={modalLabelClass}>Toss Won By:</label>
-            <select id="tossWinner" value={tossWinnerNameState || ''} onChange={(e) => setTossWinnerNameState(e.target.value)} className={modalInputClass}>
-              <option value="" disabled>Select Team</option>
-              {matchDetails.teamAName && <option value={matchDetails.teamAName}>{matchDetails.teamAName}</option>}
-              {matchDetails.teamBName && <option value={matchDetails.teamBName}>{matchDetails.teamBName}</option>}
-            </select>
-          </div>
-          <div className="mb-6">
-            <label className={modalLabelClass}>Elected To:</label>
-            <div className="flex space-x-4">
-              <Button variant={electedToState === "Bat" ? "primary" : "outline"} onClick={() => setElectedToState("Bat")} className="flex-1">Bat</Button>
-              <Button variant={electedToState === "Bowl" ? "primary" : "outline"} onClick={() => setElectedToState("Bowl")} className="flex-1">Bowl</Button>
-            </div>
-          </div>
-          <Button onClick={handleTossSubmit} disabled={!tossWinnerNameState || !electedToState || !matchDetails.teamAName || !matchDetails.teamBName} className="w-full" variant="primary" size="lg">
-            Finalize Toss & Proceed
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  // Toss Modal removed - toss happens on TossPage
 
   if (showSquadSelectionModal) {
      return (
@@ -400,8 +307,8 @@ const ScoringPage: React.FC = () => {
                     className="w-full" variant="primary" size="lg">
                     Confirm Squads & Select Roles
                 </Button>
-                 <Button onClick={() => { setShowSquadSelectionModal(false); if(!matchDetails.tossWinnerName) setShowTossModal(true);}} variant="outline" size="sm" className="w-full mt-3">
-                    Back
+                 <Button onClick={() => { setShowSquadSelectionModal(false); navigate(`/toss/${matchId}`, {replace: true}); }} variant="outline" size="sm" className="w-full mt-3">
+                    Back to Toss
                 </Button>
             </div>
         </div>

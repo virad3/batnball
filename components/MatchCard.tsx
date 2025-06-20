@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Match, InningsRecord, MatchFormat } from '../types'; 
@@ -68,6 +69,12 @@ const MatchCard: React.FC<MatchCardProps> = ({ match }) => {
   assignScores();
 
   const matchSeriesName = match.tournament_id ? "Tournament Match" : `${match.format} Match`;
+  const actionButtonPath = match.status === "Upcoming" ? `/toss/${match.id}` : `/matches/${match.id}/score`;
+  let actionButtonText = "Match Details";
+  if (match.status === "Live") actionButtonText = "Live Score";
+  else if (match.status === "Completed") actionButtonText = "View Scorecard";
+  else if (match.status === "Upcoming") actionButtonText = "Setup Match & Toss";
+
 
   return (
     <div className="bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-700">
@@ -127,9 +134,9 @@ const MatchCard: React.FC<MatchCardProps> = ({ match }) => {
       )}
       {(!match.tournament_id || match.status === "Upcoming") && (
          <div className="p-4 border-t border-gray-700 flex justify-end">
-            <Link to={`/matches/${match.id}/score`}>
+            <Link to={actionButtonPath}>
               <Button variant="outline" size="sm">
-                  {match.status === "Live" ? "Live Score" : (match.status === "Completed" ? "View Scorecard" : "Match Details")}
+                  {actionButtonText}
               </Button>
             </Link>
          </div>

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Team, MatchFormat } from '../types';
 import { useMatchContext } from '../contexts/MatchContext';
 import Button from '../components/Button';
@@ -8,7 +8,6 @@ import TeamSelectionModal from '../components/TeamSelectionModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { ArrowLeftIcon, PlayIcon, PlusIcon, UserGroupIcon, CalendarDaysIcon } from '@heroicons/react/24/solid';
 
-// Helper to get current date and time in YYYY-MM-DD and HH:MM format
 const getCurrentDateTime = () => {
     const now = new Date();
     const date = now.toISOString().split('T')[0];
@@ -18,10 +17,13 @@ const getCurrentDateTime = () => {
     return { date, time };
 };
 
-
 const SelectTeamsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { startNewMatch } = useMatchContext();
+  const location = useLocation();
+  const { startNewMatch } = useMatchContext(); // For scheduling
+  
+  const isStartNowMode = location.state?.mode === 'startNow';
+
   const [selectedTeamA, setSelectedTeamA] = useState<Team | null>(null);
   const [selectedTeamB, setSelectedTeamB] = useState<Team | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -29,6 +31,7 @@ const SelectTeamsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Default values, only relevant for scheduling mode or if startNowMode uses some defaults explicitly
   const [matchDate, setMatchDate] = useState(getCurrentDateTime().date);
   const [matchTime, setMatchTime] = useState(getCurrentDateTime().time);
   const [venue, setVenue] = useState('Local Ground');
@@ -59,52 +62,74 @@ const SelectTeamsPage: React.FC = () => {
     setError(null);
   };
 
-  const handleProceedToMatch = async () => {
+  const handleProceed = async () => {
     if (!selectedTeamA || !selectedTeamB) {
       setError("Please select both teams to proceed.");
       return;
     }
-    if (!matchDate || !matchTime) {
-        setError("Please select a valid date and time for the match.");
-        return;
-    }
-    if (!venue.trim()) {
-        setError("Please enter a venue for the match.");
-        return;
-    }
-
-    const selectedDateTime = new Date(`${matchDate}T${matchTime}`);
-    if (isNaN(selectedDateTime.getTime())) {
-        setError("Invalid date or time selected.");
-        return;
-    }
-    
     setError(null);
     setIsLoading(true);
-    try {
-      const partialMatchData = {
-        teamAName: selectedTeamA.name,
-        teamBName: selectedTeamB.name,
-        teamASquad: selectedTeamA.players,
-        teamBSquad: selectedTeamB.players,
-        format: matchFormat,
-        overs_per_innings: matchFormat === MatchFormat.TEST ? undefined : overs,
-        venue: venue.trim(),
-        date: selectedDateTime.toISOString(), 
-        status: "Upcoming" as "Upcoming", 
-      };
 
-      const newMatch = await startNewMatch(partialMatchData);
-      if (newMatch && newMatch.id) {
-        navigate('/matches'); 
-      } else {
-        throw new Error("Failed to create a new match instance.");
+    if (isStartNowMode) {
+      // Navigate to TossPage with team details and default match settings
+      const defaultMatchSettings = {
+        venue: "Local Ground",
+        format: MatchFormat.T20,
+        overs_per_innings: 20,
+        date: new Date().toISOString(), // Match happens now
+      };
+      navigate('/toss', { 
+        state: { 
+          teamA: selectedTeamA, 
+          teamB: selectedTeamB, 
+          matchSettings: defaultMatchSettings,
+          mode: 'startNow', // Pass mode to TossPage as well
+        } 
+      });
+      setIsLoading(false); // Navigation handles it
+    } else {
+      // Scheduling flow (original logic)
+      if (!matchDate || !matchTime) {
+          setError("Please select a valid date and time for the match.");
+          setIsLoading(false);
+          return;
       }
-    } catch (err: any) {
-      console.error("Error starting new match:", err);
-      setError(err.message || "Could not schedule the match. Please try again.");
-    } finally {
-      setIsLoading(false);
+      if (!venue.trim()) {
+          setError("Please enter a venue for the match.");
+          setIsLoading(false);
+          return;
+      }
+      const selectedDateTime = new Date(`${matchDate}T${matchTime}`);
+      if (isNaN(selectedDateTime.getTime())) {
+          setError("Invalid date or time selected.");
+          setIsLoading(false);
+          return;
+      }
+      
+      try {
+        const partialMatchData = {
+          teamAName: selectedTeamA.name,
+          teamBName: selectedTeamB.name,
+          teamASquad: selectedTeamA.players,
+          teamBSquad: selectedTeamB.players,
+          format: matchFormat,
+          overs_per_innings: matchFormat === MatchFormat.TEST ? undefined : overs,
+          venue: venue.trim(),
+          date: selectedDateTime.toISOString(), 
+          status: "Upcoming" as "Upcoming", 
+        };
+        const newMatch = await startNewMatch(partialMatchData);
+        if (newMatch && newMatch.id) {
+          navigate('/matches'); 
+        } else {
+          throw new Error("Failed to create a new match instance for scheduling.");
+        }
+      } catch (err: any) {
+        console.error("Error scheduling match:", err);
+        setError(err.message || "Could not schedule the match. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
   
@@ -137,27 +162,39 @@ const SelectTeamsPage: React.FC = () => {
   const inputFocusClass = "focus:ring-teal-500 focus:border-teal-500"; // Changed focus color
   const inputClass = `${inputBaseClass} ${inputFocusClass}`;
   const labelClass = "block text-sm font-medium text-gray-300 mb-1";
+  
+  const pageTitle = isStartNowMode ? "Start New Match" : "Schedule A Match";
+  const proceedButtonText = isStartNowMode ? "Proceed to Toss" : "Schedule Match";
+  const proceedButtonIcon = isStartNowMode ? <PlayIcon className="w-6 h-6" /> : <CalendarDaysIcon className="w-6 h-6" />;
+
+  const handleBackNavigation = () => {
+    if (isStartNowMode) {
+      navigate('/home');
+    } else {
+      navigate(-1);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col">
       <header className="bg-gray-800 text-gray-100 p-4 shadow-md sticky top-0 z-10 border-b border-gray-700">
         <div className="container mx-auto flex justify-between items-center">
           <button 
-            onClick={() => navigate(-1)} 
+            onClick={handleBackNavigation} 
             aria-label="Go back" 
             className="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-gray-800" // Updated focus
           >
             <ArrowLeftIcon className="w-6 h-6" />
           </button>
-          <h1 className="text-xl font-semibold">Schedule A Match</h1>
+          <h1 className="text-xl font-semibold">{pageTitle}</h1>
           <button
-            onClick={handleProceedToMatch}
+            onClick={handleProceed}
             disabled={!selectedTeamA || !selectedTeamB || isLoading}
-            aria-label="Schedule Match"
+            aria-label={proceedButtonText}
             className={`p-2 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed 
                         ${isLoading ? 'bg-gray-600' : 'bg-teal-600 hover:bg-teal-500'}`} // Changed button color to teal
           >
-            {isLoading ? <LoadingSpinner size="sm" /> : <CalendarDaysIcon className="w-6 h-6" />}
+            {isLoading ? <LoadingSpinner size="sm" /> : proceedButtonIcon}
           </button>
         </div>
       </header>
@@ -165,42 +202,50 @@ const SelectTeamsPage: React.FC = () => {
       <main className="flex-grow flex flex-col items-center justify-start p-4 space-y-6 overflow-y-auto">
         {error && <p className="text-red-300 bg-red-900 bg-opacity-50 p-3 rounded-md text-sm w-full max-w-md text-center border border-red-700 mt-2">{error}</p>}
         
-        <div className="w-full max-w-md bg-gray-800 p-4 sm:p-6 rounded-lg shadow-md border border-gray-700">
-             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label htmlFor="matchDate" className={labelClass}>Date</label>
-                    <input type="date" id="matchDate" value={matchDate} onChange={e => setMatchDate(e.target.value)} className={`${inputClass} dark-date-picker`} required/>
-                </div>
-                <div>
-                    <label htmlFor="matchTime" className={labelClass}>Time</label>
-                    <input type="time" id="matchTime" value={matchTime} onChange={e => setMatchTime(e.target.value)} className={`${inputClass} dark-time-picker`} required/>
-                </div>
-            </div>
-            <div className="mb-4">
-                <label htmlFor="venue" className={labelClass}>Venue</label>
-                <input type="text" id="venue" value={venue} onChange={e => setVenue(e.target.value)} className={inputClass} placeholder="e.g., City Ground" required/>
-            </div>
-             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label htmlFor="matchFormat" className={labelClass}>Format</label>
-                    <select id="matchFormat" value={matchFormat} onChange={e => setMatchFormat(e.target.value as MatchFormat)} className={inputClass}>
-                        {Object.values(MatchFormat).map(f => <option key={f} value={f} className="bg-gray-700">{f}</option>)}
-                    </select>
-                </div>
-                {matchFormat !== MatchFormat.TEST && (
+        {!isStartNowMode && ( // Only show these for scheduling mode
+            <div className="w-full max-w-md bg-gray-800 p-4 sm:p-6 rounded-lg shadow-md border border-gray-700">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                     <div>
-                        <label htmlFor="overs" className={labelClass}>Overs</label>
-                        <input type="number" id="overs" value={overs} onChange={e => setOvers(parseInt(e.target.value, 10) || 0)} min="1" className={inputClass} />
+                        <label htmlFor="matchDate" className={labelClass}>Date</label>
+                        <input type="date" id="matchDate" value={matchDate} onChange={e => setMatchDate(e.target.value)} className={`${inputClass} dark-date-picker`} required/>
                     </div>
-                )}
+                    <div>
+                        <label htmlFor="matchTime" className={labelClass}>Time</label>
+                        <input type="time" id="matchTime" value={matchTime} onChange={e => setMatchTime(e.target.value)} className={`${inputClass} dark-time-picker`} required/>
+                    </div>
+                </div>
+                <div className="mb-4">
+                    <label htmlFor="venue" className={labelClass}>Venue</label>
+                    <input type="text" id="venue" value={venue} onChange={e => setVenue(e.target.value)} className={inputClass} placeholder="e.g., City Ground" required/>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label htmlFor="matchFormat" className={labelClass}>Format</label>
+                        <select id="matchFormat" value={matchFormat} onChange={e => setMatchFormat(e.target.value as MatchFormat)} className={inputClass}>
+                            {Object.values(MatchFormat).map(f => <option key={f} value={f} className="bg-gray-700">{f}</option>)}
+                        </select>
+                    </div>
+                    {matchFormat !== MatchFormat.TEST && (
+                        <div>
+                            <label htmlFor="overs" className={labelClass}>Overs</label>
+                            <input type="number" id="overs" value={overs} onChange={e => setOvers(parseInt(e.target.value, 10) || 0)} min="1" className={inputClass} />
+                        </div>
+                    )}
+                </div>
+                <style>{`
+                    .dark-date-picker::-webkit-calendar-picker-indicator,
+                    .dark-time-picker::-webkit-calendar-picker-indicator {
+                        filter: invert(1) brightness(0.8);
+                    }
+                `}</style>
             </div>
-            <style>{`
-                .dark-date-picker::-webkit-calendar-picker-indicator,
-                .dark-time-picker::-webkit-calendar-picker-indicator {
-                    filter: invert(1) brightness(0.8);
-                }
-            `}</style>
-        </div>
+        )}
+         {isStartNowMode && (
+            <p className="text-center text-gray-400 text-sm p-3 bg-gray-800 rounded-md border border-gray-700 w-full max-w-md">
+                Select teams to start a new match immediately. Match will use default settings (T20, 20 Overs, Local Ground, Current Date/Time).
+            </p>
+        )}
+
 
         <TeamDisplayButton
           team={selectedTeamA}

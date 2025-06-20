@@ -31,12 +31,13 @@ const MatchesPage: React.FC = () => {
       const allUserMatches = await getAllMatches(); 
       setAllMyMatches(allUserMatches);
 
-      // Fetch upcoming matches specifically for the 'Upcoming' tab
+      // Fetch upcoming matches specifically for the 'Upcoming' tab or pre-fetch for 'My'
+      const upcomingMatchesLimit = 25; // Increased limit
       if (activeFilterTab === 'upcoming') {
-        const futureMatches = await getUpcomingMatches();
+        const futureMatches = await getUpcomingMatches(upcomingMatchesLimit);
         setUpcomingMatches(futureMatches);
       } else if (activeFilterTab === 'my' && upcomingMatches.length === 0){ // Pre-fetch for upcoming if My is default
-         const futureMatches = await getUpcomingMatches();
+         const futureMatches = await getUpcomingMatches(upcomingMatchesLimit);
          setUpcomingMatches(futureMatches);
       }
       
