@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useHistory, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Match, BallEvent, Score, MatchFormat, PlayerBattingStats, PlayerBowlingStats, DismissalType, InningsRecord } from '../types';
 import ScoreDisplay from '../components/ScoreDisplay';
 import Button from '../components/Button';
@@ -23,7 +23,7 @@ const ExtraButton: React.FC<{ type: BallEvent['extraType']; onClick: (type: Ball
 
 const ScoringPage: React.FC = () => {
   const { matchId } = useParams<{ matchId: string }>();
-  const history = useHistory();
+  const navigate = useNavigate();
   const context = useMatchContext();
   const { 
     matchDetails, loadMatch, startNewMatch, updateTossAndStartInnings, addBall, switchInnings, saveMatchState, endMatch,
@@ -57,7 +57,7 @@ const ScoringPage: React.FC = () => {
     setPageLoading(true);
     if (!matchId) { 
       console.log('[ScoringPage] No matchId, navigating to /matches');
-      history.push('/matches'); 
+      navigate('/matches'); 
       return; 
     }
 
@@ -74,7 +74,7 @@ const ScoringPage: React.FC = () => {
       loadedMatch = await startNewMatch(tempMatchData);
       console.log('[ScoringPage] loadedMatch after startNewMatch call:', loadedMatch);
       if (loadedMatch && loadedMatch.id) {
-        history.replace(`/matches/${loadedMatch.id}/score`);
+        navigate(`/matches/${loadedMatch.id}/score`, { replace: true });
       }
     }
 
@@ -102,14 +102,14 @@ const ScoringPage: React.FC = () => {
       }
     } else if (matchId !== "newmatch") {
       console.log('[ScoringPage] Match not loaded and matchId is not "newmatch", navigating to /matches.');
-      history.push('/matches'); 
+      navigate('/matches'); 
     } else {
       console.log('[ScoringPage] Critical: matchId is "newmatch" but loadedMatch is still null/undefined after trying to create it.');
     }
     setPageLoading(false);
     console.log('[ScoringPage] initializePage finished.');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, history, loadMatch, startNewMatch, context.matchDetails, currentStrikerName, currentBowlerName]);
+  }, [matchId, navigate, loadMatch, startNewMatch, context.matchDetails, currentStrikerName, currentBowlerName]);
 
   useEffect(() => {
     initializePage();
@@ -334,7 +334,7 @@ const ScoringPage: React.FC = () => {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
         <div className="relative bg-gray-800 p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
-          <button onClick={() => {setShowTossModal(false); if(matchId==="newmatch") history.push('/matches')}} aria-label="Close toss modal" className="absolute top-3 right-3 text-gray-400 hover:text-gray-200 p-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+          <button onClick={() => {setShowTossModal(false); if(matchId==="newmatch") navigate('/matches')}} aria-label="Close toss modal" className="absolute top-3 right-3 text-gray-400 hover:text-gray-200 p-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
           <h2 className="text-2xl font-bold text-gray-50 mb-6 text-center">
             {matchId === "newmatch" ? "Setup New Match & Toss" : "Match Toss"}
           </h2>
@@ -553,7 +553,7 @@ const ScoringPage: React.FC = () => {
           {currentInningsNumber === 1 && currentMatchInningsData && (currentMatchInningsData.totalWickets >= SQUAD_SIZE -1 || (matchDetails.overs_per_innings && currentMatchInningsData.totalOversBowled >= matchDetails.overs_per_innings)) && (
             <Button onClick={switchInnings} variant="primary" className="w-full mb-3">End Innings & Start 2nd Innings</Button>
           )}
-          <Button onClick={async () => { await saveMatchState(); history.push('/matches');}} variant="outline" className="w-full">Save & Exit to Matches</Button>
+          <Button onClick={async () => { await saveMatchState(); navigate('/matches');}} variant="outline" className="w-full">Save & Exit to Matches</Button>
       </div>
 
       <div className="p-4 bg-gray-800 rounded-lg shadow mt-4 border border-gray-700">

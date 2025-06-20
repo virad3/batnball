@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import MatchCard from '../components/MatchCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
@@ -14,7 +14,7 @@ const HomePage: React.FC = () => {
   const [loadingFunFact, setLoadingFunFact] = useState(true);
   const [recentMatches, setRecentMatches] = useState<Match[]>([]);
   const [funFact, setFunFact] = useState<string | null>(null);
-  const history = useHistory();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchHomepageData = async () => {
@@ -49,10 +49,10 @@ const HomePage: React.FC = () => {
         <h1 className="text-4xl font-graduate text-gray-50 mb-4">Welcome to Bat 'n' Ball!</h1>
         <p className="text-lg text-gray-300 mb-6">Track scores, manage tournaments, and follow your favorite local cricket action.</p>
         <div className="flex flex-col sm:flex-row justify-center space-y-3 sm:space-y-0 sm:space-x-4">
-          <Button variant="primary" size="lg" onClick={() => history.push('/start-match/select-teams')}> 
+          <Button variant="primary" size="lg" onClick={() => navigate('/start-match/select-teams')}> 
             Start Scoring
           </Button>
-          <Button variant="outline" size="lg" onClick={() => history.push('/tournaments/new')}> 
+          <Button variant="outline" size="lg" onClick={() => navigate('/tournaments/new')}> 
             Create Tournament
           </Button>
         </div>
@@ -61,7 +61,7 @@ const HomePage: React.FC = () => {
       <section className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
         <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold text-gray-100">My Recent Matches</h2>
-            <Button variant="secondary" size="sm" onClick={() => history.push('/matches')}>View All</Button>
+            <Button variant="secondary" size="sm" onClick={() => navigate('/matches')}>View All</Button>
         </div>
         {loadingRecentMatches ? (
           <div className="flex justify-center items-center py-10"><LoadingSpinner size="md" /></div>

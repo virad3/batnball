@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link, useHistory } from 'react-router-dom'; 
+import { Link, useNavigate } from 'react-router-dom'; 
 import Button from '../components/Button';
 import { APP_NAME } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,7 +15,7 @@ const GoogleIcon = () => (
 );
 
 const LoginPage: React.FC = () => {
-  const history = useHistory(); 
+  const navigate = useNavigate(); 
   const { loginWithPassword, signInWithGoogle, loading: authLoading, error: authErrorHook, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,9 +23,9 @@ const LoginPage: React.FC = () => {
 
   useEffect(() => {
     if (user) {
-      history.replace('/home'); 
+      navigate('/home', { replace: true }); 
     }
-  }, [user, history]);
+  }, [user, navigate]);
   
   useEffect(() => {
     if (authErrorHook) {

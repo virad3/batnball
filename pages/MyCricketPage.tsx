@@ -1,14 +1,14 @@
 
 import React, { useEffect } from 'react';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const MyCricketPage: React.FC = () => {
-  const history = useHistory();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    history.replace('/matches');
-  }, [history]);
+    navigate('/matches', { replace: true });
+  }, [navigate]);
 
   return (
     <div className="flex flex-col justify-center items-center min-h-[calc(100vh-250px)] text-gray-300">

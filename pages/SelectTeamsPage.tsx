@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Team, MatchFormat } from '../types';
 import { useMatchContext } from '../contexts/MatchContext';
 import Button from '../components/Button';
@@ -9,7 +9,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { ArrowLeftIcon, PlayIcon, PlusIcon, UserGroupIcon } from '@heroicons/react/24/solid';
 
 const SelectTeamsPage: React.FC = () => {
-  const history = useHistory();
+  const navigate = useNavigate();
   const { startNewMatch } = useMatchContext();
   const [selectedTeamA, setSelectedTeamA] = useState<Team | null>(null);
   const [selectedTeamB, setSelectedTeamB] = useState<Team | null>(null);
@@ -63,7 +63,7 @@ const SelectTeamsPage: React.FC = () => {
       // @ts-ignore
       const newMatch = await startNewMatch(partialMatchData);
       if (newMatch && newMatch.id) {
-        history.push(`/matches/${newMatch.id}/score`);
+        navigate(`/matches/${newMatch.id}/score`);
       } else {
         throw new Error("Failed to create a new match instance.");
       }
@@ -105,7 +105,7 @@ const SelectTeamsPage: React.FC = () => {
       <header className="bg-gray-800 text-gray-100 p-4 shadow-md sticky top-0 z-10 border-b border-gray-700">
         <div className="container mx-auto flex justify-between items-center">
           <button 
-            onClick={() => history.goBack()} 
+            onClick={() => navigate(-1)} 
             aria-label="Go back" 
             className="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800"
           >

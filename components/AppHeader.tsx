@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useHistory } from 'react-router-dom'; 
+import { Link, useNavigate } from 'react-router-dom'; 
 import { APP_NAME } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
 import { Bars3Icon, MagnifyingGlassIcon, ChatBubbleLeftEllipsisIcon } from '@heroicons/react/24/outline';
@@ -11,7 +11,7 @@ const AppHeader: React.FC = () => {
   
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const userAvatarButtonRef = useRef<HTMLButtonElement>(null);
-  const history = useHistory(); 
+  const navigate = useNavigate(); 
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -37,7 +37,7 @@ const AppHeader: React.FC = () => {
   const handleLogout = async () => {
     await logout();
     setIsUserDropdownOpen(false);
-    history.push('/login'); 
+    navigate('/login'); 
   };
   
   const displayName = userProfile?.username || user?.displayName || user?.email?.split('@')[0] || "User";

@@ -1,12 +1,12 @@
 
 import React, { useState } from 'react';
-import { useHistory } from 'react-router-dom'; 
+import { useNavigate } from 'react-router-dom'; 
 import { Tournament, TournamentFormat } from '../types'; 
 import { createTournament } from '../services/dataService'; 
 import Button from '../components/Button';
 
 const CreateTournamentPage: React.FC = () => {
-  const history = useHistory(); 
+  const navigate = useNavigate(); 
   const [tournamentName, setTournamentName] = useState('');
   const [format, setFormat] = useState<TournamentFormat>(TournamentFormat.LEAGUE);
   const [startDate, setStartDate] = useState(''); 
@@ -58,7 +58,7 @@ const CreateTournamentPage: React.FC = () => {
     try {
       const createdTournament = await createTournament(newTournamentData); 
       setLoading(false);
-      history.push(`/tournaments/${createdTournament.id}`); 
+      navigate(`/tournaments/${createdTournament.id}`); 
     } catch (err: any) {
       setError(err.message || "Failed to create tournament. Please try again.");
       setLoading(false);
@@ -153,7 +153,7 @@ const CreateTournamentPage: React.FC = () => {
         <div className="pt-2 flex flex-col sm:flex-row sm:justify-end sm:space-x-3 space-y-3 sm:space-y-0">
           <Button 
             type="button" 
-            onClick={() => history.push('/tournaments')} 
+            onClick={() => navigate('/tournaments')} 
             variant="outline" 
             size="lg"
             className="w-full sm:w-auto"

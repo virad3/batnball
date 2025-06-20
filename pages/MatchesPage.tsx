@@ -5,14 +5,14 @@ import { getAllMatches } from '../services/dataService';
 import MatchCard from '../components/MatchCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext'; 
 
 const MatchesPage: React.FC = () => {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilterTab, setActiveFilterTab] = useState<'my' | 'played' | 'network' | 'nearby'>('my');
-  const history = useHistory();
+  const navigate = useNavigate();
   const { user } = useAuth();
 
   useEffect(() => {
@@ -37,7 +37,7 @@ const MatchesPage: React.FC = () => {
   }, [user]);
 
   const handleStartNewMatchFlow = () => {
-    history.push('/start-match/select-teams'); 
+    navigate('/start-match/select-teams'); 
   };
 
   const filteredMatches = useMemo(() => {

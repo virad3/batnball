@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Tournament } from '../types';
 import { getAllTournaments } from '../services/dataService'; 
 import TournamentCard from '../components/TournamentCard';
@@ -14,7 +14,7 @@ const TournamentsPage: React.FC = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilterTab, setActiveFilterTab] = useState<TournamentFilterTabs>('my');
-  const history = useHistory();
+  const navigate = useNavigate();
   const { user } = useAuth(); 
 
   useEffect(() => {
@@ -44,7 +44,7 @@ const TournamentsPage: React.FC = () => {
   }, [user, activeFilterTab]);
 
   const handleCreateTournament = () => {
-    history.push('/tournaments/new');
+    navigate('/tournaments/new');
   };
 
   const filteredTournaments = useMemo(() => {
