@@ -192,8 +192,9 @@ export interface Team {
 }
 
 export interface SearchResultItem {
-  id?: string; // Added ID for navigation
+  id?: string; 
   title: string;
   description: string;
-  type: "Player" | "Team" | "Match" | "Tournament" | "Other" | string; // Allow string for flexibility
+  type: "Player" | "Team" | "Match" | "Tournament" | "Other" | string;
+  rawData?: UserProfile | Team | Match | Tournament; // Added to store full object for richer display
 }
