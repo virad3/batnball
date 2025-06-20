@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Match, BallEvent, Score, MatchFormat, PlayerBattingStats, PlayerBowlingStats, DismissalType, InningsRecord } from '../types';
@@ -149,7 +150,7 @@ const ScoringPage: React.FC = () => {
 
       if (matchShouldEnd) {
         console.log(`[ScoringPage] Auto-ending match. Result: ${resultSummary}`);
-        endMatch(resultSummary);
+        endMatch(resultSummary, matchDetails.innings1Record, currentMatchInningsData);
       }
     }
   }, [matchDetails, currentInningsNumber, target, currentMatchInningsData, endMatch]);
@@ -419,7 +420,7 @@ const ScoringPage: React.FC = () => {
         const { totalRuns, totalWickets, totalOversBowled, teamName: battingTeam } = currentMatchInningsData;
         const maxWicketsAllowed = SQUAD_SIZE - 1;
 
-        if (currentInningsNumber === 2 && target) { // Only check for 2nd innings completion against target
+        if (currentInningsNumber === 2 && target) { 
             const bowlingTeam = battingTeam === teamAName ? teamBName : teamAName;
             const oversCompletedInInnings = overs_per_innings && totalOversBowled >= overs_per_innings;
 
@@ -428,29 +429,28 @@ const ScoringPage: React.FC = () => {
                 resultSummaryForEndCheck = `${battingTeam} won by ${maxWicketsAllowed - totalWickets} wicket(s).`;
             } else if (totalWickets >= maxWicketsAllowed || oversCompletedInInnings) {
                 shouldEndMatchCheck = true;
-                if (totalRuns < target - 1) { // target -1 is first innings score
+                if (totalRuns < target - 1) { 
                     resultSummaryForEndCheck = `${bowlingTeam} won by ${(target - 1) - totalRuns} run(s).`;
                 } else if (totalRuns === target - 1) {
                     resultSummaryForEndCheck = "Match Tied.";
-                } else { // Should not be reached with correct logic
+                } else { 
                      resultSummaryForEndCheck = "Match Completed (Result needs review).";
                 }
             }
         }
-        // Note: This does not currently handle 1st innings completion as an end-of-match scenario.
-        // Match completion is primarily determined by the useEffect hook or this explicit check for 2nd innings.
     }
 
     try {
         if (shouldEndMatchCheck && resultSummaryForEndCheck) {
-            await endMatch(resultSummaryForEndCheck); // endMatch calls saveMatchState internally
+            let finalInnings1 = matchDetails.innings1Record;
+            let finalInnings2 = (currentInningsNumber === 2 && currentMatchInningsData) ? currentMatchInningsData : matchDetails.innings2Record;
+            await endMatch(resultSummaryForEndCheck, finalInnings1, finalInnings2);
         } else {
-            await saveMatchState(); // Save current state if not ending based on this check
+            await saveMatchState(); 
         }
         navigate('/matches');
     } catch (e) {
         console.error("Error during Save & Exit:", e);
-        // Fallback: still try to navigate
         navigate('/matches');
     }
   };

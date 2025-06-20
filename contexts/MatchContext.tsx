@@ -135,6 +135,8 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         return;
     }
     console.log('[MatchContext] saveMatchState called for match ID:', matchDataToSave.id);
+    console.log('[MatchContext] Innings1 Runs to save:', matchDataToSave.innings1Record?.totalRuns, 'Innings2 Runs to save:', matchDataToSave.innings2Record?.totalRuns);
+
 
     const currentStriker = typeof state.currentStrikerName === 'string' ? state.currentStrikerName : null;
     const currentNonStriker = typeof state.currentNonStrikerName === 'string' ? state.currentNonStrikerName : null;
@@ -149,7 +151,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     };
     
     try {
-        const savedMatchFromDb = await updateMatch(finalMatchData.id!, finalMatchData);
+        const savedMatchFromDb = await updateMatch(matchDataToSave.id!, finalMatchData); // Use matchDataToSave.id
         if (state.matchDetails && savedMatchFromDb && savedMatchFromDb.id === state.matchDetails.id) {
            setMatchDetails(savedMatchFromDb); 
         }
@@ -372,15 +374,9 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
     
     if(event.isWicket && event.batsmanOutName === state.currentStrikerName) {
-        // newStriker = state.currentNonStrikerName; // Already handled by rotation if over ends or runs taken
-        // If wicket falls on striker, non-striker becomes striker for next ball (unless over ends)
-        // If over also ends, then non-striker (who was newStriker) faces.
-        // If wicket is current striker, new striker needs to be selected if not end of over.
-        // For simplicity, PlayerRolesModal will handle new batsman selection.
-        newStriker = null; // Force role selection if striker out
-        // Non-striker remains unless also out or involved in runout.
+        newStriker = null; 
     } else if (event.isWicket && event.batsmanOutName === state.currentNonStrikerName) {
-        newNonStriker = null; // Force role selection if non-striker out
+        newNonStriker = null; 
     }
 
 
@@ -392,14 +388,11 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     match.current_striker_name = newStriker;
     match.current_non_striker_name = newNonStriker;
     
-    // Update context state, including bowler if over is complete
     setState(prevState => ({ 
         ...prevState, 
-        matchDetails: { ...match }, // match object contains the potentially nulled current_bowler_name
+        matchDetails: { ...match }, 
         currentStrikerName: newStriker,
         currentNonStrikerName: newNonStriker,
-        // If the over just completed (and it's not the end of the innings by wickets/max_overs), set context currentBowlerName to null
-        // to trigger the PlayerRolesModal on ScoringPage. Otherwise, keep the existing bowler.
         currentBowlerName: (isOverComplete && !isMatchOver) ? null : prevState.currentBowlerName,
     })); 
     await saveMatchState(match); 
@@ -512,17 +505,13 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (inningsToUpdate.timeline.length > 0) {
         const lastBall = inningsToUpdate.timeline[inningsToUpdate.timeline.length - 1];
         let newStriker = lastBall.strikerName || null;
-        // Non-striker at the time of the last ball would be someone from the original context state if not changed by the ball
-        // This part needs careful thought if timeline edit changes who was non-striker.
-        // For simplicity, assume non-striker remains based on context, unless explicitly changed by a run-out or similar event on the edited ball.
-        let newNonStriker = state.currentNonStrikerName; // Default to context's non-striker
+        let newNonStriker = state.currentNonStrikerName; 
 
         if (lastBall.isWicket && lastBall.batsmanOutName === newStriker) {
-            newStriker = null; // New batsman needed
+            newStriker = null; 
         } else if (lastBall.isWicket && lastBall.batsmanOutName === newNonStriker) {
-            newNonStriker = null; // New batsman needed for non-striker spot
+            newNonStriker = null; 
         } else if (!lastBall.extraType && (lastBall.runs === 1 || lastBall.runs === 3 || lastBall.runs === 5)) {
-            // Batsmen crossed
             const temp = newStriker;
             newStriker = newNonStriker;
             newNonStriker = temp;
@@ -539,7 +528,6 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         matchCopy.current_non_striker_name = newNonStriker;
         matchCopy.current_bowler_name = lastBall.bowlerName || null; 
         
-        // Update context state after edit
         setState(prevState => ({
             ...prevState,
             matchDetails: matchCopy,
@@ -548,7 +536,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             currentBowlerName: lastBall.bowlerName || null
         }));
 
-    } else { // Timeline is empty after edit (e.g., last ball deleted)
+    } else { 
         matchCopy.current_striker_name = null;
         matchCopy.current_non_striker_name = null;
         matchCopy.current_bowler_name = null;
@@ -577,11 +565,9 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const newTarget = match.innings1Record.totalRuns + 1;
 
     const battingSecondTeam = match.current_batting_team === match.teamAName ? match.teamBName : match.teamAName;
-    const bowlingSecondTeam = battingSecondTeam === match.teamAName ? match.teamBName : match.teamAName; 
-
-
+    
     const battingSquad = battingSecondTeam === match.teamAName ? (match.teamASquad || []) : (match.teamBSquad || []);
-    const bowlingSquad = bowlingSecondTeam === match.teamAName ? (match.teamASquad || []) : (match.teamBSquad || []);
+    const bowlingSquad = battingSecondTeam === match.teamAName ? (match.teamASquad || []) : (match.teamBSquad || []);
 
     match.innings2Record = initializeInningsRecord(battingSecondTeam, battingSquad, bowlingSquad);
     match.current_batting_team = battingSecondTeam; 
@@ -602,13 +588,33 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, [state, saveMatchState]);
 
 
-  const endMatch = useCallback(async (resultSummary: string) => {
+  const endMatch = useCallback(async (
+    resultSummary: string,
+    finalInnings1Data?: InningsRecord | null,
+    finalInnings2Data?: InningsRecord | null
+  ) => {
     if (!state.matchDetails) return;
-    console.log('[MatchContext] endMatch called. Result:', resultSummary);
-    const match = { ...state.matchDetails, status: "Completed", result_summary: resultSummary } as Match;
+    console.log('[MatchContext] endMatch called. Result:', resultSummary, 'Final Inn1:', finalInnings1Data, 'Final Inn2:', finalInnings2Data);
     
-    setState(prevState => ({ ...prevState, matchDetails: match })); // Update context first
-    await saveMatchState(match); // Then save
+    // Start with the current matchDetails from state, then update status and result.
+    const matchWithCompletedStatus = { 
+      ...state.matchDetails, 
+      status: "Completed", 
+      result_summary: resultSummary,
+    } as Match;
+
+    // Explicitly set the final innings data if provided
+    // This ensures the saved match has the most accurate innings records at the point of completion.
+    if (finalInnings1Data !== undefined) { // Check for undefined to allow null to be set if intended
+        matchWithCompletedStatus.innings1Record = finalInnings1Data;
+    }
+    if (finalInnings2Data !== undefined) {
+        matchWithCompletedStatus.innings2Record = finalInnings2Data;
+    }
+    
+    console.log('[MatchContext] Match object being saved by endMatch:', matchWithCompletedStatus);
+    setState(prevState => ({ ...prevState, matchDetails: matchWithCompletedStatus }));
+    await saveMatchState(matchWithCompletedStatus);
   }, [state.matchDetails, saveMatchState, setState]);
 
   const refreshActiveInningsPlayerLists = useCallback(async (
@@ -684,6 +690,11 @@ export const useMatchContext = (): MatchContextType => {
 // but doesn't harm if it's consistent.
 declare module '../types' {
   interface MatchContextType {
+    endMatch: (
+        resultSummary: string,
+        finalInnings1Data?: InningsRecord | null,
+        finalInnings2Data?: InningsRecord | null
+    ) => Promise<void>;
     refreshActiveInningsPlayerLists: (confirmedBattingSquad: string[], confirmedBowlingSquad: string[]) => Promise<void>;
   }
 }
