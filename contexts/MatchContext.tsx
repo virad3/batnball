@@ -440,7 +440,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             if (ball.extraType !== "Wide" && ball.extraType !== "NoBall") {
                 bowlerStats.ballsBowled += 1;
             }
-            bowlerStats.runsConceded += ball.runs + (ball.extraRuns || 0);
+            bowlerStats.runsConceded += (Number(ball.runs) || 0) + (Number(ball.extraRuns) || 0);
             if (ball.isWicket && ball.bowlerName === ball.bowlerName && ball.wicketType !== DismissalType.RUN_OUT && ball.wicketType !== DismissalType.RETIRED_HURT && ball.wicketType !== DismissalType.TIMED_OUT && ball.wicketType !== DismissalType.HANDLED_BALL && ball.wicketType !== DismissalType.OBSTRUCTING_FIELD && ball.wicketType !== DismissalType.HIT_BALL_TWICE) {
                 bowlerStats.wickets += 1;
             }
@@ -449,8 +449,8 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         const strikerStats = inningsToUpdate.battingPerformances.find(p => p.playerName === ball.strikerName);
         if (strikerStats) {
             if (ball.extraType !== "Wide") {
-                 if (ball.extraType !== "Byes" && ball.extraType !== "LegByes") {
-                    strikerStats.runs += ball.runs;
+                 if (ball.extraType !== "Byes" && ball.extraType !== "LegByes") { 
+                    strikerStats.runs += (Number(ball.runs) || 0);
                     if (ball.runs === 4) strikerStats.fours += 1;
                     if (ball.runs === 6) strikerStats.sixes += 1;
                  }
@@ -466,10 +466,14 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             }
         }
         
+        // Ensure runs and extraRuns are treated as numbers for summation
+        const runsForTotal = Number(ball.runs) || 0;
+        const extraRunsForTotal = Number(ball.extraRuns) || 0;
+
         if (ball.extraType !== "Byes" && ball.extraType !== "LegByes") {
-            inningsToUpdate.totalRuns += ball.runs;
+            inningsToUpdate.totalRuns += runsForTotal;
         }
-        inningsToUpdate.totalRuns += (ball.extraRuns || 0);
+        inningsToUpdate.totalRuns += extraRunsForTotal;
         
         if (ball.extraType !== "Wide" && ball.extraType !== "NoBall") {
            inningsToUpdate.totalBallsBowled +=1;
@@ -508,7 +512,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
         
         const isOverCompleteAfterEdit = (lastBall.extraType !== "Wide" && lastBall.extraType !== "NoBall") && (inningsToUpdate.totalBallsBowled % 6 === 0) && inningsToUpdate.totalBallsBowled > 0;
-        if(isOverCompleteAfterEdit) {
+        if(isOverCompleteAfterEdit && !(lastBall.isWicket && (lastBall.batsmanOutName === newStriker || lastBall.batsmanOutName === newNonStriker) )) { // Avoid swapping if wicket just fell
             const temp = newStriker;
             newStriker = newNonStriker;
             newNonStriker = temp;
@@ -536,7 +540,9 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const newTarget = match.innings1Record.totalRuns + 1;
 
     const battingSecondTeam = match.current_batting_team === match.teamAName ? match.teamBName : match.teamAName;
-    const bowlingSecondTeam = match.current_batting_team || (battingSecondTeam === match.teamAName ? match.teamBName : match.teamAName);
+    // const bowlingSecondTeam = match.current_batting_team || (battingSecondTeam === match.teamAName ? match.teamBName : match.teamAName); // This line had a potential logical error if current_batting_team was null
+    const bowlingSecondTeam = battingSecondTeam === match.teamAName ? match.teamBName : match.teamAName; // Corrected logic
+
 
     const battingSquad = battingSecondTeam === match.teamAName ? (match.teamASquad || []) : (match.teamBSquad || []);
     const bowlingSquad = bowlingSecondTeam === match.teamAName ? (match.teamASquad || []) : (match.teamBSquad || []);
@@ -587,15 +593,10 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return;
     }
     
-    // This function is intended to be called when squads are confirmed, typically before scoring starts for an innings.
-    // If timeline is not empty, this simple refresh might be insufficient, but for now, we assume it's called early.
     if (currentInningsRecToUpdate.timeline && currentInningsRecToUpdate.timeline.length > 0) {
         console.warn("[MatchContext] refreshActiveInningsPlayerLists: Timeline is not empty. Full recalculation might be needed if player identities changed fundamentally. Proceeding with simple player list refresh.");
     }
     
-    // Create new player performance arrays based on the confirmed squads
-    // We use the initializeInningsRecord helper's logic for generating these arrays.
-    // This effectively replaces the old PlayerBattingStats and PlayerBowlingStats objects.
     const tempFreshInnings = initializeInningsRecord(currentInningsRecToUpdate.teamName, confirmedBattingSquad, confirmedBowlingSquad);
     currentInningsRecToUpdate.battingPerformances = tempFreshInnings.battingPerformances;
     currentInningsRecToUpdate.bowlingPerformances = tempFreshInnings.bowlingPerformances;
@@ -606,8 +607,6 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         matchCopy.innings2Record = currentInningsRecToUpdate;
     }
 
-    // Update the context and save the state
-    // setMatchDetails will trigger a re-render with the corrected player lists in the innings record
     setMatchDetails(matchCopy); 
     await saveMatchState(matchCopy);
     console.log("[MatchContext] Active innings player lists refreshed and saved.");
@@ -628,7 +627,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         saveMatchState,
         endMatch,
         setPlayerRoles,
-        refreshActiveInningsPlayerLists // Expose the new method
+        refreshActiveInningsPlayerLists 
     }}>
       {children}
     </MatchContext.Provider>
@@ -642,7 +641,10 @@ export const useMatchContext = (): MatchContextType => {
   }
   return context;
 };
-// Add refreshActiveInningsPlayerLists to MatchContextType in types.ts
+
+// Ensure this declaration matches the one in types.ts exactly if it was manually added there.
+// If types.ts already has it correctly, this declare module might not be strictly necessary
+// but doesn't harm if it's consistent.
 declare module '../types' {
   interface MatchContextType {
     refreshActiveInningsPlayerLists: (confirmedBattingSquad: string[], confirmedBowlingSquad: string[]) => Promise<void>;

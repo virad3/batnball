@@ -1,4 +1,5 @@
 
+
 import { Match, Tournament, UserProfile, Team } from '../types';
 import { db, auth, storage, Timestamp, FieldValue, firebase } from './firebaseClient';
 import type { FirebaseDocumentData, FirebaseQuery, FirebaseCollectionReference, FirebaseDocumentReference, FirebaseQuerySnapshot, FirebaseDocumentSnapshot } from './firebaseClient';
@@ -101,14 +102,37 @@ export const createMatch = async (matchData: Partial<Match>): Promise<Match> => 
 
 export const updateMatch = async (matchId: string, updates: Partial<Match>): Promise<Match> => {
   const matchDocRef = db.collection('matches').doc(matchId) as FirebaseDocumentReference;
-  if (updates.date && typeof updates.date === 'string') {
-    (updates as any).date = Timestamp.fromDate(new Date(updates.date));
+  
+  const updateData: Record<string, any> = { ...updates }; // Create a mutable copy
+
+  if (updateData.date && typeof updateData.date === 'string') {
+    updateData.date = Timestamp.fromDate(new Date(updateData.date));
   }
-  await matchDocRef.update(updates);
+  await matchDocRef.update(updateData);
   const updatedDocSnap = await matchDocRef.get() as FirebaseDocumentSnapshot;
   if (!updatedDocSnap.exists) throw new Error("Match not found after update.");
   return { id: updatedDocSnap.id, ...updatedDocSnap.data() } as Match;
 };
+
+export const deleteMatchFirebase = async (matchId: string): Promise<void> => {
+  const userId = getUserId();
+  if (!userId) throw new Error("User must be logged in to delete a match.");
+
+  const matchDocRef = db.collection('matches').doc(matchId) as FirebaseDocumentReference;
+  const matchSnap = await matchDocRef.get() as FirebaseDocumentSnapshot;
+
+  if (!matchSnap.exists) {
+    throw new Error("Match not found, cannot delete.");
+  }
+  
+  const matchData = matchSnap.data() as Match;
+  if (matchData.user_id !== userId) {
+    throw new Error("User does not have permission to delete this match.");
+  }
+
+  await matchDocRef.delete();
+};
+
 
 // --- Tournaments ---
 export const getAllTournaments = async (): Promise<Tournament[]> => {
@@ -302,50 +326,44 @@ export const updateUserProfile = async (
       await updateFirebaseUserProfile(currentUser, authProfileUpdates);
     }
 
-    const { id, email, achievements, teamIds, ...firestoreProfileUpdatesInput } = profileUpdates;
-    const firestoreProfileUpdates: Partial<Omit<UserProfile, 'id' | 'email' | 'achievements' | 'teamIds'>> & {date_of_birth?: firebase.firestore.Timestamp | string | null} = { ...firestoreProfileUpdatesInput };
+    const { id, email, achievements, teamIds, date_of_birth: dobInput, ...otherProfileData } = profileUpdates;
+    
+    const finalDataForFirestore: Record<string, any> = { ...otherProfileData };
 
     if (authProfileUpdates.displayName) {
-        firestoreProfileUpdates.username = authProfileUpdates.displayName;
+        finalDataForFirestore.username = authProfileUpdates.displayName;
     }
-    if (authProfileUpdates.photoURL !== undefined) {
-        firestoreProfileUpdates.profilePicUrl = authProfileUpdates.photoURL;
+    if (profileUpdates.profilePicUrl === undefined && authProfileUpdates.photoURL !== undefined) {
+        finalDataForFirestore.profilePicUrl = authProfileUpdates.photoURL;
     }
     
-    if (firestoreProfileUpdates.date_of_birth && typeof firestoreProfileUpdates.date_of_birth === 'string') {
-        try {
-            const dateObj = new Date(firestoreProfileUpdates.date_of_birth);
-            if (!isNaN(dateObj.getTime())) {
-                firestoreProfileUpdates.date_of_birth = Timestamp.fromDate(dateObj);
-            } else {
-                firestoreProfileUpdates.date_of_birth = null;
+    if (profileUpdates.hasOwnProperty('date_of_birth')) {
+        let dobValueForFirestore: firebase.firestore.Timestamp | null = null;
+        if (dobInput && typeof dobInput === 'string') {
+            try {
+                const dateObj = new Date(dobInput);
+                if (!isNaN(dateObj.getTime())) {
+                    dobValueForFirestore = Timestamp.fromDate(dateObj);
+                }
+            } catch (e) {
+                console.warn("Error parsing date_of_birth string for Firestore:", dobInput, e);
             }
-        } catch (e) {
-            console.warn("Invalid date_of_birth string, setting to null:", firestoreProfileUpdates.date_of_birth);
-            firestoreProfileUpdates.date_of_birth = null;
+        } else if (dobInput === null || dobInput === '') {
+             dobValueForFirestore = null;
         }
-    } else if (firestoreProfileUpdates.date_of_birth === '' || firestoreProfileUpdates.date_of_birth === undefined) {
-      firestoreProfileUpdates.date_of_birth = null;
+        finalDataForFirestore.date_of_birth = dobValueForFirestore;
+    }
+    
+    const cleanFinalDataForFirestore: Record<string, any> = {};
+    for (const key in finalDataForFirestore) {
+        if (Object.prototype.hasOwnProperty.call(finalDataForFirestore, key) && finalDataForFirestore[key] !== undefined) {
+            cleanFinalDataForFirestore[key] = finalDataForFirestore[key];
+        }
     }
 
-
-    if (Object.keys(firestoreProfileUpdates).length > 0) {
+    if (Object.keys(cleanFinalDataForFirestore).length > 0) {
       const profileDocRef = db.collection('profiles').doc(userId) as FirebaseDocumentReference;
-      const finalUpdatesForFirestore: any = {};
-      for (const key in firestoreProfileUpdates) {
-          if (Object.prototype.hasOwnProperty.call(firestoreProfileUpdates, key)) {
-              const typedKey = key as keyof typeof firestoreProfileUpdates;
-              if (profileUpdates.hasOwnProperty(typedKey as keyof UserProfile)) {
-                finalUpdatesForFirestore[typedKey] = firestoreProfileUpdates[typedKey];
-              } else if (typedKey === 'username' || typedKey === 'profilePicUrl') {
-                 finalUpdatesForFirestore[typedKey] = firestoreProfileUpdates[typedKey];
-              }
-          }
-      }
-
-      if(Object.keys(finalUpdatesForFirestore).length > 0) {
-        await profileDocRef.set(finalUpdatesForFirestore, { merge: true });
-      }
+      await profileDocRef.set(cleanFinalDataForFirestore, { merge: true });
     }
     
     await auth.currentUser?.reload(); 
@@ -357,6 +375,7 @@ export const updateUserProfile = async (
     return { user: auth.currentUser, profile: null, error: e };
   }
 };
+
 
 export const uploadProfilePicture = async (userId: string, file: File): Promise<string | null> => {
   const fileExt = file.name.split('.').pop();

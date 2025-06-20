@@ -75,7 +75,7 @@ export interface Match {
   date: string | FirebaseTimestamp; // ISO string when in state/UI, Timestamp from Firestore
   venue: string;
   format: MatchFormat;
-  status: "Upcoming" | "Live" | "Completed";
+  status: "Upcoming" | "Live" | "Completed" | "Abandoned"; // Added "Abandoned"
   tossWinnerName?: string;
   electedTo?: "Bat" | "Bowl";
   overs_per_innings?: number; // Max overs for limited over matches

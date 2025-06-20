@@ -43,8 +43,9 @@ const ProtectedLayoutWrapperAdjusted: React.FC<{isSearchActive: boolean, isSideM
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
-  const fullPageOverridePaths = ['/start-match/select-teams', '/toss']; // Added /toss
+  const fullPageOverridePaths = ['/start-match/select-teams', '/start-match/edit/', '/toss'];
   const isFullPageOverride = fullPageOverridePaths.some(p => location.pathname.startsWith(p));
+
 
   // If search or side menu is active, or it's a full-page override, only render Outlet
   if (isFullPageOverride || isSearchActive || isSideMenuOpen) {
@@ -99,7 +100,7 @@ const AppRoutesController: React.FC = () => {
     if (!isSideMenuOpen) setIsSearchActive(false); // Close search if side menu opens
   };
 
-  const fullPageOverridePaths = ['/start-match/select-teams', '/toss']; // Added /toss
+  const fullPageOverridePaths = ['/start-match/select-teams', '/start-match/edit/', '/toss'];
   const isFullPageOverride = fullPageOverridePaths.some(p => location.pathname.startsWith(p));
   const isAuthPage = ['/login', '/signup'].includes(location.pathname);
 
@@ -162,8 +163,9 @@ const AppRoutesController: React.FC = () => {
             <Route path="/my-performance" element={<MyPerformancePage />} />
             <Route path="/my-cricket" element={<MyCricketPage />} />
             <Route path="/looking" element={<LookingPage />} />
-            <Route path="/start-match/select-teams" element={<SelectTeamsPage />} />
-            <Route path="/toss" element={<TossPage />} /> {/* New Toss Page Route */}
+            <Route path="/start-match/select-teams" element={<SelectTeamsPage key="new-match"/>} />
+            <Route path="/start-match/edit/:matchId" element={<SelectTeamsPage key="edit-match"/>} />
+            <Route path="/toss/:matchId?" element={<TossPage />} /> {/* Made matchId optional for TossPage */}
             <Route path="*" element={user ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />} />
         </Route>
       </Routes>

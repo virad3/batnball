@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Match } from '../types';
 import { getAllMatches, getUpcomingMatches } from '../services/dataService'; 
@@ -33,13 +34,11 @@ const MatchesPage: React.FC = () => {
 
       // Fetch upcoming matches specifically for the 'Upcoming' tab or pre-fetch for 'My'
       const upcomingMatchesLimit = 25; // Increased limit
-      if (activeFilterTab === 'upcoming') {
-        const futureMatches = await getUpcomingMatches(upcomingMatchesLimit);
-        setUpcomingMatches(futureMatches);
-      } else if (activeFilterTab === 'my' && upcomingMatches.length === 0){ // Pre-fetch for upcoming if My is default
-         const futureMatches = await getUpcomingMatches(upcomingMatchesLimit);
-         setUpcomingMatches(futureMatches);
-      }
+      // Always fetch upcoming matches to keep the 'Upcoming' tab populated correctly
+      // if it's the active tab or if its data is stale/empty.
+      // This also helps if we switch to it.
+      const futureMatches = await getUpcomingMatches(upcomingMatchesLimit);
+      setUpcomingMatches(futureMatches);
       
     } catch (error) {
       console.error("Failed to fetch matches:", error);
@@ -48,15 +47,19 @@ const MatchesPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user, activeFilterTab, upcomingMatches.length]);
+  }, [user]); 
 
 
   useEffect(() => {
     fetchMatchesData();
-  }, [fetchMatchesData]); // activeFilterTab is now a dependency of fetchMatchesData
+  }, [fetchMatchesData]); 
 
   const handleStartNewMatchFlow = () => {
-    navigate('/start-match/select-teams'); 
+    navigate('/start-match/select-teams', { state: { mode: 'schedule' } }); 
+  };
+
+  const handleMatchModifiedOrDeleted = () => {
+    fetchMatchesData(); 
   };
 
   const displayedMatches = useMemo(() => {
@@ -67,7 +70,7 @@ const MatchesPage: React.FC = () => {
       case 'upcoming':
         return upcomingMatches;
       case 'played':
-        return allMyMatches.filter(match => match.status === "Completed");
+        return allMyMatches.filter(match => match.status === "Completed" || match.status === "Abandoned");
       case 'network': // Placeholder
         return []; 
       case 'nearby':  // Placeholder
@@ -129,7 +132,11 @@ const MatchesPage: React.FC = () => {
       ) : displayedMatches.length > 0 ? (
         <div className="space-y-4">
           {displayedMatches.map(match => (
-            <MatchCard key={match.id} match={match} />
+            <MatchCard 
+              key={match.id} 
+              match={match} 
+              onMatchModifiedOrDeleted={handleMatchModifiedOrDeleted}
+            />
           ))}
         </div>
       ) : (

@@ -1,14 +1,17 @@
 
+
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Team, MatchFormat, UserProfile } from '../types';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { Team, MatchFormat, UserProfile, Match } from '../types';
 import { useMatchContext } from '../contexts/MatchContext';
 import Button from '../components/Button';
 import TeamSelectionModal from '../components/TeamSelectionModal';
 import EditMatchSquadModal from '../components/EditMatchSquadModal'; // New Import
 import LoadingSpinner from '../components/LoadingSpinner';
-import { ArrowLeftIcon, PlayIcon, PlusIcon, UserGroupIcon, CalendarDaysIcon, PencilSquareIcon } from '@heroicons/react/24/solid';
-import { getAllUserProfilesForSuggestions } from '../services/dataService'; // New Import
+import { ArrowLeftIcon, PlayIcon, PlusIcon, UserGroupIcon, CalendarDaysIcon, PencilSquareIcon, CheckIcon } from '@heroicons/react/24/solid';
+import { getAllUserProfilesForSuggestions, createMatch, getMatchById, updateMatch } from '../services/dataService'; // Direct service calls
+import { Timestamp } from '../services/firebaseClient';
+
 
 const getCurrentDateTime = () => {
     const now = new Date();
@@ -25,18 +28,23 @@ const SQUAD_LIMIT = 11;
 const SelectTeamsPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { startNewMatch } = useMatchContext(); 
-  
-  const isStartNowMode = location.state?.mode === 'startNow';
+  const { matchId: paramMatchId } = useParams<{ matchId?: string }>(); // For edit mode
+  // const { loadMatch } = useMatchContext(); // For fetching existing match to edit // Not needed if using dataService directly
+
+  const isStartNowMode = location.state?.mode === 'startNow' && !paramMatchId;
+  const isEditMode = !!paramMatchId;
 
   const [selectedTeamA, setSelectedTeamA] = useState<Team | null>(null);
   const [selectedTeamB, setSelectedTeamB] = useState<Team | null>(null);
+  const [teamANameInput, setTeamANameInput] = useState(''); 
+  const [teamBNameInput, setTeamBNameInput] = useState(''); 
+
   const [isTeamSelectionModalOpen, setIsTeamSelectionModalOpen] = useState(false);
   const [teamSelectionTarget, setTeamSelectionTarget] = useState<'A' | 'B' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // For scheduling mode
+  // For scheduling/editing mode
   const [matchDate, setMatchDate] = useState(getCurrentDateTime().date);
   const [matchTime, setMatchTime] = useState(getCurrentDateTime().time);
   const [venue, setVenue] = useState('Local Ground');
@@ -52,21 +60,51 @@ const SelectTeamsPage: React.FC = () => {
   const [pageLoading, setPageLoading] = useState(true);
 
   useEffect(() => {
-    const fetchPlayers = async () => {
+    const fetchInitialData = async () => {
       setPageLoading(true);
       try {
-        const players = await getAllUserProfilesForSuggestions();
-        setAllKnownPlayers(players);
+        // Fetch players if starting now OR editing (for squad suggestions)
+        if (isStartNowMode || isEditMode) { 
+          const players = await getAllUserProfilesForSuggestions();
+          setAllKnownPlayers(players);
+        }
+        if (isEditMode && paramMatchId) {
+          const existingMatch = await getMatchById(paramMatchId);
+          if (existingMatch) {
+            setTeamANameInput(existingMatch.teamAName);
+            setTeamBNameInput(existingMatch.teamBName);
+            setVenue(existingMatch.venue);
+            setMatchFormat(existingMatch.format);
+            setMatchOvers(existingMatch.overs_per_innings ?? DEFAULT_OVERS);
+            if (existingMatch.date) {
+                let d: Date;
+                if (existingMatch.date instanceof Timestamp) {
+                    d = existingMatch.date.toDate();
+                } else {
+                    d = new Date(existingMatch.date as string);
+                }
+                if (!isNaN(d.getTime())) {
+                    setMatchDate(d.toISOString().split('T')[0]);
+                    setMatchTime(d.toTimeString().split(' ')[0].substring(0, 5));
+                }
+            }
+            setConfirmedTeamASquad(existingMatch.teamASquad?.slice(0, SQUAD_LIMIT) || []);
+            setConfirmedTeamBSquad(existingMatch.teamBSquad?.slice(0, SQUAD_LIMIT) || []);
+
+          } else {
+            setError("Match to edit not found.");
+            navigate('/matches', {replace: true});
+          }
+        }
       } catch (err) {
-        console.error("Failed to load player suggestions:", err);
-        setError("Could not load player list for squad suggestions.");
+        console.error("Failed to load initial data:", err);
+        setError("Could not load necessary data. " + (err as Error).message);
       } finally {
         setPageLoading(false);
       }
     };
-    if(isStartNowMode) fetchPlayers();
-    else setPageLoading(false);
-  }, [isStartNowMode]);
+    fetchInitialData();
+  }, [isStartNowMode, isEditMode, paramMatchId, navigate]);
 
 
   const handleOpenTeamSelectionModal = (target: 'A' | 'B') => {
@@ -78,19 +116,21 @@ const SelectTeamsPage: React.FC = () => {
   const handleTeamSelected = (team: Team) => {
     setError(null);
     if (teamSelectionTarget === 'A') {
-      if (selectedTeamB?.id === team.id) {
+      if ((selectedTeamB?.id && selectedTeamB.id === team.id) || teamBNameInput === team.name) {
         setError("Team A cannot be the same as Team B.");
         return;
       }
       setSelectedTeamA(team);
-      setConfirmedTeamASquad(team.players.slice(0, SQUAD_LIMIT)); // Initialize with team's players up to limit
+      setTeamANameInput(team.name);
+      setConfirmedTeamASquad(team.players.slice(0, SQUAD_LIMIT)); 
     } else if (teamSelectionTarget === 'B') {
-      if (selectedTeamA?.id === team.id) {
+      if ((selectedTeamA?.id && selectedTeamA.id === team.id) || teamANameInput === team.name) {
         setError("Team B cannot be the same as Team A.");
         return;
       }
       setSelectedTeamB(team);
-      setConfirmedTeamBSquad(team.players.slice(0, SQUAD_LIMIT)); // Initialize
+      setTeamBNameInput(team.name);
+      setConfirmedTeamBSquad(team.players.slice(0, SQUAD_LIMIT));
     }
     setIsTeamSelectionModalOpen(false);
   };
@@ -111,7 +151,7 @@ const SelectTeamsPage: React.FC = () => {
   };
 
   const canProceed = () => {
-    if (!selectedTeamA || !selectedTeamB) return false;
+    if (!teamANameInput.trim() || !teamBNameInput.trim()) return false;
     if (isStartNowMode) {
       return (
         matchOvers > 0 &&
@@ -119,49 +159,54 @@ const SelectTeamsPage: React.FC = () => {
         confirmedTeamBSquad.length === SQUAD_LIMIT
       );
     }
-    return true; // For scheduling, only teams are mandatory at this stage
+    // For scheduling or editing, basic details are needed.
+    return !!(matchDate && matchTime && venue.trim() && teamANameInput.trim() && teamBNameInput.trim());
   };
 
 
   const handleProceed = async () => {
-    if (!selectedTeamA || !selectedTeamB) {
-      setError("Please select both teams to proceed.");
+    if (!teamANameInput.trim() || !teamBNameInput.trim()) {
+      setError("Please select or enter names for both teams.");
       return;
     }
+    if (teamANameInput.trim().toLowerCase() === teamBNameInput.trim().toLowerCase()){
+      setError("Team A and Team B names cannot be the same.");
+      return;
+    }
+
     setError(null);
     setIsLoading(true);
 
     if (isStartNowMode) {
-      if (matchOvers <= 0) {
-        setError("Number of overs must be greater than 0.");
+      if (matchOvers <= 0 && matchFormat !== MatchFormat.TEST) {
+        setError("Number of overs must be greater than 0 for this format.");
         setIsLoading(false);
         return;
       }
       if (confirmedTeamASquad.length !== SQUAD_LIMIT || confirmedTeamBSquad.length !== SQUAD_LIMIT) {
-        setError(`Both teams must have exactly ${SQUAD_LIMIT} players in their match squad.`);
+        setError(`Both teams must have exactly ${SQUAD_LIMIT} players in their match squad for 'Start Now'.`);
         setIsLoading(false);
         return;
       }
       
       const matchSettingsForToss = {
-        venue: "Local Ground", // Default for startNow
-        format: MatchFormat.T20, // Default for startNow
-        overs_per_innings: matchOvers,
+        venue: venue || "Local Ground", 
+        format: matchFormat,
+        overs_per_innings: matchFormat === MatchFormat.TEST ? undefined : matchOvers,
         date: new Date().toISOString(), 
       };
       navigate('/toss', { 
         state: { 
-          teamAName: selectedTeamA.name, 
-          teamBName: selectedTeamB.name, 
+          teamAName: teamANameInput.trim(), 
+          teamBName: teamBNameInput.trim(), 
           teamASquad: confirmedTeamASquad,
           teamBSquad: confirmedTeamBSquad,
           matchSettings: matchSettingsForToss,
-          mode: 'startNow',
+          mode: 'startNow', // Ensure 'mode' is explicitly passed
         } 
       });
       setIsLoading(false);
-    } else {
-      // Scheduling flow
+    } else { 
       if (!matchDate || !matchTime) {
           setError("Please select a valid date and time for the match.");
           setIsLoading(false);
@@ -179,55 +224,75 @@ const SelectTeamsPage: React.FC = () => {
           return;
       }
       
+      const matchDataToSave: Partial<Match> = {
+        teamAName: teamANameInput.trim(),
+        teamBName: teamBNameInput.trim(),
+        teamASquad: confirmedTeamASquad.length >= SQUAD_LIMIT ? confirmedTeamASquad : (selectedTeamA?.players.slice(0, SQUAD_LIMIT) || []),
+        teamBSquad: confirmedTeamBSquad.length >= SQUAD_LIMIT ? confirmedTeamBSquad : (selectedTeamB?.players.slice(0, SQUAD_LIMIT) || []),
+        format: matchFormat,
+        overs_per_innings: matchFormat === MatchFormat.TEST ? undefined : matchOvers,
+        venue: venue.trim(),
+        date: selectedDateTime.toISOString(), // Will be converted to Timestamp by dataService
+      };
+
       try {
-        const partialMatchData = {
-          teamAName: selectedTeamA.name,
-          teamBName: selectedTeamB.name,
-          teamASquad: selectedTeamA.players, // Uses team's default players for scheduling
-          teamBSquad: selectedTeamB.players, // Uses team's default players for scheduling
-          format: matchFormat,
-          overs_per_innings: matchFormat === MatchFormat.TEST ? undefined : matchOvers, // Use matchOvers for custom here too
-          venue: venue.trim(),
-          date: selectedDateTime.toISOString(), 
-          status: "Upcoming" as "Upcoming", 
-        };
-        const newMatch = await startNewMatch(partialMatchData);
-        if (newMatch && newMatch.id) {
-          navigate('/matches'); 
+        if (isEditMode && paramMatchId) {
+          matchDataToSave.status = "Upcoming"; 
+          await updateMatch(paramMatchId, matchDataToSave);
+          navigate('/matches', { replace: true });
         } else {
-          throw new Error("Failed to create a new match instance for scheduling.");
+          matchDataToSave.status = "Upcoming";
+          const newMatch = await createMatch(matchDataToSave);
+          if (newMatch && newMatch.id) {
+            navigate('/matches', { replace: true });
+          } else {
+            throw new Error("Failed to create a new match instance for scheduling.");
+          }
         }
       } catch (err: any) {
-        console.error("Error scheduling match:", err);
-        setError(err.message || "Could not schedule the match. Please try again.");
+        console.error("Error saving match:", err);
+        setError(err.message || "Could not save the match. Please try again.");
       } finally {
         setIsLoading(false);
       }
     }
   };
   
-  const TeamDisplayButton: React.FC<{ team: Team | null; onSelect: () => void; placeholderText: string; }> = ({ team, onSelect, placeholderText }) => (
-    <div className="flex flex-col items-center space-y-3">
+  const TeamDisplayButton: React.FC<{ team: Team | null, teamNameDisplay: string; onSelect: () => void; onEditSquad?: () => void; squadStatus?: string; isSquadConfigurable: boolean; placeholderText: string; teamIdentifier: 'A' | 'B'; }> = 
+    ({ team, teamNameDisplay, onSelect, onEditSquad, squadStatus, isSquadConfigurable, placeholderText, teamIdentifier }) => (
+    <div className="flex flex-col items-center space-y-2">
       <button
         onClick={onSelect}
         className="w-32 h-32 sm:w-36 sm:h-36 bg-gray-700 rounded-full flex items-center justify-center text-gray-100 shadow-lg hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-teal-500"
-        aria-label={team ? `Change ${placeholderText}`: `Select ${placeholderText}`}
+        aria-label={teamNameDisplay ? `Team: ${teamNameDisplay}` : `Select ${placeholderText}`}
       >
         {team?.logoUrl ? (
-          <img src={team.logoUrl} alt={`${team.name} logo`} className="w-full h-full rounded-full object-cover" />
-        ) : team ? (
+          <img src={team.logoUrl} alt={`${teamNameDisplay} logo`} className="w-full h-full rounded-full object-cover" />
+        ) : teamNameDisplay ? (
           <UserGroupIcon className="w-16 h-16 sm:w-20 sm:h-20 opacity-80" />
         ) : (
           <PlusIcon className="w-16 h-16 sm:w-20 sm:h-20 opacity-70" />
         )}
       </button>
-      <Button
-        onClick={onSelect}
-        className="bg-teal-600 hover:bg-teal-500 text-white w-40 sm:w-48 py-2.5 text-sm truncate focus:ring-teal-400 focus:ring-offset-gray-900"
-        aria-label={team ? `Selected team: ${team.name}` : placeholderText}
-      >
-        {team ? team.name : placeholderText.toUpperCase()}
-      </Button>
+      <input 
+        type="text"
+        value={teamNameDisplay}
+        onChange={(e) => {
+            if (teamIdentifier === 'A') setTeamANameInput(e.target.value);
+            else setTeamBNameInput(e.target.value);
+        }}
+        placeholder={placeholderText}
+        className={`${inputClass} w-40 sm:w-48 text-center mt-1 py-2 text-sm truncate`}
+        aria-label={`Name for ${placeholderText}`}
+        // Removed onClick={onSelect} from input to avoid immediate modal reopening after typing.
+      />
+      {isSquadConfigurable && teamNameDisplay && onEditSquad && (
+        <div className="text-center w-40 sm:w-48">
+          <Button onClick={onEditSquad} variant="outline" size="sm" className="w-full mt-1 text-xs" leftIcon={<PencilSquareIcon className="w-3 h-3"/>}>
+            Squad ({squadStatus})
+          </Button>
+        </div>
+      )}
     </div>
   );
   
@@ -236,19 +301,26 @@ const SelectTeamsPage: React.FC = () => {
   const inputClass = `${inputBaseClass} ${inputFocusClass}`;
   const labelClass = "block text-sm font-medium text-gray-300 mb-1";
   
-  const pageTitle = isStartNowMode ? "Start New Match" : "Schedule A Match";
-  const proceedButtonText = isStartNowMode ? "Proceed to Toss" : "Schedule Match";
-  const proceedButtonIcon = isStartNowMode ? <PlayIcon className="w-6 h-6" /> : <CalendarDaysIcon className="w-6 h-6" />;
+  const pageTitle = isEditMode ? "Edit Match Details" : (isStartNowMode ? "Start New Match" : "Schedule Match");
+  const proceedButtonText = isEditMode ? "Update Match" : (isStartNowMode ? "Proceed to Toss" : "Schedule Match");
+  const proceedButtonIcon = isEditMode ? <CheckIcon className="w-6 h-6" /> : (isStartNowMode ? <PlayIcon className="w-6 h-6" /> : <CalendarDaysIcon className="w-6 h-6" />);
 
   const handleBackNavigation = () => {
-    navigate(-1); // Simplified back navigation
+    // If coming from a specific flow (like tournament), navigate back there, otherwise to general matches.
+    if (location.state?.fromTournament) {
+      navigate(`/tournaments/${location.state.fromTournament}`);
+    } else if (isEditMode) {
+      navigate('/matches', {replace: true});
+    } else {
+      navigate(-1); // Default back navigation
+    }
   };
 
-  if (pageLoading && isStartNowMode) {
+  if (pageLoading) {
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center">
         <LoadingSpinner size="lg" />
-        <p className="text-gray-300 mt-4">Loading player data...</p>
+        <p className="text-gray-300 mt-4">Loading match setup...</p>
       </div>
     );
   }
@@ -280,7 +352,7 @@ const SelectTeamsPage: React.FC = () => {
       <main className="flex-grow flex flex-col items-center justify-start p-4 space-y-6 overflow-y-auto">
         {error && <p className="text-red-300 bg-red-900 bg-opacity-50 p-3 rounded-md text-sm w-full max-w-lg text-center border border-red-700 mt-2">{error}</p>}
         
-        {/* Match Details Section - Conditional Display */}
+        {/* Match Details Section - Not for 'startNow' mode */}
         {!isStartNowMode && (
             <div className="w-full max-w-lg bg-gray-800 p-4 sm:p-6 rounded-lg shadow-md border border-gray-700 space-y-4">
                 <div>
@@ -324,54 +396,43 @@ const SelectTeamsPage: React.FC = () => {
         )}
         
         {/* Team Selection Area */}
-        <div className="flex flex-col sm:flex-row items-center justify-around w-full max-w-3xl space-y-6 sm:space-y-0 sm:space-x-4">
+        <div className="flex flex-col sm:flex-row items-start justify-around w-full max-w-3xl space-y-6 sm:space-y-0 sm:space-x-4 mt-4">
           <TeamDisplayButton
             team={selectedTeamA}
+            teamNameDisplay={teamANameInput}
             onSelect={() => handleOpenTeamSelectionModal('A')}
-            placeholderText="SELECT TEAM A"
+            onEditSquad={isStartNowMode || isEditMode ? () => handleOpenEditSquadModal('A') : undefined}
+            squadStatus={`${confirmedTeamASquad.length}/${SQUAD_LIMIT}`}
+            isSquadConfigurable={isStartNowMode || isEditMode}
+            placeholderText="Team A Name"
+            teamIdentifier="A"
           />
-          <div className="text-2xl font-bold text-gray-500 hidden sm:block">VS</div>
+          <div className="text-2xl font-bold text-gray-500 hidden sm:block pt-16">VS</div>
           <TeamDisplayButton
             team={selectedTeamB}
+            teamNameDisplay={teamBNameInput}
             onSelect={() => handleOpenTeamSelectionModal('B')}
-            placeholderText="SELECT TEAM B"
+            onEditSquad={isStartNowMode || isEditMode ? () => handleOpenEditSquadModal('B') : undefined}
+            squadStatus={`${confirmedTeamBSquad.length}/${SQUAD_LIMIT}`}
+            isSquadConfigurable={isStartNowMode || isEditMode}
+            placeholderText="Team B Name"
+            teamIdentifier="B"
           />
         </div>
 
-        {/* Squad and Overs Configuration for 'startNow' mode */}
-        {isStartNowMode && selectedTeamA && selectedTeamB && (
-          <div className="w-full max-w-lg bg-gray-800 p-4 sm:p-6 rounded-lg shadow-md border border-gray-700 space-y-4">
+        {/* Overs Configuration for 'startNow' mode IF NOT ALREADY HANDLED ABOVE */}
+        {isStartNowMode && matchFormat !== MatchFormat.TEST && (
+          <div className="w-full max-w-lg bg-gray-800 p-4 sm:p-6 rounded-lg shadow-md border border-gray-700 space-y-4 mt-6">
             <div>
-              <label htmlFor="matchOvers" className={labelClass}>Number of Overs:</label>
+              <label htmlFor="matchOversStartNow" className={labelClass}>Number of Overs:</label>
               <input 
                 type="number" 
-                id="matchOvers" 
+                id="matchOversStartNow" 
                 value={matchOvers} 
                 onChange={e => setMatchOvers(parseInt(e.target.value, 10) || 1)} 
                 min="1" 
                 className={inputClass} 
               />
-            </div>
-            
-            <div className="space-y-3">
-              {[
-                { team: selectedTeamA, squad: confirmedTeamASquad, onEdit: () => handleOpenEditSquadModal('A'), label: "Team A Squad" },
-                { team: selectedTeamB, squad: confirmedTeamBSquad, onEdit: () => handleOpenEditSquadModal('B'), label: "Team B Squad" }
-              ].map(item => (
-                item.team && (
-                  <div key={item.team.id} className="p-3 bg-gray-700 rounded-md">
-                    <div className="flex justify-between items-center mb-2">
-                      <h4 className="text-md font-semibold text-gray-200">{item.label} ({item.squad.length}/{SQUAD_LIMIT})</h4>
-                      <Button onClick={item.onEdit} variant="outline" size="sm" leftIcon={<PencilSquareIcon className="w-4 h-4"/>}>Edit</Button>
-                    </div>
-                    <ul className="text-xs text-gray-300 list-disc list-inside">
-                      {item.squad.slice(0, 5).map(p => <li key={p} className="truncate">{p}</li>)}
-                      {item.squad.length > 5 && <li>...and {item.squad.length - 5} more</li>}
-                    </ul>
-                     {item.squad.length !== SQUAD_LIMIT && <p className="text-xs text-yellow-400 mt-1">Squad must have {SQUAD_LIMIT} players.</p>}
-                  </div>
-                )
-              ))}
             </div>
           </div>
         )}
@@ -392,7 +453,7 @@ const SelectTeamsPage: React.FC = () => {
         <EditMatchSquadModal
           isOpen={isEditSquadModalOpen}
           onClose={() => setIsEditSquadModalOpen(false)}
-          teamName={editingSquadForTeam === 'A' ? selectedTeamA?.name || 'Team A' : selectedTeamB?.name || 'Team B'}
+          teamName={editingSquadForTeam === 'A' ? teamANameInput || 'Team A' : teamBNameInput || 'Team B'}
           initialSquad={editingSquadForTeam === 'A' ? confirmedTeamASquad : confirmedTeamBSquad}
           allKnownPlayers={allKnownPlayers}
           onConfirmSquad={handleConfirmSquad}
