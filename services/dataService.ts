@@ -27,9 +27,10 @@ export const getRecentMatches = async (count: number = 3): Promise<Match[]> => {
   if (!userId) return [];
 
   const matchesCol = db.collection('matches') as FirebaseCollectionReference;
-  // Fetches most recent matches based on date, could be completed, live, or even past 'upcoming'
+  // Fetches most recent "Live" or "Completed" matches based on date.
   const q = matchesCol
     .where('user_id', '==', userId)
+    .where('status', 'in', ['Live', 'Completed']) // Only Live or Completed
     .orderBy('date', 'desc')
     .limit(count);
   const querySnapshot = await q.get() as FirebaseQuerySnapshot;

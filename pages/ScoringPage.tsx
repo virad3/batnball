@@ -1,11 +1,13 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Match, BallEvent, Score, MatchFormat, PlayerBattingStats, PlayerBowlingStats, DismissalType, InningsRecord } from '../types';
 import ScoreDisplay from '../components/ScoreDisplay';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useMatchContext } from '../contexts/MatchContext';
+import BallDisplayIcon from '../components/BallDisplayIcon'; // New import
+import EditBallModal from '../components/EditBallModal'; // New import
 
 const SQUAD_SIZE = 11;
 
@@ -27,11 +29,11 @@ const ScoringPage: React.FC = () => {
   const context = useMatchContext();
   const { 
     matchDetails, loadMatch, addBall, switchInnings, saveMatchState, endMatch,
-    currentStrikerName, currentNonStrikerName, currentBowlerName, setPlayerRoles, currentInningsNumber, target
+    currentStrikerName, currentNonStrikerName, currentBowlerName, setPlayerRoles, currentInningsNumber, target,
+    updateBallEvent // New context function
   } = context;
 
   const [pageLoading, setPageLoading] = useState(true);
-  // Toss Modal state removed - handled by TossPage
   
   const [showSquadSelectionModal, setShowSquadSelectionModal] = useState(false);
   const [availableTeamAPlayers, setAvailableTeamAPlayers] = useState<string[]>([]);
@@ -49,6 +51,10 @@ const ScoringPage: React.FC = () => {
   const [showWicketModal, setShowWicketModal] = useState(false);
   const [wicketDetails, setWicketDetails] = useState<{ batsmanOut: string; dismissalType: DismissalType; bowler?: string; fielder?: string; }>({ batsmanOut: '', dismissalType: DismissalType.BOWLED });
 
+  // State for editing a ball
+  const [isEditBallModalOpen, setIsEditBallModalOpen] = useState(false);
+  const [editingBallTimelineIndex, setEditingBallTimelineIndex] = useState<number | null>(null);
+
 
   const initializePage = useCallback(async () => {
     console.log('[ScoringPage] initializePage called. matchId:', matchId);
@@ -64,7 +70,6 @@ const ScoringPage: React.FC = () => {
 
     if (loadedMatch) {
       if (loadedMatch.status === "Upcoming" && !loadedMatch.tossWinnerName) {
-        // Match is upcoming and toss not done, redirect to TossPage
         console.log('[ScoringPage] Match upcoming and toss not done, redirecting to TossPage.');
         navigate(`/toss/${loadedMatch.id}`, { replace: true });
         return;
@@ -100,7 +105,6 @@ const ScoringPage: React.FC = () => {
     initializePage();
   }, [initializePage]);
 
-  // Toss submit logic removed - handled by TossPage
 
   const handleSquadPlayerSelection = (playerName: string, team: 'A' | 'B') => {
     if (team === 'A') {
@@ -157,6 +161,10 @@ const ScoringPage: React.FC = () => {
   const handlePlayerRolesSubmit = async () => {
     if (!modalStriker || !modalNonStriker || !modalBowler) {
         alert("Please select striker, non-striker, and bowler.");
+        return;
+    }
+    if (modalStriker === modalNonStriker) {
+        alert("Striker and Non-Striker cannot be the same player.");
         return;
     }
     console.log('[ScoringPage] handlePlayerRolesSubmit called.');
@@ -236,6 +244,61 @@ const ScoringPage: React.FC = () => {
       bowlingTeamName: matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamBName : matchDetails.teamAName,
   } : null;
 
+  const currentOverEvents: (BallEvent | null)[] = useMemo(() => {
+    const events: (BallEvent | null)[] = Array(6).fill(null);
+    if (!currentMatchInningsData || !currentMatchInningsData.timeline) return events;
+
+    const ballsThisOverCount = currentMatchInningsData.totalBallsBowled % 6;
+    const ballsInTimeline = currentMatchInningsData.timeline.length;
+    
+    // If it's the start of an over (0 balls bowled in this over, but not 0 total balls in innings)
+    // or if we have bowled some balls in this over.
+    if (ballsThisOverCount > 0 || (ballsThisOverCount === 0 && currentMatchInningsData.totalBallsBowled > 0)) {
+        let startIndexInTimeline = ballsInTimeline - ballsThisOverCount;
+        if (ballsThisOverCount === 0 && currentMatchInningsData.totalBallsBowled > 0) { // Full over just completed
+            startIndexInTimeline = ballsInTimeline - 6;
+        }
+        
+        for (let i = 0; i < 6; i++) {
+            if (startIndexInTimeline + i < ballsInTimeline && i < (ballsThisOverCount === 0 && currentMatchInningsData.totalBallsBowled > 0 ? 6 : ballsThisOverCount) ) {
+                events[i] = currentMatchInningsData.timeline[startIndexInTimeline + i];
+            }
+        }
+    }
+    return events;
+  }, [currentMatchInningsData]);
+
+  const handleEditBall = (ballIndexInOver: number) => {
+    if (!currentMatchInningsData || !currentMatchInningsData.timeline) return;
+    
+    const totalBallsBowledInOverSoFar = currentMatchInningsData.totalBallsBowled % 6;
+    let actualBallsInOver = totalBallsBowledInOverSoFar;
+    if (totalBallsBowledInOverSoFar === 0 && currentMatchInningsData.totalBallsBowled > 0) {
+        actualBallsInOver = 6; // A full over was just completed
+    }
+
+    if (ballIndexInOver >= actualBallsInOver) return; // Cannot edit a ball not yet bowled in this display
+
+    const ballsBowledBeforeThisOver = currentMatchInningsData.totalBallsBowled - actualBallsInOver;
+    const timelineIdx = ballsBowledBeforeThisOver + ballIndexInOver;
+
+    if (timelineIdx >= 0 && timelineIdx < currentMatchInningsData.timeline.length) {
+        setEditingBallTimelineIndex(timelineIdx);
+        setIsEditBallModalOpen(true);
+    } else {
+        console.error("Calculated timeline index for edit is out of bounds.");
+    }
+  };
+
+  const handleEditBallSubmit = async (updatedEvent: BallEvent) => {
+    if (editingBallTimelineIndex !== null) {
+      await updateBallEvent(editingBallTimelineIndex, updatedEvent);
+    }
+    setIsEditBallModalOpen(false);
+    setEditingBallTimelineIndex(null);
+  };
+  
+
   const modalInputBaseClass = "w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
   const modalInputFocusClass = "focus:ring-teal-500 focus:border-teal-500"; 
   const modalInputClass = `${modalInputBaseClass} ${modalInputFocusClass}`;
@@ -290,7 +353,6 @@ const ScoringPage: React.FC = () => {
   if (pageLoading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
   if (!matchDetails) return <div className="text-center p-8 text-xl text-gray-300">Match details not loaded or found. <Link to="/matches" className="text-teal-400 hover:underline">Go to Matches</Link></div>;
 
-  // Toss Modal removed - toss happens on TossPage
 
   if (showSquadSelectionModal) {
      return (
@@ -401,6 +463,22 @@ const ScoringPage: React.FC = () => {
     );
   }
 
+   if (isEditBallModalOpen && editingBallTimelineIndex !== null && currentMatchInningsData?.timeline) {
+    const ballToEdit = currentMatchInningsData.timeline[editingBallTimelineIndex];
+    return (
+      <EditBallModal
+        isOpen={isEditBallModalOpen}
+        onClose={() => { setIsEditBallModalOpen(false); setEditingBallTimelineIndex(null); }}
+        ballEventToEdit={ballToEdit}
+        onSubmit={handleEditBallSubmit}
+        currentStrikerName={currentStrikerName}
+        currentNonStrikerName={currentNonStrikerName}
+        bowlingTeamSquad={matchDetails?.current_batting_team === matchDetails?.teamAName ? matchDetails?.teamBSquad : matchDetails?.teamASquad}
+        battingTeamSquad={matchDetails?.current_batting_team === matchDetails?.teamAName ? matchDetails?.teamASquad : matchDetails?.teamBSquad}
+      />
+    );
+  }
+
   if (matchDetails.status === "Live" && (!matchDetails.teamASquad || matchDetails.teamASquad.length < SQUAD_SIZE || !matchDetails.teamBSquad || matchDetails.teamBSquad.length < SQUAD_SIZE)) {
     return (
         <div className="text-center p-8 text-xl text-gray-300">
@@ -439,6 +517,22 @@ const ScoringPage: React.FC = () => {
         <Button size="sm" variant="outline" className="mt-1" onClick={() => setShowPlayerRolesModal(true)}>Change Roles</Button>
       </div>
 
+      {/* Ball Display Icons */}
+      <div className="p-3 bg-gray-800 rounded-lg shadow border border-gray-700">
+        <h3 className="text-md font-semibold text-gray-200 mb-2 text-center">Current Over:</h3>
+        <div className="flex justify-center space-x-1.5 sm:space-x-2">
+            {currentOverEvents.map((ballEvent, index) => (
+                <BallDisplayIcon 
+                    key={index} 
+                    ballEvent={ballEvent} 
+                    ballNumberInOver={index + 1}
+                    onClick={ballEvent ? () => handleEditBall(index) : undefined}
+                    isCurrentBall={!ballEvent && scoreForDisplay?.ballsThisOver === index && scoreForDisplay.wickets < SQUAD_SIZE -1}
+                />
+            ))}
+        </div>
+      </div>
+
 
       <div className="p-4 bg-gray-800 rounded-lg shadow space-y-4 border border-gray-700">
         <h3 className="text-lg font-semibold text-gray-100">Scoring Controls:</h3>
@@ -469,7 +563,7 @@ const ScoringPage: React.FC = () => {
         <h3 className="text-lg font-semibold text-gray-100 mb-2">Recent Events: (Timeline)</h3>
         <ul className="text-sm space-y-1.5 text-gray-300 max-h-40 overflow-y-auto pr-2">
             {currentMatchInningsData?.timeline?.slice(-10).reverse().map((event, idx) => (
-                <li key={idx} className="border-b border-gray-700 pb-1.5">
+                <li key={event.ballId || `ball-${idx}`} className="border-b border-gray-700 pb-1.5">
                    Ball for {event.strikerName}: {event.isWicket ? <span className="font-semibold text-red-400">WICKET! ({event.wicketType})</span> : `${event.runs} run(s)`}
                    {event.extraType && <span className="text-yellow-400"> ({event.extraType}{event.extraRuns ? ` +${event.extraRuns}` : ''})</span>}
                 </li>

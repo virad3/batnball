@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useState, useContext, useCallback, ReactNode } from 'react';
 import { Match, BallEvent, InningsRecord, PlayerBattingStats, PlayerBowlingStats, DismissalType, MatchContextType, MatchState, Team } from '../types';
 import { createMatch, getMatchById, updateMatch } from '../services/dataService'; 
@@ -140,9 +141,8 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
         if (partialMatchData.tossWinnerName && partialMatchData.electedTo) {
             status = "Live";
-            matchDate = new Date().toISOString(); // If toss happens, match is "now"
+            matchDate = new Date().toISOString(); 
             const battingFirstTeam = partialMatchData.electedTo === "Bat" ? partialMatchData.tossWinnerName : (partialMatchData.tossWinnerName === teamAName ? teamBName : teamAName);
-            const bowlingFirstTeam = battingFirstTeam === teamAName ? teamBName : teamASquad;
             
             const battingSquad = battingFirstTeam === teamAName ? teamASquad : teamBSquad;
             const bowlingSquadForInit = battingFirstTeam === teamAName ? teamBSquad : teamASquad;
@@ -167,7 +167,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
         if (createdMatchFromDb) {
           setMatchDetails(createdMatchFromDb); 
-          if(status === "Live") { // Set context state for live match
+          if(status === "Live") { 
             setState(prevState => ({
                 ...prevState,
                 currentInningsNumber: 1,
@@ -193,7 +193,8 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const bowlingFirstTeam = battingFirstTeam === match.teamAName ? match.teamBName : match.teamAName;
     
     const battingSquad = battingFirstTeam === match.teamAName ? (match.teamASquad || []) : (match.teamBSquad || []);
-    const bowlingSquad = bowlingFirstTeam === match.teamAName ? (match.teamASquad || []) : (match.teamBSquad || []);
+    const bowlingSquad = bowlingFirstTeam === match.teamAName ? (match.teamBSquad || []) : (match.teamASquad || []);
+
 
     const innings1 = initializeInningsRecord(battingFirstTeam, battingSquad, bowlingSquad);
 
@@ -220,10 +221,37 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   }, [state.matchDetails, setMatchDetails]);
 
+  const saveMatchState = useCallback(async (matchToSaveParam?: Match | null) => {
+    const matchDataToSave = matchToSaveParam || state.matchDetails; 
+    if (!matchDataToSave) {
+        console.warn("[MatchContext] saveMatchState: No match data to save.");
+        return;
+    }
+    console.log('[MatchContext] saveMatchState called for match ID:', matchDataToSave.id);
+
+    const finalMatchData: Partial<Match> = {
+        ...matchDataToSave,
+        current_striker_name: state.currentStrikerName,
+        current_non_striker_name: state.currentNonStrikerName,
+        current_bowler_name: state.currentBowlerName,
+    };
+    
+    try {
+        const savedMatchFromDb = await updateMatch(finalMatchData.id!, finalMatchData);
+        // Ensure state is updated with the version from DB (especially if timestamps were converted by Firestore)
+        // Check if the currently loaded match is still the one being saved to avoid race conditions.
+        if (state.matchDetails && savedMatchFromDb && savedMatchFromDb.id === state.matchDetails.id) {
+           setMatchDetails(savedMatchFromDb); 
+        }
+    } catch (error) {
+        console.error("Error saving match state:", error);
+    }
+  }, [state.matchDetails, state.currentStrikerName, state.currentNonStrikerName, state.currentBowlerName, setMatchDetails]);
+
 
   const addBall = useCallback(async (event: BallEvent) => {
-    if (!state.matchDetails || !state.currentStrikerName || !state.currentBowlerName) {
-        console.warn("Cannot add ball: Match details, striker, or bowler missing.");
+    if (!state.matchDetails || !state.currentStrikerName || !state.currentBowlerName || !state.currentNonStrikerName) {
+        console.warn("Cannot add ball: Match details, striker, non-striker, or bowler missing.");
         return;
     }
     console.log('[MatchContext] addBall event:', event);
@@ -237,15 +265,13 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
     
     currentInningsRec = JSON.parse(JSON.stringify(currentInningsRec)); 
-    currentInningsRec.timeline = [...(currentInningsRec.timeline || []), event];
+    currentInningsRec.timeline = [...(currentInningsRec.timeline || []), { ...event, ballId: Date.now().toString() + Math.random().toString(36).substring(2,7) }];
+
 
     const bowlerStats = currentInningsRec.bowlingPerformances.find(p => p.playerName === state.currentBowlerName);
     if (bowlerStats) {
         if (event.extraType !== "Wide" && event.extraType !== "NoBall") { 
             bowlerStats.ballsBowled += 1;
-            const oversWhole = Math.floor(bowlerStats.ballsBowled / 6);
-            const ballsRemainder = bowlerStats.ballsBowled % 6;
-            bowlerStats.oversBowled = parseFloat(`${oversWhole}.${ballsRemainder}`);
         }
         bowlerStats.runsConceded += event.runs + (event.extraRuns || 0);
         if (event.isWicket && event.bowlerName === state.currentBowlerName && event.wicketType !== DismissalType.RUN_OUT && event.wicketType !== DismissalType.RETIRED_HURT && event.wicketType !== DismissalType.TIMED_OUT && event.wicketType !== DismissalType.HANDLED_BALL && event.wicketType !== DismissalType.OBSTRUCTING_FIELD && event.wicketType !== DismissalType.HIT_BALL_TWICE) { 
@@ -279,24 +305,182 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
     currentInningsRec.totalRuns += (event.extraRuns || 0);
     
-    if (event.extraType !== "Wide" && event.extraType !== "NoBall") {
+    let isLegalDelivery = true;
+    if (event.extraType === "Wide" || event.extraType === "NoBall") {
+       isLegalDelivery = false;
+    }
+    if (isLegalDelivery) {
        currentInningsRec.totalBallsBowled +=1;
     }
+    
     const totalOversWhole = Math.floor(currentInningsRec.totalBallsBowled / 6);
     const totalBallsRemainder = currentInningsRec.totalBallsBowled % 6;
     currentInningsRec.totalOversBowled = parseFloat(`${totalOversWhole}.${totalBallsRemainder}`);
+    
+    // Update bowler's overs after ballsBowled is updated
+    if (bowlerStats && isLegalDelivery) {
+        const bowlerOversWhole = Math.floor(bowlerStats.ballsBowled / 6);
+        const bowlerBallsRemainder = bowlerStats.ballsBowled % 6;
+        bowlerStats.oversBowled = parseFloat(`${bowlerOversWhole}.${bowlerBallsRemainder}`);
+    }
 
 
+    // Strike Rotation Logic
+    let newStriker = state.currentStrikerName;
+    let newNonStriker = state.currentNonStrikerName;
+
+    if (isLegalDelivery && (event.runs === 1 || event.runs === 3 || event.runs === 5) && event.extraType !== "Byes" && event.extraType !== "LegByes") {
+        newStriker = state.currentNonStrikerName;
+        newNonStriker = state.currentStrikerName;
+    }
+
+    // End of Over Strike Rotation (if it's a legal delivery that completes an over)
+    const isOverComplete = isLegalDelivery && (currentInningsRec.totalBallsBowled % 6 === 0) && currentInningsRec.totalBallsBowled > 0;
+    const isMatchOver = (currentInningsRec.totalWickets >= SQUAD_SIZE - 1) || 
+                       (match.overs_per_innings && currentInningsRec.totalOversBowled >= match.overs_per_innings && state.currentInningsNumber === 2); // Simplified match end condition
+
+    if (isOverComplete && !isMatchOver) {
+        newStriker = state.currentNonStrikerName; // Non-striker faces next over
+        newNonStriker = state.currentStrikerName;
+        // Bowler change will be handled manually via setPlayerRoles if needed
+    }
+
+    // Update match state
     if (state.currentInningsNumber === 1) {
         match.innings1Record = currentInningsRec;
     } else {
         match.innings2Record = currentInningsRec;
     }
+    match.current_striker_name = newStriker;
+    match.current_non_striker_name = newNonStriker;
     
-    setState(prevState => ({ ...prevState, matchDetails: { ...match } })); 
-    await saveMatchState({ ...match });
+    setState(prevState => ({ 
+        ...prevState, 
+        matchDetails: { ...match },
+        currentStrikerName: newStriker,
+        currentNonStrikerName: newNonStriker,
+    })); 
+    await saveMatchState();
 
-  }, [state]);
+  }, [state, saveMatchState]);
+
+
+  const updateBallEvent = useCallback(async (ballTimelineIndex: number, updatedEventData: BallEvent) => {
+    if (!state.matchDetails) {
+        console.error("Match details not loaded, cannot update ball event.");
+        return;
+    }
+    console.log(`[MatchContext] updateBallEvent for timeline index: ${ballTimelineIndex}`, updatedEventData);
+
+    let matchCopy = JSON.parse(JSON.stringify(state.matchDetails)) as Match;
+    let inningsToUpdate: InningsRecord | null | undefined = state.currentInningsNumber === 1 
+        ? matchCopy.innings1Record 
+        : matchCopy.innings2Record;
+
+    if (!inningsToUpdate || !inningsToUpdate.timeline) {
+        console.error("Innings record or timeline not found for update.");
+        return;
+    }
+
+    // --- 1. Update the specific ball in the timeline ---
+    inningsToUpdate.timeline[ballTimelineIndex] = { ...updatedEventData, ballId: inningsToUpdate.timeline[ballTimelineIndex].ballId || Date.now().toString() };
+
+    // --- 2. Reset innings and player stats ---
+    const battingSquad = state.currentInningsNumber === 1 
+        ? (matchCopy.teamASquad?.includes(inningsToUpdate.teamName) ? matchCopy.teamASquad : matchCopy.teamBSquad)
+        : (matchCopy.teamBSquad?.includes(inningsToUpdate.teamName) ? matchCopy.teamBSquad : matchCopy.teamASquad);
+
+    const bowlingSquad = state.currentInningsNumber === 1 
+        ? (matchCopy.teamASquad?.includes(inningsToUpdate.teamName) ? matchCopy.teamBSquad : matchCopy.teamASquad)
+        : (matchCopy.teamBSquad?.includes(inningsToUpdate.teamName) ? matchCopy.teamASquad : matchCopy.teamBSquad);
+        
+    const freshInnings = initializeInningsRecord(inningsToUpdate.teamName, battingSquad, bowlingSquad);
+    inningsToUpdate.totalRuns = freshInnings.totalRuns;
+    inningsToUpdate.totalWickets = freshInnings.totalWickets;
+    inningsToUpdate.totalOversBowled = freshInnings.totalOversBowled;
+    inningsToUpdate.totalBallsBowled = freshInnings.totalBallsBowled;
+    inningsToUpdate.battingPerformances = freshInnings.battingPerformances;
+    inningsToUpdate.bowlingPerformances = freshInnings.bowlingPerformances;
+    
+    const originalTimeline = [...inningsToUpdate.timeline]; // Keep a copy
+    inningsToUpdate.timeline = []; // Temporarily clear for recalculation
+
+
+    // --- 3. Recalculate stats by replaying the modified timeline ---
+    for (const ball of originalTimeline) {
+        if (!ball.strikerName || !ball.bowlerName) {
+            console.warn("Skipping ball in recalculation due to missing striker/bowler:", ball);
+            inningsToUpdate.timeline.push(ball); // Add back to timeline even if skipped for stats
+            continue;
+        }
+        
+        inningsToUpdate.timeline.push(ball); // Add ball to the recalculated timeline
+
+        const bowlerStats = inningsToUpdate.bowlingPerformances.find(p => p.playerName === ball.bowlerName);
+        if (bowlerStats) {
+            if (ball.extraType !== "Wide" && ball.extraType !== "NoBall") {
+                bowlerStats.ballsBowled += 1;
+            }
+            bowlerStats.runsConceded += ball.runs + (ball.extraRuns || 0);
+            if (ball.isWicket && ball.bowlerName === ball.bowlerName && ball.wicketType !== DismissalType.RUN_OUT && ball.wicketType !== DismissalType.RETIRED_HURT && ball.wicketType !== DismissalType.TIMED_OUT && ball.wicketType !== DismissalType.HANDLED_BALL && ball.wicketType !== DismissalType.OBSTRUCTING_FIELD && ball.wicketType !== DismissalType.HIT_BALL_TWICE) {
+                bowlerStats.wickets += 1;
+            }
+        }
+
+        const strikerStats = inningsToUpdate.battingPerformances.find(p => p.playerName === ball.strikerName);
+        if (strikerStats) {
+            if (ball.extraType !== "Wide") {
+                 if (ball.extraType !== "Byes" && ball.extraType !== "LegByes") {
+                    strikerStats.runs += ball.runs;
+                    if (ball.runs === 4) strikerStats.fours += 1;
+                    if (ball.runs === 6) strikerStats.sixes += 1;
+                 }
+            }
+            if (ball.extraType !== "Wide" && ball.extraType !== "NoBall") {
+                strikerStats.ballsFaced += 1;
+            }
+            if (ball.isWicket && ball.batsmanOutName === ball.strikerName) {
+                strikerStats.status = ball.wicketType || DismissalType.OTHER;
+                strikerStats.bowlerName = ball.bowlerName;
+                strikerStats.fielderName = ball.fielderName;
+                inningsToUpdate.totalWickets += 1;
+            }
+        }
+        
+        if (ball.extraType !== "Byes" && ball.extraType !== "LegByes") {
+            inningsToUpdate.totalRuns += ball.runs;
+        }
+        inningsToUpdate.totalRuns += (ball.extraRuns || 0);
+        
+        if (ball.extraType !== "Wide" && ball.extraType !== "NoBall") {
+           inningsToUpdate.totalBallsBowled +=1;
+        }
+    }
+    
+    // Finalize overs calculation for innings and bowlers after loop
+    const totalOversWholeRecalc = Math.floor(inningsToUpdate.totalBallsBowled / 6);
+    const totalBallsRemainderRecalc = inningsToUpdate.totalBallsBowled % 6;
+    inningsToUpdate.totalOversBowled = parseFloat(`${totalOversWholeRecalc}.${totalBallsRemainderRecalc}`);
+
+    inningsToUpdate.bowlingPerformances.forEach(bs => {
+        const bowlerOversWhole = Math.floor(bs.ballsBowled / 6);
+        const bowlerBallsRemainder = bs.ballsBowled % 6;
+        bs.oversBowled = parseFloat(`${bowlerOversWhole}.${bowlerBallsRemainder}`);
+    });
+
+
+    // --- 4. Update state and save ---
+    if (state.currentInningsNumber === 1) {
+        matchCopy.innings1Record = inningsToUpdate;
+    } else {
+        matchCopy.innings2Record = inningsToUpdate;
+    }
+
+    setMatchDetails(matchCopy); // This will call convertMatchTimestampsToStrings
+    await saveMatchState(matchCopy); 
+
+  }, [state.matchDetails, state.currentInningsNumber, initializeInningsRecord, setMatchDetails, saveMatchState]);
+
 
   const switchInnings = useCallback(async () => {
     if (!state.matchDetails || !state.matchDetails.innings1Record || state.currentInningsNumber !== 1) return;
@@ -310,8 +494,12 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const battingSquad = battingSecondTeam === match.teamAName ? (match.teamASquad || []) : (match.teamBSquad || []);
     const bowlingSquad = match.current_batting_team === match.teamAName ? (match.teamASquad || []) : (match.teamBSquad || []);
 
+
     match.innings2Record = initializeInningsRecord(battingSecondTeam, battingSquad, bowlingSquad);
     match.current_batting_team = battingSecondTeam; 
+    match.current_striker_name = null; // Reset for new innings
+    match.current_non_striker_name = null;
+    match.current_bowler_name = null;
 
     setState(prevState => ({
         ...prevState,
@@ -322,33 +510,8 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         currentNonStrikerName: null,
         currentBowlerName: null,
     }));
-    await saveMatchState({ ...match });
-  }, [state]);
-
-  const saveMatchState = useCallback(async (matchToSaveParam?: Match | null) => {
-    const matchDataToSave = matchToSaveParam || state.matchDetails; 
-    if (!matchDataToSave) {
-        console.warn("[MatchContext] saveMatchState: No match data to save.");
-        return;
-    }
-    console.log('[MatchContext] saveMatchState called for match ID:', matchDataToSave.id);
-
-    const finalMatchData: Partial<Match> = {
-        ...matchDataToSave,
-        current_striker_name: state.currentStrikerName,
-        current_non_striker_name: state.currentNonStrikerName,
-        current_bowler_name: state.currentBowlerName,
-    };
-    
-    try {
-        const savedMatchFromDb = await updateMatch(finalMatchData.id!, finalMatchData);
-        if (state.matchDetails && savedMatchFromDb && savedMatchFromDb.id === state.matchDetails.id) {
-           setMatchDetails(savedMatchFromDb); 
-        }
-    } catch (error) {
-        console.error("Error saving match state:", error);
-    }
-  }, [state.matchDetails, state.currentStrikerName, state.currentNonStrikerName, state.currentBowlerName, setMatchDetails]);
+    await saveMatchState();
+  }, [state, saveMatchState]);
 
 
   const endMatch = useCallback(async (resultSummary: string) => {
@@ -368,6 +531,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         startNewMatch,
         updateTossAndStartInnings,
         addBall, 
+        updateBallEvent,
         switchInnings,
         saveMatchState,
         endMatch,

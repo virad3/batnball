@@ -106,6 +106,7 @@ export interface Score {
 }
 
 export interface BallEvent {
+  ballId?: string; // Optional unique ID for React keys or specific targeting
   runs: number; 
   isWicket: boolean;
   wicketType?: DismissalType;
@@ -176,6 +177,7 @@ export interface MatchContextType extends MatchState {
   startNewMatch: (partialMatchData: Partial<Match>) => Promise<Match | null>;
   updateTossAndStartInnings: (tossWinner: string, elected: "Bat" | "Bowl") => Promise<void>;
   addBall: (event: BallEvent) => Promise<void>; // Make async for potential save
+  updateBallEvent: (ballTimelineIndex: number, updatedEventData: BallEvent) => Promise<void>; // For editing a ball
   switchInnings: () => Promise<void>; // Make async
   saveMatchState: () => Promise<void>; // Explicit save
   endMatch: (resultSummary: string) => Promise<void>;
