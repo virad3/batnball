@@ -45,18 +45,7 @@ const HomePage: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <section className="text-center p-6 bg-gray-800 rounded-xl shadow-lg border border-gray-700">
-        <h1 className="text-4xl font-graduate text-gray-50 mb-4">Welcome to Bat 'n' Ball!</h1>
-        <p className="text-lg text-gray-300 mb-6">Track scores, manage tournaments, and follow your favorite local cricket action.</p>
-        <div className="flex flex-col sm:flex-row justify-center space-y-3 sm:space-y-0 sm:space-x-4">
-          <Button variant="primary" size="lg" onClick={() => navigate('/start-match/select-teams')}> 
-            Start Scoring
-          </Button>
-          <Button variant="outline" size="lg" onClick={() => navigate('/tournaments/new')}> 
-            Create Tournament
-          </Button>
-        </div>
-      </section>
+      <h1 className="text-3xl font-bold text-gray-50 mb-6">Home</h1>
 
       <section className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
         <div className="flex justify-between items-center mb-4">

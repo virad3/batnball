@@ -189,3 +189,9 @@ export interface Team {
   createdAt: FirebaseTimestamp;
   logoUrl?: string | null;
 }
+
+export interface SearchResultItem {
+  title: string;
+  description: string;
+  type: "Player" | "Team" | "Match" | "Tournament" | "Other" | string; // Allow string for flexibility from Gemini
+}

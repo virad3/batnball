@@ -23,6 +23,7 @@ import MyCricketPage from './pages/MyCricketPage';
 import LookingPage from './pages/LookingPage';
 import HighlightsPage from './pages/HighlightsPage';
 import SelectTeamsPage from './pages/SelectTeamsPage';
+import TossPage from './pages/TossPage'; // Import TossPage
 import { MatchProvider } from './contexts/MatchContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -41,7 +42,7 @@ const ProtectedLayoutWrapperAdjusted: React.FC<{isSearchActive: boolean, isSideM
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
-  const fullPageOverridePaths = ['/start-match/select-teams'];
+  const fullPageOverridePaths = ['/start-match/select-teams', '/toss']; // Added /toss
   const isFullPageOverride = fullPageOverridePaths.some(p => location.pathname.startsWith(p));
 
   // If search or side menu is active, or it's a full-page override, only render Outlet
@@ -83,7 +84,7 @@ const App: React.FC = () => {
 const AppRoutesController: React.FC = () => {
   const { loading: authLoading, user } = useAuth();
   const [isSearchActive, setIsSearchActive] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('Vi');
+  const [searchQuery, setSearchQuery] = useState(''); // Changed initial state from 'Vi' to ''
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false); // State for SideMenu
   const location = useLocation();
 
@@ -97,7 +98,7 @@ const AppRoutesController: React.FC = () => {
     if (!isSideMenuOpen) setIsSearchActive(false); // Close search if side menu opens
   };
 
-  const fullPageOverridePaths = ['/start-match/select-teams'];
+  const fullPageOverridePaths = ['/start-match/select-teams', '/toss']; // Added /toss
   const isFullPageOverride = fullPageOverridePaths.some(p => location.pathname.startsWith(p));
   const isAuthPage = ['/login', '/signup'].includes(location.pathname);
 
@@ -161,6 +162,7 @@ const AppRoutesController: React.FC = () => {
             <Route path="/my-cricket" element={<MyCricketPage />} />
             <Route path="/looking" element={<LookingPage />} />
             <Route path="/start-match/select-teams" element={<SelectTeamsPage />} />
+            <Route path="/toss" element={<TossPage />} /> {/* New Toss Page Route */}
             <Route path="*" element={user ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />} />
         </Route>
       </Routes>

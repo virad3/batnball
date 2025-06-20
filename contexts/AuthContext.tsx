@@ -1,7 +1,8 @@
 
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, AuthError, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import type { User, AuthError } from 'firebase/auth';
 import { auth, db } from '../services/firebaseClient'; // Use Firebase client
 import { doc, setDoc, getDoc, Timestamp } from 'firebase/firestore'; // Added Timestamp for profile date fields
 import { UserProfile } from '../types';

@@ -2,25 +2,24 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { UserProfile } from '../types'; // Import UserProfile
 import {
   XMarkIcon,
   ChevronRightIcon,
-  ShoppingBagIcon,
   TrophyIcon,
   PlayCircleIcon,
   VideoCameraIcon,
-  CircleStackIcon, // Placeholder for Toss
+  CircleStackIcon, 
   CalendarDaysIcon,
   UserGroupIcon,
-  ChartBarSquareIcon, // For My Stats
-  ChartPieIcon,     // For My Performance
+  ChartBarSquareIcon, 
+  ChartPieIcon,     
   SparklesIcon,
   UserPlusIcon,
-  ShieldCheckIcon,  // For Challenges
-  QueueListIcon,    // For Leaderboards
+  ShieldCheckIcon,  
+  QueueListIcon,    
   ChevronDownIcon,
-  ArrowRightOnRectangleIcon, // For Logout
-  PresentationChartBarIcon // For PRO banner
+  ArrowRightOnRectangleIcon, 
 } from '@heroicons/react/24/outline';
 
 interface SideMenuProps {
@@ -32,42 +31,76 @@ interface MenuItem {
   name: string;
   path: string;
   icon: React.ElementType;
-  badge?: string | React.ReactNode; // For "FREE" or emoji
+  badge?: string | React.ReactNode; 
   action?: () => void;
   suffixIcon?: React.ElementType;
 }
+
+// Function to calculate profile completion percentage
+const calculateProfileCompletion = (profile: UserProfile | null): number => {
+  if (!profile) return 0;
+
+  const fieldsToConsider: Array<keyof UserProfile> = [
+    'profilePicUrl',
+    'location',
+    'date_of_birth',
+    'mobile_number',
+    'player_role',
+    'batting_style',
+    'bowling_style',
+  ];
+
+  let completedFields = 0;
+  const totalConsideredFields = fieldsToConsider.length;
+
+  fieldsToConsider.forEach(field => {
+    const value = profile[field];
+    // Check if the value is not null, undefined, and not an empty string
+    if (value !== null && value !== undefined && (typeof value === 'string' ? value.trim() !== '' : true) ) {
+      completedFields++;
+    }
+  });
+  
+  // Ensure username and profileType (often set by default) also contribute if desired
+  // For this calculation, we are focusing on user-fillable optional fields.
+  // If we wanted to include mandatory fields like username, adjust totalConsideredFields and add checks.
+
+  return totalConsideredFields > 0 ? Math.round((completedFields / totalConsideredFields) * 100) : 0;
+};
+
 
 const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
   const { user, userProfile, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    onClose(); // Close menu first
+    onClose(); 
     await logout();
     navigate('/login');
   };
 
   const menuItems: MenuItem[] = [
-    { name: "CricHeroes Store", path: "/store", icon: ShoppingBagIcon, badge: <span role="img" aria-label="jersey">👕</span> },
-    { name: "Add a Tournament/Series", path: "/tournaments/new", icon: TrophyIcon, badge: "FREE" },
-    { name: "Start A Match", path: "/start-match/select-teams", icon: PlayCircleIcon, badge: "FREE" },
-    { name: "Go Live", path: "/live", icon: VideoCameraIcon }, // Placeholder path
-    { name: "Toss", path: "/toss", icon: CircleStackIcon }, // Placeholder path
+    { name: "Add a Tournament/Series", path: "/tournaments/new", icon: TrophyIcon }, 
+    { name: "Start A Match", path: "/start-match/select-teams", icon: PlayCircleIcon }, 
+    { name: "Go Live", path: "/live", icon: VideoCameraIcon }, 
+    { name: "Toss", path: "/toss", icon: CircleStackIcon }, 
     { name: "My Matches", path: "/matches", icon: CalendarDaysIcon },
     { name: "My Tournaments", path: "/tournaments", icon: TrophyIcon },
     { name: "My Teams", path: "/my-teams", icon: UserGroupIcon },
     { name: "My Stats", path: "/stats", icon: ChartBarSquareIcon },
     { name: "My Performance", path: "/my-performance", icon: ChartPieIcon },
     { name: "My Highlights", path: "/highlights", icon: SparklesIcon },
-    { name: "Find Friends", path: "/find-friends", icon: UserPlusIcon }, // Placeholder path
-    { name: "Challenges", path: "/challenges", icon: ShieldCheckIcon },   // Placeholder path
-    { name: "Leaderboards", path: "/leaderboards", icon: QueueListIcon, suffixIcon: ChevronDownIcon }, // Placeholder path
+    { name: "Find Friends", path: "/find-friends", icon: UserPlusIcon }, 
+    { name: "Challenges", path: "/challenges", icon: ShieldCheckIcon },   
+    { name: "Leaderboards", path: "/leaderboards", icon: QueueListIcon, suffixIcon: ChevronDownIcon }, 
   ];
 
-  const profilePicUrl = userProfile?.profilePicUrl || user?.photoURL || `https://ui-avatars.com/api/?name=${userProfile?.username || user?.email || 'User'}&background=random&color=fff`;
+  const profileCompletionPercentage = calculateProfileCompletion(userProfile);
+
+  const profilePicUrl = userProfile?.profilePicUrl || user?.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile?.username || user?.email || 'User')}&background=random&color=fff`;
   const userName = userProfile?.username || user?.displayName || user?.email?.split('@')[0] || "User";
-  // Placeholder phone, replace with actual data if available
-  const userPhone = userProfile?.mobile_number || "+91 80894 16687"; 
+  // Use mobile number from profile if available, otherwise a placeholder for display. The calculation uses the actual profile data.
+  const userDisplayPhone = userProfile?.mobile_number || "Update Mobile Number"; 
 
 
   return (
@@ -107,30 +140,17 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
             <div className="flex items-center justify-between">
                 <div>
                     <h3 className="text-lg font-semibold group-hover:text-red-400">{userName}</h3>
-                    <p className="text-xs text-slate-300">{userPhone}</p>
+                    <p className="text-xs text-slate-300">{userDisplayPhone}</p>
                 </div>
                 <ChevronRightIcon className="h-5 w-5 text-slate-400 group-hover:text-red-400" />
             </div>
           </NavLink>
-          <div className="mt-3">
-            <span className="inline-block bg-slate-100 text-slate-800 text-xs font-semibold px-2 py-0.5 rounded-full">
-              Free User
-            </span>
-          </div>
           <div className="mt-2 w-full bg-slate-600 rounded-full h-1.5">
-            <div className="bg-teal-500 h-1.5 rounded-full" style={{ width: '88%' }}></div>
+            <div className="bg-teal-500 h-1.5 rounded-full" style={{ width: `${profileCompletionPercentage}%` }}></div>
           </div>
-          <p className="text-right text-xs text-slate-400 mt-1">88%</p>
+          <p className="text-right text-xs text-slate-400 mt-1">{profileCompletionPercentage}%</p>
         </div>
 
-        {/* PRO Banner Section */}
-        <div className="bg-slate-700 p-4 text-white flex items-center space-x-3">
-          <PresentationChartBarIcon className="h-7 w-7 text-yellow-400" />
-          <div>
-            <p className="font-semibold">PRO @ <span className="font-sans">₹</span>399/YEAR</p>
-            <p className="text-xs text-slate-300">Unlock premium features!</p>
-          </div>
-        </div>
 
         {/* Menu Items Section */}
         <nav className="flex-1 overflow-y-auto bg-gray-50 text-gray-700">
@@ -152,9 +172,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
                   <item.icon className={`h-5 w-5 mr-3 ${item.path.startsWith(location.pathname) && item.path !== "/" ? 'text-red-600' : 'text-gray-500'}`} />
                   <span className="flex-grow">{item.name}</span>
                   {item.badge && (
-                    <span className={`ml-2 text-xs font-semibold px-2 py-0.5 rounded-full ${
-                        typeof item.badge === 'string' && item.badge === "FREE" ? 'bg-yellow-400 text-yellow-900' : ''
-                    }`}>
+                    <span className={`ml-2 text-xs font-semibold px-2 py-0.5 rounded-full`}>
                       {item.badge}
                     </span>
                   )}

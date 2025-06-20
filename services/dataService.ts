@@ -4,7 +4,8 @@ import {
   collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, Timestamp, writeBatch, DocumentData, collectionGroup,getCountFromServer, arrayUnion, arrayRemove 
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { User, updateProfile as updateFirebaseUserProfile } from 'firebase/auth';
+import type { User } from 'firebase/auth';
+import { updateProfile as updateFirebaseUserProfile } from 'firebase/auth';
 
 // Helper to get current user ID
 const getUserId = (): string | null => {
