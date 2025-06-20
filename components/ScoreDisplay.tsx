@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Score } from '../types'; 
+import { Score, Match } from '../types'; 
 
 interface ScoreDisplayProps {
   score: Score | null; 
@@ -10,6 +10,8 @@ interface ScoreDisplayProps {
   strikerName?: string | null;
   nonStrikerName?: string | null;
   bowlerName?: string | null;
+  matchStatus?: Match['status'] | null;
+  resultSummary?: string | null;
 }
 
 const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ 
@@ -19,7 +21,9 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
     totalOvers,
     strikerName,
     nonStrikerName,
-    bowlerName 
+    bowlerName,
+    matchStatus,
+    resultSummary
 }) => {
   if (!score) {
     return (
@@ -39,6 +43,7 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
   };
 
   const remainingBalls = calculateRemainingBalls();
+  const showMatchEndSummary = matchStatus === "Completed" || matchStatus === "Abandoned";
 
   return (
     <div className="bg-gray-800 p-6 rounded-xl shadow-xl space-y-4 border border-gray-700">
@@ -56,7 +61,7 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
         </div>
       </div>
 
-      {currentInnings === 2 && target && (
+      {currentInnings === 2 && target && !showMatchEndSummary && (
         <div className="text-center border-t border-gray-700 pt-4 mt-2">
             <p className="text-md text-gray-200">Target: <span className="font-bold text-gray-50">{target}</span></p>
             {target - runs > 0 && remainingBalls !== null && remainingBalls > 0 && (
@@ -66,6 +71,15 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
              {remainingBalls !== null && remainingBalls === 0 && target - runs > 0 && <p className="text-md font-bold text-red-500">Bowling team won!</p>}
         </div>
       )}
+
+      {showMatchEndSummary && resultSummary && (
+        <div className="text-center border-t border-gray-700 pt-4 mt-2">
+          <p className={`text-lg font-bold ${matchStatus === "Completed" ? "text-green-400" : "text-yellow-400"}`}>
+            {resultSummary}
+          </p>
+        </div>
+      )}
+
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-700 mt-2">
         <div>
@@ -85,7 +99,7 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
         </div>
          <div>
           <p className="text-xs uppercase text-gray-400">Status</p>
-          <p className="font-semibold text-gray-200">{wickets >= 10 ? "All Out" : "Batting"}</p>
+          <p className="font-semibold text-gray-200">{ matchStatus ? (matchStatus === "Completed" ? "Match Ended" : matchStatus) : (wickets >= 10 ? "All Out" : "Batting")}</p>
         </div>
       </div>
     </div>
@@ -93,3 +107,4 @@ const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
 };
 
 export default ScoreDisplay;
+    

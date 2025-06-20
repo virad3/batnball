@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Match, BallEvent, Score, MatchFormat, PlayerBattingStats, PlayerBowlingStats, DismissalType, InningsRecord } from '../types';
@@ -12,14 +11,14 @@ import EditBallModal from '../components/EditBallModal';
 
 const SQUAD_SIZE = 11;
 
-const RunsButton: React.FC<{ runs: number; onClick: (runs: number) => void }> = ({ runs, onClick }) => (
-  <Button variant="outline" className="w-full aspect-square text-xl font-semibold" onClick={() => onClick(runs)}>
+const RunsButton: React.FC<{ runs: number; onClick: (runs: number) => void; disabled?: boolean }> = ({ runs, onClick, disabled }) => (
+  <Button variant="outline" className="w-full aspect-square text-xl font-semibold" onClick={() => onClick(runs)} disabled={disabled}>
     {runs}
   </Button>
 );
 
-const ExtraButton: React.FC<{ type: BallEvent['extraType']; onClick: (type: BallEvent['extraType']) => void }> = ({ type, onClick }) => (
-    <Button variant="secondary" size="sm" className="flex-1" onClick={() => onClick(type)}>
+const ExtraButton: React.FC<{ type: BallEvent['extraType']; onClick: (type: BallEvent['extraType']) => void; disabled?: boolean }> = ({ type, onClick, disabled }) => (
+    <Button variant="secondary" size="sm" className="flex-1" onClick={() => onClick(type)} disabled={disabled}>
         {type}
     </Button>
 );
@@ -29,7 +28,7 @@ const ScoringPage: React.FC = () => {
   const navigate = useNavigate();
   const context = useMatchContext();
   const {
-    matchDetails, loadMatch, addBall, switchInnings, saveMatchState, endMatch,
+    matchDetails, loadMatch, addBall, switchInnings, saveMatchState, // endMatch removed as it's called from context
     currentStrikerName, currentNonStrikerName, currentBowlerName, setPlayerRoles, currentInningsNumber, target,
     updateBallEvent, refreshActiveInningsPlayerLists
   } = context;
@@ -99,7 +98,7 @@ const ScoringPage: React.FC = () => {
     setPageLoading(false);
     console.log('[ScoringPage] initializePage finished.');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, navigate, loadMatch, context.matchDetails]); // Removed currentStrikerName, currentBowlerName as they are from context and change separately
+  }, [matchId, navigate, loadMatch, context.matchDetails]); 
 
   useEffect(() => {
     initializePage();
@@ -107,7 +106,8 @@ const ScoringPage: React.FC = () => {
 
   // Effect to re-open player roles modal if roles become unset during a live match
   useEffect(() => {
-    if (matchDetails?.status === "Live" && (!currentStrikerName || !currentBowlerName) && !showPlayerRolesModal && !showSquadSelectionModal && !pageLoading && !isEditBallModalOpen && !showWicketModal) {
+    const isMatchEffectivelyOver = matchDetails?.status === "Completed" || matchDetails?.status === "Abandoned";
+    if (matchDetails?.status === "Live" && (!currentStrikerName || !currentBowlerName) && !showPlayerRolesModal && !showSquadSelectionModal && !pageLoading && !isEditBallModalOpen && !showWicketModal && !isMatchEffectivelyOver) {
       console.log("[ScoringPage] Roles became unset during live match, prompting modal.");
       setModalStriker(matchDetails.current_striker_name || '');
       setModalNonStriker(matchDetails.current_non_striker_name || '');
@@ -121,7 +121,6 @@ const ScoringPage: React.FC = () => {
     return currentInningsNumber === 1 ? matchDetails.innings1Record : matchDetails.innings2Record;
   }, [matchDetails, currentInningsNumber]);
 
-  // useEffect for auto-ending match has been REMOVED. This logic is now in MatchContext.addBall.
 
   const handleSquadPlayerSelection = (playerName: string, team: 'A' | 'B') => {
     if (team === 'A') {
@@ -227,15 +226,13 @@ const ScoringPage: React.FC = () => {
     await addBall(ballEvent);
     setShowWicketModal(false);
 
-    // Check if the match is NOT completed after this wicket
-    // (context.matchDetails might have been updated by addBall if match ended)
     const potentiallyUpdatedMatchDetails = context.matchDetails;
-    if (potentiallyUpdatedMatchDetails?.status !== "Completed") {
+    if (potentiallyUpdatedMatchDetails?.status !== "Completed" && potentiallyUpdatedMatchDetails?.status !== "Abandoned") {
         const currentInningsRecAfterWicket = currentInningsNumber === 1 ? potentiallyUpdatedMatchDetails?.innings1Record : potentiallyUpdatedMatchDetails?.innings2Record;
         const wicketsAfterThisBall = currentInningsRecAfterWicket?.totalWickets || 0;
 
         if (wicketsAfterThisBall < SQUAD_SIZE -1) {
-            setModalStriker(''); // Let user pick new striker
+            setModalStriker(''); 
             setModalNonStriker(wicketDetails.batsmanOut === currentStrikerName ? currentNonStrikerName! : currentStrikerName!);
             setModalBowler(currentBowlerName!);
             setShowPlayerRolesModal(true);
@@ -375,15 +372,15 @@ const ScoringPage: React.FC = () => {
 
   const handleSaveAndExit = async () => {
     try {
-        await saveMatchState(); // Just save the current state. MatchContext.addBall handles "Completed" status.
+        await saveMatchState(); 
         navigate('/matches');
     } catch (e) {
         console.error("Error during Save & Exit:", e);
-        // Optionally show an error to the user before navigating
         navigate('/matches');
     }
   };
 
+  const isMatchOver = matchDetails?.status === "Completed" || matchDetails?.status === "Abandoned";
 
   const modalInputBaseClass = "w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
   const modalInputFocusClass = "focus:ring-teal-500 focus:border-teal-500";
@@ -463,7 +460,7 @@ const ScoringPage: React.FC = () => {
     );
   }
 
-  if (showPlayerRolesModal && matchDetails && matchDetails.status === "Live") { // Only show if match is Live
+  if (showPlayerRolesModal && matchDetails && (matchDetails.status === "Live" && !isMatchOver) ) { 
     const currentBattingTeamSquad = matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamASquad : matchDetails.teamBSquad;
     const currentBowlingTeamSquad = matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamBSquad : matchDetails.teamASquad;
 
@@ -509,7 +506,7 @@ const ScoringPage: React.FC = () => {
     );
   }
 
-  if (showWicketModal && matchDetails && matchDetails.status === "Live") { // Only show if match is Live
+  if (showWicketModal && matchDetails && (matchDetails.status === "Live" && !isMatchOver)) { 
     const activeBatsmen = [currentStrikerName, currentNonStrikerName].filter(Boolean) as string[];
     const currentBowlingTeamSquad = matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamBSquad : matchDetails.teamASquad;
 
@@ -579,31 +576,7 @@ const ScoringPage: React.FC = () => {
     );
   }
 
-  // If match is completed, show summary and link to full scorecard
-  if (matchDetails.status === "Completed" || matchDetails.status === "Abandoned") {
-    return (
-        <div className="space-y-6 max-w-2xl mx-auto text-center p-4">
-            <h1 className="text-3xl font-bold text-gray-50">
-                {matchDetails.teamAName} vs {matchDetails.teamBName}
-            </h1>
-            <div className="bg-gray-800 p-6 rounded-xl shadow-xl border border-gray-700">
-                <h2 className="text-2xl font-semibold text-gray-100 mb-2">{matchDetails.status === "Completed" ? "Match Result" : "Match Status"}</h2>
-                <p className="text-lg text-gray-300 mb-4">{matchDetails.result_summary || (matchDetails.status === "Abandoned" ? "This match was abandoned." : "Result not available.")}</p>
-                <ScoreDisplay
-                    score={scoreForDisplay}
-                    target={target}
-                    currentInnings={currentInningsNumber}
-                    totalOvers={matchDetails.overs_per_innings}
-                />
-                <Link to="/matches">
-                    <Button variant="primary" className="w-full mt-6">View All Matches</Button>
-                </Link>
-            </div>
-        </div>
-    );
-  }
-
-
+  // Main scoring view - always rendered if not one of the above modals/conditions
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       <h1 className="text-3xl font-bold text-gray-50 text-center">
@@ -618,13 +591,15 @@ const ScoringPage: React.FC = () => {
         strikerName={currentStrikerName}
         nonStrikerName={currentNonStrikerName}
         bowlerName={currentBowlerName}
+        matchStatus={matchDetails.status}
+        resultSummary={matchDetails.result_summary}
       />
 
       <div className="p-2 bg-gray-800 rounded-lg shadow border border-gray-700 text-sm text-gray-300 text-center">
         <p>Striker: <span className="font-semibold text-gray-100">{currentStrikerName || "N/A"}</span></p>
         <p>Non-Striker: <span className="font-semibold text-gray-100">{currentNonStrikerName || "N/A"}</span></p>
         <p>Bowler: <span className="font-semibold text-gray-100">{currentBowlerName || "N/A"}</span></p>
-        <Button size="sm" variant="outline" className="mt-1" onClick={() => setShowPlayerRolesModal(true)}>Change Roles</Button>
+        <Button size="sm" variant="outline" className="mt-1" onClick={() => setShowPlayerRolesModal(true)} disabled={isMatchOver}>Change Roles</Button>
       </div>
 
       <div className="p-3 bg-gray-800 rounded-lg shadow border border-gray-700">
@@ -635,8 +610,8 @@ const ScoringPage: React.FC = () => {
                     key={index}
                     ballEvent={ballEvent}
                     ballNumberInOver={index + 1}
-                    onClick={ballEvent ? () => handleEditBall(index) : undefined}
-                    isCurrentBall={!ballEvent && scoreForDisplay?.ballsThisOver === index && (scoreForDisplay.wickets < SQUAD_SIZE -1 || (matchDetails?.overs_per_innings ? scoreForDisplay.overs < matchDetails.overs_per_innings : true))}
+                    onClick={ballEvent && !isMatchOver ? () => handleEditBall(index) : undefined}
+                    isCurrentBall={!ballEvent && scoreForDisplay?.ballsThisOver === index && !isMatchOver && (scoreForDisplay.wickets < SQUAD_SIZE -1 || (matchDetails?.overs_per_innings ? scoreForDisplay.overs < matchDetails.overs_per_innings : true))}
                 />
             ))}
         </div>
@@ -646,20 +621,20 @@ const ScoringPage: React.FC = () => {
       <div className="p-4 bg-gray-800 rounded-lg shadow space-y-4 border border-gray-700">
         <h3 className="text-lg font-semibold text-gray-100">Scoring Controls:</h3>
         <div className="grid grid-cols-4 gap-2">
-          {[0, 1, 2, 3, 4, 5, 6].map(r => <RunsButton key={r} runs={r} onClick={() => handleSimpleBallEvent(r)} />)}
-          <Button variant="danger" className="w-full aspect-square text-lg font-semibold" onClick={() => handleSimpleBallEvent(0, true)}>WKT</Button>
+          {[0, 1, 2, 3, 4, 5, 6].map(r => <RunsButton key={r} runs={r} onClick={() => handleSimpleBallEvent(r)} disabled={isMatchOver} />)}
+          <Button variant="danger" className="w-full aspect-square text-lg font-semibold" onClick={() => handleSimpleBallEvent(0, true)} disabled={isMatchOver}>WKT</Button>
         </div>
         <div className="flex space-x-2">
             {(["Wide", "NoBall", "Byes", "LegByes"] as BallEvent['extraType'][]).map(type =>
-                <ExtraButton key={type} type={type} onClick={() => handleExtraButtonClick(type!)} />
+                <ExtraButton key={type} type={type} onClick={() => handleExtraButtonClick(type!)} disabled={isMatchOver} />
             )}
         </div>
       </div>
 
       <div className="p-4 bg-gray-800 rounded-lg shadow border border-gray-700">
           <h3 className="text-lg font-semibold text-gray-100 mb-3">Match Actions:</h3>
-          {currentInningsNumber === 1 && currentMatchInningsData && (currentMatchInningsData.totalWickets >= SQUAD_SIZE -1 || (matchDetails.overs_per_innings && currentMatchInningsData.totalOversBowled >= matchDetails.overs_per_innings)) && (
-            <Button onClick={() => switchInnings(matchDetails)} variant="primary" className="w-full mb-3">End Innings & Start 2nd Innings</Button>
+          {currentInningsNumber === 1 && currentMatchInningsData && !isMatchOver && (currentMatchInningsData.totalWickets >= SQUAD_SIZE -1 || (matchDetails.overs_per_innings && currentMatchInningsData.totalOversBowled >= matchDetails.overs_per_innings)) && (
+            <Button onClick={() => context.switchInnings(matchDetails)} variant="primary" className="w-full mb-3" disabled={isMatchOver}>End Innings & Start 2nd Innings</Button>
           )}
           <Button onClick={handleSaveAndExit} variant="outline" className="w-full">Save & Exit to Matches</Button>
       </div>
@@ -681,3 +656,4 @@ const ScoringPage: React.FC = () => {
 };
 
 export default ScoringPage;
+    
