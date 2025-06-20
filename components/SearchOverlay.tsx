@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeftIcon, XMarkIcon, QrCodeIcon as QrCodeIconOutline, UserIcon, UserGroupIcon, CalendarDaysIcon, TrophyIcon, DocumentTextIcon, CheckBadgeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
@@ -159,7 +160,7 @@ const MatchResultCard: React.FC<{ match: Match; onClick: () => void }> = ({ matc
 );
 
 
-const SearchOverlayComponent: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQuery, onClose }) => {
+export const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQuery, onClose }) => {
   const [allFetchedResults, setAllFetchedResults] = useState<SearchResultItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -331,5 +332,3 @@ const SearchOverlayComponent: React.FC<SearchOverlayProps> = ({ searchQuery, set
     </div>
   );
 };
-
-export { SearchOverlayComponent as SearchOverlay };
