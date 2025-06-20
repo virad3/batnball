@@ -79,10 +79,10 @@ export interface Match {
   tossWinnerName?: string;
   electedTo?: "Bat" | "Bowl";
   overs_per_innings?: number; // Max overs for limited over matches
-  
+
   teamASquad?: string[];
   teamBSquad?: string[];
-  
+
   result_summary?: string; // e.g., "Team A won by 5 wickets"
   tournament_id?: string | null; // Optional foreign key
 
@@ -90,17 +90,17 @@ export interface Match {
   innings2Record?: InningsRecord | null;
 
   // Fields to track current state if not fully in context or for quick resume
-  current_batting_team?: string;
-  current_bowler_name?: string;
-  current_striker_name?: string;
-  current_non_striker_name?: string;
+  current_batting_team?: string | null; // Made nullable
+  current_bowler_name?: string | null;
+  current_striker_name?: string | null;
+  current_non_striker_name?: string | null;
 }
 
 // Score is now more of a display concern derived from InningsRecord
 export interface Score {
   runs: number;
   wickets: number;
-  overs: number; 
+  overs: number;
   ballsThisOver: number;
   battingTeamName: string;
   bowlingTeamName: string;
@@ -108,7 +108,7 @@ export interface Score {
 
 export interface BallEvent {
   ballId?: string; // Optional unique ID for React keys or specific targeting
-  runs: number; 
+  runs: number;
   isWicket: boolean;
   wicketType?: DismissalType;
   batsmanOutName?: string;
@@ -130,8 +130,8 @@ export interface Tournament {
   startDate: string | FirebaseTimestamp;
   endDate: string | FirebaseTimestamp;
   teamNames: string[];
-  matches?: Match[]; 
-  organizerName?: string; 
+  matches?: Match[];
+  organizerName?: string;
   logoUrl?: string;
   location?: string; // Added location field
 }
@@ -169,7 +169,7 @@ export interface MatchState {
   currentBowlerName: string | null;
   currentInningsNumber: 1 | 2;
   // Target is still useful for display
-  target: number | null; 
+  target: number | null;
 }
 
 export interface MatchContextType extends MatchState {
@@ -179,7 +179,7 @@ export interface MatchContextType extends MatchState {
   updateTossAndStartInnings: (tossWinner: string, elected: "Bat" | "Bowl") => Promise<void>;
   addBall: (event: BallEvent) => Promise<void>; // Make async for potential save
   updateBallEvent: (ballTimelineIndex: number, updatedEventData: BallEvent) => Promise<void>; // For editing a ball
-  switchInnings: () => Promise<void>; // Make async
+  switchInnings: (matchToSwitch: Match) => Promise<void>; // Updated signature to accept Match
   saveMatchState: (matchToSave?: Match | null) => Promise<void>; // Explicit save, can take optional match
   endMatch: (
     resultSummary: string,
@@ -200,7 +200,7 @@ export interface Team {
 }
 
 export interface SearchResultItem {
-  id?: string; 
+  id?: string;
   title: string;
   description: string;
   type: "Player" | "Team" | "Match" | "Tournament" | "Other" | string;

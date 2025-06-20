@@ -7,8 +7,8 @@ import ScoreDisplay from '../components/ScoreDisplay';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useMatchContext } from '../contexts/MatchContext';
-import BallDisplayIcon from '../components/BallDisplayIcon'; 
-import EditBallModal from '../components/EditBallModal'; 
+import BallDisplayIcon from '../components/BallDisplayIcon';
+import EditBallModal from '../components/EditBallModal';
 
 const SQUAD_SIZE = 11;
 
@@ -28,14 +28,14 @@ const ScoringPage: React.FC = () => {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
   const context = useMatchContext();
-  const { 
+  const {
     matchDetails, loadMatch, addBall, switchInnings, saveMatchState, endMatch,
     currentStrikerName, currentNonStrikerName, currentBowlerName, setPlayerRoles, currentInningsNumber, target,
     updateBallEvent, refreshActiveInningsPlayerLists
   } = context;
 
   const [pageLoading, setPageLoading] = useState(true);
-  
+
   const [showSquadSelectionModal, setShowSquadSelectionModal] = useState(false);
   const [availableTeamAPlayers, setAvailableTeamAPlayers] = useState<string[]>([]);
   const [availableTeamBPlayers, setAvailableTeamBPlayers] = useState<string[]>([]);
@@ -59,10 +59,10 @@ const ScoringPage: React.FC = () => {
   const initializePage = useCallback(async () => {
     console.log('[ScoringPage] initializePage called. matchId:', matchId);
     setPageLoading(true);
-    if (!matchId) { 
+    if (!matchId) {
       console.log('[ScoringPage] No matchId, navigating to /matches');
-      navigate('/matches', { replace: true }); 
-      return; 
+      navigate('/matches', { replace: true });
+      return;
     }
 
     let loadedMatch = context.matchDetails && context.matchDetails.id === matchId ? context.matchDetails : await loadMatch(matchId);
@@ -74,7 +74,7 @@ const ScoringPage: React.FC = () => {
         navigate(`/toss/${loadedMatch.id}`, { replace: true });
         return;
       }
-      
+
       console.log('[ScoringPage] Conditions Check: loadedMatch.id:', loadedMatch.id, 'status:', loadedMatch.status, 'tossWinnerName:', loadedMatch.tossWinnerName);
       if (loadedMatch.status === "Live" && (!loadedMatch.teamASquad || loadedMatch.teamASquad.length < SQUAD_SIZE || !loadedMatch.teamBSquad || loadedMatch.teamBSquad.length < SQUAD_SIZE)) {
         console.log('[ScoringPage] CONDITION MET: Show Squad Selection Modal.');
@@ -94,7 +94,7 @@ const ScoringPage: React.FC = () => {
       }
     } else {
       console.log('[ScoringPage] Match not loaded, navigating to /matches.');
-      navigate('/matches', {replace: true}); 
+      navigate('/matches', {replace: true});
     }
     setPageLoading(false);
     console.log('[ScoringPage] initializePage finished.');
@@ -104,7 +104,7 @@ const ScoringPage: React.FC = () => {
   useEffect(() => {
     initializePage();
   }, [initializePage]);
-  
+
   // Effect to re-open player roles modal if roles become unset during a live match
   useEffect(() => {
     if (matchDetails?.status === "Live" && (!currentStrikerName || !currentBowlerName) && !showPlayerRolesModal && !showSquadSelectionModal && !pageLoading && !isEditBallModalOpen && !showWicketModal) {
@@ -121,44 +121,11 @@ const ScoringPage: React.FC = () => {
     return currentInningsNumber === 1 ? matchDetails.innings1Record : matchDetails.innings2Record;
   }, [matchDetails, currentInningsNumber]);
 
-  // Effect to automatically end the match if conditions are met
-  useEffect(() => {
-    if (matchDetails?.status === "Live" && currentInningsNumber === 2 && target && currentMatchInningsData) {
-      const { totalRuns, totalWickets, totalOversBowled, teamName: battingTeamName } = currentMatchInningsData;
-      const maxWickets = SQUAD_SIZE - 1;
-      const bowlingTeamName = matchDetails.teamAName === battingTeamName ? matchDetails.teamBName : matchDetails.teamAName;
-
-      let resultSummary = "";
-      let matchShouldEnd = false;
-
-      if (totalRuns >= target) {
-        resultSummary = `${battingTeamName} won by ${maxWickets - totalWickets} wicket(s).`;
-        matchShouldEnd = true;
-      } else {
-        const oversCompleted = matchDetails.overs_per_innings && totalOversBowled >= matchDetails.overs_per_innings;
-        if (totalWickets >= maxWickets || oversCompleted) {
-          if (totalRuns < target - 1) { // Target - 1 is the score of the team that batted first
-            resultSummary = `${bowlingTeamName} won by ${(target - 1) - totalRuns} run(s).`;
-          } else if (totalRuns === target - 1) {
-            resultSummary = "Match Tied.";
-          } else { // Should not happen if target logic is correct, but as a fallback
-            resultSummary = "Match Completed (Result needs review).";
-          }
-          matchShouldEnd = true;
-        }
-      }
-
-      if (matchShouldEnd) {
-        console.log(`[ScoringPage] Auto-ending match. Result: ${resultSummary}`);
-        endMatch(resultSummary, matchDetails.innings1Record, currentMatchInningsData);
-      }
-    }
-  }, [matchDetails, currentInningsNumber, target, currentMatchInningsData, endMatch]);
-
+  // useEffect for auto-ending match has been REMOVED. This logic is now in MatchContext.addBall.
 
   const handleSquadPlayerSelection = (playerName: string, team: 'A' | 'B') => {
     if (team === 'A') {
-      setSelectedTeamASquad(prev => 
+      setSelectedTeamASquad(prev =>
         prev.includes(playerName) ? prev.filter(p => p !== playerName) : [...prev, playerName]
       );
     } else {
@@ -167,7 +134,7 @@ const ScoringPage: React.FC = () => {
       );
     }
   };
-  
+
   const handleAddPlayer = (team: 'A' | 'B') => {
     if (team === 'A' && newPlayerNameA.trim()) {
       if (!availableTeamAPlayers.includes(newPlayerNameA.trim())) {
@@ -189,14 +156,14 @@ const ScoringPage: React.FC = () => {
         alert(`Please select ${SQUAD_SIZE} players for each team.`);
         return;
     }
-    const updatedMatchWithSquads = { 
+    const updatedMatchWithSquads = {
         ...matchDetails,
         teamASquad: selectedTeamASquad,
         teamBSquad: selectedTeamBSquad,
     };
     try {
-        context.setMatchDetails(updatedMatchWithSquads); 
-        
+        context.setMatchDetails(updatedMatchWithSquads);
+
         let battingSquadForRefresh: string[];
         let bowlingSquadForRefresh: string[];
 
@@ -207,20 +174,20 @@ const ScoringPage: React.FC = () => {
             battingSquadForRefresh = selectedTeamBSquad;
             bowlingSquadForRefresh = selectedTeamASquad;
         }
-        
+
         await refreshActiveInningsPlayerLists(battingSquadForRefresh, bowlingSquadForRefresh);
-        
+
         setShowSquadSelectionModal(false);
-        setModalStriker(''); 
+        setModalStriker('');
         setModalNonStriker('');
         setModalBowler('');
-        setShowPlayerRolesModal(true); 
+        setShowPlayerRolesModal(true);
     } catch (error) {
         console.error("Error saving squads and refreshing innings players:", error);
         alert("Failed to save squads. Please try again.");
     }
   };
-  
+
   const handlePlayerRolesSubmit = async () => {
     if (!modalStriker || !modalNonStriker || !modalBowler) {
         alert("Please select striker, non-striker, and bowler.");
@@ -239,39 +206,43 @@ const ScoringPage: React.FC = () => {
             current_non_striker_name: modalNonStriker,
             current_bowler_name: modalBowler,
         };
-        context.setMatchDetails(updatedMatchData); 
-        await saveMatchState(); 
+        context.setMatchDetails(updatedMatchData);
+        await saveMatchState();
     }
     setShowPlayerRolesModal(false);
   };
 
   const handleWicketSubmit = async () => {
-    if (!currentStrikerName || !currentBowlerName || !matchDetails) return; 
+    if (!currentStrikerName || !currentBowlerName || !matchDetails) return;
     console.log('[ScoringPage] handleWicketSubmit called.');
     const ballEvent: BallEvent = {
-        runs: 0, 
+        runs: 0,
         isWicket: true,
         wicketType: wicketDetails.dismissalType,
-        batsmanOutName: wicketDetails.batsmanOut, 
-        bowlerName: wicketDetails.bowler || currentBowlerName, 
+        batsmanOutName: wicketDetails.batsmanOut,
+        bowlerName: wicketDetails.bowler || currentBowlerName,
         fielderName: wicketDetails.fielder,
-        strikerName: currentStrikerName, 
+        strikerName: currentStrikerName,
     };
     await addBall(ballEvent);
     setShowWicketModal(false);
-    
+
     // Check if the match is NOT completed after this wicket
-    if (context.matchDetails?.status !== "Completed") {
-        const wicketsAfterThisBall = (currentMatchInningsData?.totalWickets || 0) + (ballEvent.isWicket ? 1 : 0);
-        if (wicketsAfterThisBall < SQUAD_SIZE -1) { 
+    // (context.matchDetails might have been updated by addBall if match ended)
+    const potentiallyUpdatedMatchDetails = context.matchDetails;
+    if (potentiallyUpdatedMatchDetails?.status !== "Completed") {
+        const currentInningsRecAfterWicket = currentInningsNumber === 1 ? potentiallyUpdatedMatchDetails?.innings1Record : potentiallyUpdatedMatchDetails?.innings2Record;
+        const wicketsAfterThisBall = currentInningsRecAfterWicket?.totalWickets || 0;
+
+        if (wicketsAfterThisBall < SQUAD_SIZE -1) {
             setModalStriker(''); // Let user pick new striker
-            setModalNonStriker(wicketDetails.batsmanOut === currentStrikerName ? currentNonStrikerName! : currentStrikerName!); 
-            setModalBowler(currentBowlerName!); 
-            setShowPlayerRolesModal(true); 
+            setModalNonStriker(wicketDetails.batsmanOut === currentStrikerName ? currentNonStrikerName! : currentStrikerName!);
+            setModalBowler(currentBowlerName!);
+            setShowPlayerRolesModal(true);
         }
     }
   };
-  
+
   const handleSimpleBallEvent = async (runs: number, isWicket: boolean = false, extraType?: BallEvent['extraType'], extraRunsForEvent?: number) => {
     if (!currentStrikerName || !currentBowlerName) {
         alert("Please set Striker and Bowler first!");
@@ -280,21 +251,21 @@ const ScoringPage: React.FC = () => {
     }
     console.log(`[ScoringPage] handleSimpleBallEvent: runs=${runs}, isWicket=${isWicket}, extraType=${extraType}, extraRunsForEvent=${extraRunsForEvent}`);
     if(isWicket) {
-        setWicketDetails({ 
-            batsmanOut: currentStrikerName, 
-            dismissalType: DismissalType.BOWLED, 
+        setWicketDetails({
+            batsmanOut: currentStrikerName,
+            dismissalType: DismissalType.BOWLED,
             bowler: currentBowlerName,
             fielder: ''
         });
         setShowWicketModal(true);
     } else {
-        const ballEvent: BallEvent = { 
-            runs, 
-            isWicket: false, 
-            extraType, 
-            extraRuns: extraRunsForEvent, 
-            strikerName: currentStrikerName, 
-            bowlerName: currentBowlerName 
+        const ballEvent: BallEvent = {
+            runs,
+            isWicket: false,
+            extraType,
+            extraRuns: extraRunsForEvent,
+            strikerName: currentStrikerName,
+            bowlerName: currentBowlerName
         };
         await addBall(ballEvent);
     }
@@ -313,23 +284,23 @@ const ScoringPage: React.FC = () => {
     if (type === "Wide") {
         const wideRunsStr = prompt(`Enter TOTAL runs for this Wide delivery (e.g., 1 for just wide, 5 if wide + boundary 4):`, "1");
         runsValue = wideRunsStr !== null ? parseInt(wideRunsStr, 10) : null;
-        if (runsValue === null) return; 
-        if (isNaN(runsValue) || runsValue < 1 || runsValue > 7) { 
+        if (runsValue === null) return;
+        if (isNaN(runsValue) || runsValue < 1 || runsValue > 7) {
             alert("Invalid input. Total Wide runs must be between 1 and 7."); return;
         }
         extraRunsForEvent = runsValue;
     } else if (type === "NoBall") {
         const noBallScoredStr = prompt(`Enter runs scored OFF this No Ball (by bat or as other extras like byes/overthrows, enter 0 if none):`, "0");
         runsValue = noBallScoredStr !== null ? parseInt(noBallScoredStr, 10) : null;
-        if (runsValue === null) return; 
-        if (isNaN(runsValue) || runsValue < 0 || runsValue > 6) { 
+        if (runsValue === null) return;
+        if (isNaN(runsValue) || runsValue < 0 || runsValue > 6) {
             alert("Invalid input for runs scored off No Ball (0-6)."); return;
         }
-        extraRunsForEvent = runsValue + 1; 
-    } else { 
+        extraRunsForEvent = runsValue + 1;
+    } else {
         const byeLegByeRunsStr = prompt(`Enter runs for ${type} (0-6):`, "0");
         runsValue = byeLegByeRunsStr !== null ? parseInt(byeLegByeRunsStr, 10) : null;
-        if (runsValue === null) return; 
+        if (runsValue === null) return;
         if (isNaN(runsValue) || runsValue < 0 || runsValue > 6) {
             alert(`Invalid input for ${type} runs (0-6).`); return;
         }
@@ -354,13 +325,13 @@ const ScoringPage: React.FC = () => {
 
     const ballsThisOverCount = currentMatchInningsData.totalBallsBowled % 6;
     const ballsInTimeline = currentMatchInningsData.timeline.length;
-    
+
     if (ballsThisOverCount > 0 || (ballsThisOverCount === 0 && currentMatchInningsData.totalBallsBowled > 0)) {
         let startIndexInTimeline = ballsInTimeline - ballsThisOverCount;
-        if (ballsThisOverCount === 0 && currentMatchInningsData.totalBallsBowled > 0) { 
+        if (ballsThisOverCount === 0 && currentMatchInningsData.totalBallsBowled > 0) {
             startIndexInTimeline = ballsInTimeline - 6;
         }
-        
+
         for (let i = 0; i < 6; i++) {
             if (startIndexInTimeline + i < ballsInTimeline && startIndexInTimeline +i >= 0 && i < (ballsThisOverCount === 0 && currentMatchInningsData.totalBallsBowled > 0 ? 6 : ballsThisOverCount) ) {
                 events[i] = currentMatchInningsData.timeline[startIndexInTimeline + i];
@@ -372,17 +343,15 @@ const ScoringPage: React.FC = () => {
 
   const handleEditBall = (ballIndexInOver: number) => {
     if (!currentMatchInningsData || !currentMatchInningsData.timeline) return;
-    
+
     const totalBallsBowledInOverSoFar = currentMatchInningsData.totalBallsBowled % 6;
     let actualBallsInOver = totalBallsBowledInOverSoFar;
     if (totalBallsBowledInOverSoFar === 0 && currentMatchInningsData.totalBallsBowled > 0) {
-        actualBallsInOver = 6; 
+        actualBallsInOver = 6;
     }
 
-    if (ballIndexInOver >= actualBallsInOver) return; 
+    if (ballIndexInOver >= actualBallsInOver) return;
 
-    // Calculate how many balls were bowled *before* the start of the current displayed over.
-    // This is total balls bowled minus the number of balls *legally* bowled in this over display.
     let ballsBeforeThisDisplayedOver = currentMatchInningsData.totalBallsBowled - actualBallsInOver;
 
 
@@ -403,61 +372,21 @@ const ScoringPage: React.FC = () => {
     setIsEditBallModalOpen(false);
     setEditingBallTimelineIndex(null);
   };
-  
+
   const handleSaveAndExit = async () => {
-    if (!matchDetails) {
-        await saveMatchState(); // Save whatever is there
-        navigate('/matches');
-        return;
-    }
-
-    let shouldEndMatchCheck = false;
-    let resultSummaryForEndCheck = "";
-    const { status, teamAName, teamBName, overs_per_innings } = matchDetails;
-    
-    // Check completion only if data is available and match is Live
-    if (status === "Live" && currentMatchInningsData) {
-        const { totalRuns, totalWickets, totalOversBowled, teamName: battingTeam } = currentMatchInningsData;
-        const maxWicketsAllowed = SQUAD_SIZE - 1;
-
-        if (currentInningsNumber === 2 && target) { 
-            const bowlingTeam = battingTeam === teamAName ? teamBName : teamAName;
-            const oversCompletedInInnings = overs_per_innings && totalOversBowled >= overs_per_innings;
-
-            if (totalRuns >= target) {
-                shouldEndMatchCheck = true;
-                resultSummaryForEndCheck = `${battingTeam} won by ${maxWicketsAllowed - totalWickets} wicket(s).`;
-            } else if (totalWickets >= maxWicketsAllowed || oversCompletedInInnings) {
-                shouldEndMatchCheck = true;
-                if (totalRuns < target - 1) { 
-                    resultSummaryForEndCheck = `${bowlingTeam} won by ${(target - 1) - totalRuns} run(s).`;
-                } else if (totalRuns === target - 1) {
-                    resultSummaryForEndCheck = "Match Tied.";
-                } else { 
-                     resultSummaryForEndCheck = "Match Completed (Result needs review).";
-                }
-            }
-        }
-    }
-
     try {
-        if (shouldEndMatchCheck && resultSummaryForEndCheck) {
-            let finalInnings1 = matchDetails.innings1Record;
-            let finalInnings2 = (currentInningsNumber === 2 && currentMatchInningsData) ? currentMatchInningsData : matchDetails.innings2Record;
-            await endMatch(resultSummaryForEndCheck, finalInnings1, finalInnings2);
-        } else {
-            await saveMatchState(); 
-        }
+        await saveMatchState(); // Just save the current state. MatchContext.addBall handles "Completed" status.
         navigate('/matches');
     } catch (e) {
         console.error("Error during Save & Exit:", e);
+        // Optionally show an error to the user before navigating
         navigate('/matches');
     }
   };
 
 
   const modalInputBaseClass = "w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
-  const modalInputFocusClass = "focus:ring-teal-500 focus:border-teal-500"; 
+  const modalInputFocusClass = "focus:ring-teal-500 focus:border-teal-500";
   const modalInputClass = `${modalInputBaseClass} ${modalInputFocusClass}`;
   const modalLabelClass = "block text-sm font-medium text-gray-200 mb-1";
 
@@ -476,12 +405,12 @@ const ScoringPage: React.FC = () => {
       <div className="space-y-3 p-3 border border-gray-600 rounded-md">
         <h3 className="text-lg font-semibold text-gray-100">{teamLabel} Squad ({selectedSquad.length}/{SQUAD_SIZE})</h3>
         <div className="flex space-x-2">
-          <input 
-            type="text" 
+          <input
+            type="text"
             id={inputPlayerId}
-            value={newPlayerName} 
-            onChange={(e) => setNewPlayerName(e.target.value)} 
-            placeholder="Enter player name" 
+            value={newPlayerName}
+            onChange={(e) => setNewPlayerName(e.target.value)}
+            placeholder="Enter player name"
             className={`flex-grow p-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 placeholder-gray-400 ${modalInputFocusClass}`}
           />
           <Button onClick={() => handleAddPlayer(teamType)} variant="secondary" size="sm">Add Player</Button>
@@ -490,9 +419,9 @@ const ScoringPage: React.FC = () => {
         <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
           {availablePlayers.map(player => (
             <label key={`${teamType}-${player}`} className={`flex items-center space-x-2 p-2 rounded-md cursor-pointer transition-colors ${selectedSquad.includes(player) ? 'bg-teal-700 text-white' : 'bg-gray-700 hover:bg-teal-800 text-gray-200'}`}>
-              <input 
-                type="checkbox" 
-                checked={selectedSquad.includes(player)} 
+              <input
+                type="checkbox"
+                checked={selectedSquad.includes(player)}
                 onChange={() => handleSquadPlayerSelection(player, teamType)}
                 disabled={!selectedSquad.includes(player) && selectedSquad.length >= SQUAD_SIZE}
                 className="form-checkbox h-4 w-4 text-teal-600 border-gray-500 rounded focus:ring-teal-500 bg-gray-500 checked:bg-teal-600 focus:ring-offset-gray-700"
@@ -520,8 +449,8 @@ const ScoringPage: React.FC = () => {
                     {renderSquadSelectionSection('A', availableTeamAPlayers, selectedTeamASquad, newPlayerNameA, setNewPlayerNameA)}
                     {renderSquadSelectionSection('B', availableTeamBPlayers, selectedTeamBSquad, newPlayerNameB, setNewPlayerNameB)}
                 </div>
-                <Button 
-                    onClick={handleConfirmSquads} 
+                <Button
+                    onClick={handleConfirmSquads}
                     disabled={selectedTeamASquad.length !== SQUAD_SIZE || selectedTeamBSquad.length !== SQUAD_SIZE}
                     className="w-full" variant="primary" size="lg">
                     Confirm Squads & Select Roles
@@ -543,7 +472,7 @@ const ScoringPage: React.FC = () => {
         const pStat = activeInningsRecord?.battingPerformances.find(bp => bp.playerName === pName);
         return !pStat || pStat.status === DismissalType.NOT_OUT;
     }) || [];
-    
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
             <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-lg border border-gray-700">
@@ -579,7 +508,7 @@ const ScoringPage: React.FC = () => {
         </div>
     );
   }
-  
+
   if (showWicketModal && matchDetails && matchDetails.status === "Live") { // Only show if match is Live
     const activeBatsmen = [currentStrikerName, currentNonStrikerName].filter(Boolean) as string[];
     const currentBowlingTeamSquad = matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamBSquad : matchDetails.teamASquad;
@@ -649,7 +578,7 @@ const ScoringPage: React.FC = () => {
         </div>
     );
   }
-  
+
   // If match is completed, show summary and link to full scorecard
   if (matchDetails.status === "Completed" || matchDetails.status === "Abandoned") {
     return (
@@ -660,10 +589,10 @@ const ScoringPage: React.FC = () => {
             <div className="bg-gray-800 p-6 rounded-xl shadow-xl border border-gray-700">
                 <h2 className="text-2xl font-semibold text-gray-100 mb-2">{matchDetails.status === "Completed" ? "Match Result" : "Match Status"}</h2>
                 <p className="text-lg text-gray-300 mb-4">{matchDetails.result_summary || (matchDetails.status === "Abandoned" ? "This match was abandoned." : "Result not available.")}</p>
-                <ScoreDisplay 
-                    score={scoreForDisplay} 
-                    target={target} 
-                    currentInnings={currentInningsNumber} 
+                <ScoreDisplay
+                    score={scoreForDisplay}
+                    target={target}
+                    currentInnings={currentInningsNumber}
                     totalOvers={matchDetails.overs_per_innings}
                 />
                 <Link to="/matches">
@@ -680,17 +609,17 @@ const ScoringPage: React.FC = () => {
       <h1 className="text-3xl font-bold text-gray-50 text-center">
         {matchDetails.teamAName} vs {matchDetails.teamBName}
       </h1>
-      
-      <ScoreDisplay 
-        score={scoreForDisplay} 
-        target={target} 
-        currentInnings={currentInningsNumber} 
+
+      <ScoreDisplay
+        score={scoreForDisplay}
+        target={target}
+        currentInnings={currentInningsNumber}
         totalOvers={matchDetails.overs_per_innings}
         strikerName={currentStrikerName}
         nonStrikerName={currentNonStrikerName}
         bowlerName={currentBowlerName}
       />
-      
+
       <div className="p-2 bg-gray-800 rounded-lg shadow border border-gray-700 text-sm text-gray-300 text-center">
         <p>Striker: <span className="font-semibold text-gray-100">{currentStrikerName || "N/A"}</span></p>
         <p>Non-Striker: <span className="font-semibold text-gray-100">{currentNonStrikerName || "N/A"}</span></p>
@@ -702,9 +631,9 @@ const ScoringPage: React.FC = () => {
         <h3 className="text-md font-semibold text-gray-200 mb-2 text-center">Current Over:</h3>
         <div className="flex justify-center space-x-1.5 sm:space-x-2">
             {currentOverEvents.map((ballEvent, index) => (
-                <BallDisplayIcon 
-                    key={index} 
-                    ballEvent={ballEvent} 
+                <BallDisplayIcon
+                    key={index}
+                    ballEvent={ballEvent}
                     ballNumberInOver={index + 1}
                     onClick={ballEvent ? () => handleEditBall(index) : undefined}
                     isCurrentBall={!ballEvent && scoreForDisplay?.ballsThisOver === index && (scoreForDisplay.wickets < SQUAD_SIZE -1 || (matchDetails?.overs_per_innings ? scoreForDisplay.overs < matchDetails.overs_per_innings : true))}
@@ -721,7 +650,7 @@ const ScoringPage: React.FC = () => {
           <Button variant="danger" className="w-full aspect-square text-lg font-semibold" onClick={() => handleSimpleBallEvent(0, true)}>WKT</Button>
         </div>
         <div className="flex space-x-2">
-            {(["Wide", "NoBall", "Byes", "LegByes"] as BallEvent['extraType'][]).map(type => 
+            {(["Wide", "NoBall", "Byes", "LegByes"] as BallEvent['extraType'][]).map(type =>
                 <ExtraButton key={type} type={type} onClick={() => handleExtraButtonClick(type!)} />
             )}
         </div>
@@ -730,7 +659,7 @@ const ScoringPage: React.FC = () => {
       <div className="p-4 bg-gray-800 rounded-lg shadow border border-gray-700">
           <h3 className="text-lg font-semibold text-gray-100 mb-3">Match Actions:</h3>
           {currentInningsNumber === 1 && currentMatchInningsData && (currentMatchInningsData.totalWickets >= SQUAD_SIZE -1 || (matchDetails.overs_per_innings && currentMatchInningsData.totalOversBowled >= matchDetails.overs_per_innings)) && (
-            <Button onClick={switchInnings} variant="primary" className="w-full mb-3">End Innings & Start 2nd Innings</Button>
+            <Button onClick={() => switchInnings(matchDetails)} variant="primary" className="w-full mb-3">End Innings & Start 2nd Innings</Button>
           )}
           <Button onClick={handleSaveAndExit} variant="outline" className="w-full">Save & Exit to Matches</Button>
       </div>
