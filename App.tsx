@@ -1,10 +1,11 @@
 
+
 import React, { useState } from 'react';
 import { HashRouter, Routes, Route, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import AppHeader from './components/AppHeader';
 import MainUITabs from './components/MainUITabs';
 import BottomNav from './components/BottomNav';
-import { SearchOverlayComponent as SearchOverlay } from './components/SearchOverlay'; // Changed to named import
+import { SearchOverlay } from './components/SearchOverlay';
 import SideMenu from './components/SideMenu'; // Import SideMenu
 import HomePage from './pages/HomePage';
 import MatchesPage from './pages/MatchesPage';

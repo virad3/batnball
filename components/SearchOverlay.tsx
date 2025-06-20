@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeftIcon, XMarkIcon, QrCodeIcon as QrCodeIconOutline, UserIcon, UserGroupIcon, CalendarDaysIcon, TrophyIcon, DocumentTextIcon, CheckBadgeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
@@ -160,7 +159,7 @@ const MatchResultCard: React.FC<{ match: Match; onClick: () => void }> = ({ matc
 );
 
 
-export const SearchOverlayComponent: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQuery, onClose }) => {
+const SearchOverlayComponent: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQuery, onClose }) => {
   const [allFetchedResults, setAllFetchedResults] = useState<SearchResultItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -333,6 +332,4 @@ export const SearchOverlayComponent: React.FC<SearchOverlayProps> = ({ searchQue
   );
 };
 
-// Removed the separate export block, SearchOverlayComponent is now exported directly.
-// Comment about removing default export is no longer relevant as it's directly a named export.
-// export default SearchOverlayComponent; // Ensured this is removed/commented
+export { SearchOverlayComponent as SearchOverlay };
