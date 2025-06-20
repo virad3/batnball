@@ -159,7 +159,6 @@ const MatchResultCard: React.FC<{ match: Match; onClick: () => void }> = ({ matc
     </button>
 );
 
-
 export const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQuery, onClose }) => {
   const [allFetchedResults, setAllFetchedResults] = useState<SearchResultItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
