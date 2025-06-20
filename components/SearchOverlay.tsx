@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeftIcon, XMarkIcon, QrCodeIcon as QrCodeIconOutline, UserIcon, UserGroupIcon, CalendarDaysIcon, TrophyIcon, DocumentTextIcon, CheckBadgeIcon } from '@heroicons/react/24/outline';
+import { ChevronLeftIcon, XMarkIcon, QrCodeIcon as QrCodeIconOutline, UserIcon, UserGroupIcon, CalendarDaysIcon, TrophyIcon, DocumentTextIcon, CheckBadgeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { MapPinIcon } from '@heroicons/react/24/solid';
 import { searchPlayersByName, searchMatchesByTerm, searchTournamentsByName, searchTeamsByName } from '../services/dataService';
 import { SearchResultItem, UserProfile, Team, Match, Tournament, MatchFormat, TournamentStatus } from '../types';
@@ -37,8 +38,6 @@ const formatDate = (dateInput: string | FirebaseTimestamp | undefined | null): s
         // Try to parse if it's already in a simple "YYYY-MM-DD" or similar format without time
         const parts = dateInput.split(/[-/]/);
         if (parts.length === 3) {
-            // Assuming YYYY-MM-DD or MM-DD-YYYY etc. Adjust if needed.
-            // This is a basic attempt, for more robust parsing use a library or more specific checks.
             d = new Date(parseInt(parts[0]), parseInt(parts[1]) -1, parseInt(parts[2]));
         } else {
             return 'Invalid Date';
@@ -82,9 +81,9 @@ const getDynamicTournamentStatus = (
 };
 
 const statusBadgeStyles: Record<TournamentStatus, string> = {
-  Upcoming: "bg-blue-500 text-white",
-  Ongoing: "bg-red-500 text-white",
-  Past: "bg-gray-600 text-white",
+  Upcoming: "bg-blue-600 text-white",
+  Ongoing: "bg-red-600 text-white", 
+  Past: "bg-gray-700 text-gray-200",
 };
 
 
@@ -134,12 +133,22 @@ const TournamentResultCard: React.FC<{ tournament: Tournament; onClick: () => vo
 };
 
 
-const MatchResultCard: React.FC<{ match: Match; onClick: () => void }> = ({ match, onClick }) => (
+const MatchResultCard: React.FC<{ match: Match; onClick: () => void }> = ({ match, onClick }) => {
+  let currentStatusBadgeStyle = "bg-yellow-600 text-white"; 
+  if (match.status === "Completed") {
+    currentStatusBadgeStyle = "bg-gray-700 text-gray-200";
+  } else if (match.status === "Live") {
+    currentStatusBadgeStyle = "bg-red-600 text-white animate-pulse";
+  } else if (match.status === "Upcoming") {
+    currentStatusBadgeStyle = "bg-blue-600 text-white";
+  }
+
+  return (
     <button onClick={onClick} className="w-full text-left p-3 hover:bg-gray-200 focus:outline-none focus:bg-gray-200 transition-colors block border-b border-gray-200">
         <div className="space-y-1">
             <div className="flex justify-between items-center">
                 <p className="text-xs text-gray-500 truncate">{match.tournament_id ? 'Tournament Match' : `${match.format} Match`}</p>
-                 <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${match.status === "Completed" ? "bg-green-600 text-white" : (match.status === "Live" ? "bg-red-600 text-white animate-pulse" : "bg-yellow-600 text-white")}`}>
+                 <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${currentStatusBadgeStyle}`}>
                     {match.status.toUpperCase()}
                 </span>
             </div>
@@ -151,7 +160,7 @@ const MatchResultCard: React.FC<{ match: Match; onClick: () => void }> = ({ matc
 );
 
 
-const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQuery, onClose }) => {
+const SearchOverlayComponent: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQuery, onClose }) => {
   const [allFetchedResults, setAllFetchedResults] = useState<SearchResultItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -172,6 +181,7 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
         setAllFetchedResults([]);
         setIsSearching(false);
         setApiError(null);
+        setActiveCategoryFilter('all'); 
         return;
       }
       setIsSearching(true);
@@ -227,15 +237,11 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
     onClose();
   };
   
-  const handleCategoryClick = (categoryKey: typeof categories[number]['key']) => {
-    setActiveCategoryFilter(categoryKey);
-    // Optional: auto-focus input or setSearchQuery(`in:${categoryKey} `)
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-gray-100 text-gray-800" role="dialog" aria-modal="true" aria-label="Search panel">
       <div className="flex items-center h-[57px] sm:h-[61px] px-3 py-2 bg-white border-b border-gray-300 shadow-sm">
-        <button onClick={onClose} aria-label="Close search" className="p-2 text-gray-600 hover:text-gray-800 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500">
+        <button onClick={onClose} aria-label="Close search" className="p-2 text-gray-600 hover:text-gray-800 rounded-full focus:outline-none focus:ring-2 focus:ring-teal-500">
           <ChevronLeftIcon className="w-6 h-6" />
         </button>
         <div className="flex-grow mx-2 relative">
@@ -244,7 +250,7 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
             placeholder="Search Bat 'n' Ball..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-10 px-3 pr-10 bg-gray-100 text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 placeholder-gray-500 text-base"
+            className="w-full h-10 px-3 pr-10 bg-gray-100 text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 placeholder-gray-500 text-base"
             autoFocus
             aria-label="Search input"
             aria-controls="search-results-list"
@@ -255,29 +261,17 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
             </button>
           )}
         </div>
-        <button aria-label="Scan QR code" className="p-2 text-gray-600 hover:text-gray-800 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500">
+        <button aria-label="Scan QR code" className="p-2 text-gray-600 hover:text-gray-800 rounded-full focus:outline-none focus:ring-2 focus:ring-teal-500">
           <QrCodeIconOutline className="w-6 h-6" />
         </button>
       </div>
 
       <div id="search-results-list" className="flex-grow overflow-y-auto bg-white">
         {searchQuery.trim() === '' ? (
-          <div className="p-4 space-y-4">
-            <button className="w-full text-left p-3 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm font-semibold">
-              Pro Privileges
-            </button>
-            <div className="space-y-1">
-              {categories.map(cat => (
-                <button
-                  key={cat.key}
-                  onClick={() => handleCategoryClick(cat.key)}
-                  className="w-full flex items-center p-3 text-sm text-gray-700 hover:bg-gray-200 rounded-md focus:outline-none focus:bg-gray-200 transition-colors"
-                >
-                  <cat.icon className="w-5 h-5 text-gray-500 mr-3" />
-                  <span>{cat.name}</span>
-                </button>
-              ))}
-            </div>
+          <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+            <MagnifyingGlassIcon className="w-16 h-16 text-gray-400 mb-4" />
+            <p className="text-xl text-gray-600">Search Players, Teams, Matches, and Tournaments</p>
+            <p className="text-sm text-gray-400 mt-1">Start typing above to see results.</p>
           </div>
         ) : (
           <>
@@ -288,9 +282,9 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
                         key={`quick-${cat.key}`}
                         onClick={() => setActiveCategoryFilter(cat.key)}
                         className={`inline-flex items-center px-2.5 py-1 mr-1.5 mb-1.5 rounded-full text-xs font-medium transition-colors border
-                            ${activeCategoryFilter === cat.key ? 'bg-red-600 text-white border-red-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-gray-300'}`}
+                            ${activeCategoryFilter === cat.key ? 'bg-yellow-500 text-gray-900 border-yellow-500' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-gray-300'}`}
                     >
-                        <cat.icon className={`w-3.5 h-3.5 mr-1.5 ${activeCategoryFilter === cat.key ? 'text-white' : 'text-gray-500'}`} />
+                        <cat.icon className={`w-3.5 h-3.5 mr-1.5 ${activeCategoryFilter === cat.key ? 'text-gray-800' : 'text-gray-500'}`} />
                         Search '{searchQuery}' in: {cat.name}
                     </button>
                 ))}
@@ -303,7 +297,7 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
                   key={cat.key}
                   onClick={() => setActiveCategoryFilter(cat.key as any)}
                   className={`flex-1 py-2.5 px-1 text-center text-xs sm:text-sm font-medium focus:outline-none transition-colors
-                    ${activeCategoryFilter === cat.key ? 'border-b-2 border-red-600 text-red-600' : 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent'}`}
+                    ${activeCategoryFilter === cat.key ? 'border-b-2 border-yellow-400 text-yellow-500' : 'text-gray-500 hover:text-gray-700 border-b-2 border-transparent'}`}
                 >
                   {cat.name}
                 </button>
@@ -339,4 +333,4 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
   );
 };
 
-export default SearchOverlay;
+export { SearchOverlayComponent as SearchOverlay };

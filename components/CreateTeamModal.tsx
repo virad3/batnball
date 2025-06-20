@@ -50,7 +50,7 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
       };
       fetchProfiles();
     } else {
-      resetFormAndClose(false); // Don't call onClose again
+      resetFormAndClose(false); 
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -79,14 +79,14 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
   const handleInputPlayerNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setInputPlayerName(value);
-    setSelectedPlayerIdForAdd(undefined); // Clear selected ID if user types
+    setSelectedPlayerIdForAdd(undefined); 
     setError(null);
 
     if (value.trim() && allUserProfiles.length > 0) {
       const filtered = allUserProfiles.filter(profile =>
         profile.username.toLowerCase().includes(value.toLowerCase()) &&
         !players.some(p => (p.userId && p.userId === profile.id) || p.name.toLowerCase() === profile.username.toLowerCase())
-      ).slice(0, 5); // Limit suggestions
+      ).slice(0, 5); 
       setSuggestions(filtered);
       setShowSuggestions(filtered.length > 0);
     } else {
@@ -119,14 +119,14 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
 
     let playerToAdd: ModalPlayer;
 
-    if (selectedPlayerIdForAdd) { // A suggestion was clicked
+    if (selectedPlayerIdForAdd) { 
       playerToAdd = { name: nameToAdd, userId: selectedPlayerIdForAdd };
-    } else { // No suggestion clicked, try to match by name
+    } else { 
       const existingProfile = allUserProfiles.find(p => p.username.toLowerCase() === nameToAdd.toLowerCase());
       if (existingProfile && !players.some(p => p.userId === existingProfile.id)) {
         playerToAdd = { name: existingProfile.username, userId: existingProfile.id };
       } else {
-        playerToAdd = { name: nameToAdd, userId: undefined }; // Custom player
+        playerToAdd = { name: nameToAdd, userId: undefined }; 
       }
     }
     
@@ -171,7 +171,7 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
       await Promise.all(profileUpdatePromises);
 
       onTeamCreated(createdTeam);
-      resetFormAndClose(true); // Calls onClose
+      resetFormAndClose(true); 
     } catch (err: any) {
       console.error("Failed to create team or update profiles:", err);
       setError(err.message || "Could not create team. Please try again.");
@@ -197,7 +197,7 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
   if (!isOpen) return null;
 
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
-  const inputFocusClass = "focus:ring-red-500 focus:border-red-500";
+  const inputFocusClass = "focus:ring-teal-500 focus:border-teal-500"; // Changed focus color
   const inputClass = `${inputBaseClass} ${inputFocusClass}`;
   const labelClass = "block text-sm font-medium text-gray-200 mb-1";
 
@@ -216,7 +216,7 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
           <button
             onClick={() => resetFormAndClose(true)}
             aria-label="Close create team modal"
-            className="p-1 text-gray-400 hover:text-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+            className="p-1 text-gray-400 hover:text-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-gray-800" // Updated focus
           >
             <XMarkIcon className="w-6 h-6" />
           </button>
@@ -280,7 +280,7 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
                       <li
                         key={suggestion.id}
                         onClick={() => handleSuggestionClick(suggestion)}
-                        className="px-3 py-2 text-sm text-gray-200 hover:bg-red-700 hover:text-white cursor-pointer"
+                        className="px-3 py-2 text-sm text-gray-200 hover:bg-teal-700 hover:text-white cursor-pointer" // Updated hover
                         role="option"
                         aria-selected={selectedPlayerIdForAdd === suggestion.id} 
                       >
@@ -329,19 +329,19 @@ const CreateTeamModal: React.FC<CreateTeamModalProps> = ({ isOpen, onClose, onTe
             .custom-scrollbar::-webkit-scrollbar-thumb:hover {
                 background: #6b7280; /* gray-500 */
             }
-            .custom-scrollbar-inner::-webkit-scrollbar { /* For nested scrollable lists if any */
+            .custom-scrollbar-inner::-webkit-scrollbar { 
                 width: 4px;
             }
             .custom-scrollbar-inner::-webkit-scrollbar-track {
-                background: #4b5563; /* gray-600 */
+                background: #4b5563; 
                  border-radius: 2px;
             }
             .custom-scrollbar-inner::-webkit-scrollbar-thumb {
-                background: #9ca3af; /* gray-400 */
+                background: #9ca3af; 
                  border-radius: 2px;
             }
             .custom-scrollbar-inner::-webkit-scrollbar-thumb:hover {
-                background: #d1d5db; /* gray-300 */
+                background: #d1d5db; 
             }
             `}</style>
         </form>

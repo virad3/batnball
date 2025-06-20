@@ -294,7 +294,7 @@ const ProfilePage: React.FC = () => {
     );
   }
 
-  const inputClass = "block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 sm:text-sm text-gray-100 placeholder-gray-400 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:text-gray-400";
+  const inputClass = "block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 sm:text-sm text-gray-100 placeholder-gray-400 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:text-gray-400"; // Updated focus
   const labelClass = "block text-sm font-medium text-gray-300";
   const readOnlyValueClass = "mt-1 text-sm text-gray-200 py-2";
 
@@ -391,7 +391,7 @@ const ProfilePage: React.FC = () => {
                 <span><strong className="text-gray-100">{followingCount}</strong> Following</span>
             </div>
             {isOwnProfile && (
-                <label htmlFor="profilePicFile" className={`mt-3 inline-block ${labelClass} cursor-pointer text-red-400 hover:text-red-300 text-sm`}>
+                <label htmlFor="profilePicFile" className={`mt-3 inline-block ${labelClass} cursor-pointer text-teal-400 hover:text-teal-300 text-sm`}>
                     Change Photo
                 </label>
             )}

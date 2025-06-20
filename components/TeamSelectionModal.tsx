@@ -63,7 +63,6 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({
   }, [searchTerm, userTeams, isOpen]);
 
   const handleSelectTeam = (team: Team) => {
-    // Prevent selecting the same team that's already in the other slot
     if (currentSelectionTarget === 'A' && team.id === existingTeamBId) {
         alert("This team is already selected as Team B. Please choose a different team.");
         return;
@@ -77,11 +76,11 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({
   };
 
   const handleTeamCreated = (newTeam: Team) => {
-    setIsCreateTeamModalOpen(false); // Close create modal
-    handleSelectTeam(newTeam); // Directly select the newly created team
+    setIsCreateTeamModalOpen(false); 
+    handleSelectTeam(newTeam); 
   };
   
-  const inputClass = "w-full p-2.5 pl-10 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 text-gray-100 placeholder-gray-400";
+  const inputClass = "w-full p-2.5 pl-10 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-100 placeholder-gray-400"; // Updated focus
 
   if (!isOpen) return null;
 
@@ -101,7 +100,7 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({
             <button
               onClick={onClose}
               aria-label="Close team selection modal"
-              className="p-1 text-gray-400 hover:text-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+              className="p-1 text-gray-400 hover:text-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-gray-800" // Updated focus
             >
               <XMarkIcon className="w-6 h-6" />
             </button>
@@ -129,7 +128,7 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({
                   <button
                     key={team.id}
                     onClick={() => handleSelectTeam(team)}
-                    className="w-full text-left p-3 bg-gray-700 hover:bg-red-700 rounded-md transition-colors text-gray-200 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full text-left p-3 bg-gray-700 hover:bg-teal-700 rounded-md transition-colors text-gray-200 hover:text-white focus:outline-none focus:ring-2 focus:ring-teal-500" // Updated hover and focus
                     disabled={(currentSelectionTarget === 'A' && team.id === existingTeamBId) || (currentSelectionTarget === 'B' && team.id === existingTeamAId)}
                   >
                     <div className="flex items-center space-x-3">

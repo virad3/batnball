@@ -67,7 +67,7 @@ const CreateTournamentPage: React.FC = () => {
   };
   
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
-  const inputFocusClass = "focus:ring-red-500 focus:border-red-500";
+  const inputFocusClass = "focus:ring-teal-500 focus:border-teal-500"; // Changed focus color
   const inputClass = `${inputBaseClass} ${inputFocusClass}`;
   const labelClass = "block text-sm font-medium text-gray-200";
 

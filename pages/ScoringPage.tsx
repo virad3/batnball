@@ -279,6 +279,11 @@ const ScoringPage: React.FC = () => {
       bowlingTeamName: matchDetails.current_batting_team === matchDetails.teamAName ? matchDetails.teamBName : matchDetails.teamAName,
   } : null;
 
+  const modalInputBaseClass = "w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
+  const modalInputFocusClass = "focus:ring-teal-500 focus:border-teal-500"; // Changed focus color
+  const modalInputClass = `${modalInputBaseClass} ${modalInputFocusClass}`;
+  const modalLabelClass = "block text-sm font-medium text-gray-200 mb-1";
+
 
   const renderSquadSelectionSection = (
     teamType: 'A' | 'B',
@@ -300,20 +305,20 @@ const ScoringPage: React.FC = () => {
             value={newPlayerName} 
             onChange={(e) => setNewPlayerName(e.target.value)} 
             placeholder="Enter player name" 
-            className="flex-grow p-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 placeholder-gray-400 focus:ring-red-500 focus:border-red-500"
+            className={`flex-grow p-2 bg-gray-600 border border-gray-500 rounded-md text-gray-100 placeholder-gray-400 ${modalInputFocusClass}`} // Updated focus
           />
           <Button onClick={() => handleAddPlayer(teamType)} variant="secondary" size="sm">Add Player</Button>
         </div>
         {availablePlayers.length > 0 && <p className="text-xs text-gray-400">Select {SQUAD_SIZE} players:</p>}
         <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
           {availablePlayers.map(player => (
-            <label key={`${teamType}-${player}`} className={`flex items-center space-x-2 p-2 rounded-md cursor-pointer transition-colors ${selectedSquad.includes(player) ? 'bg-red-700 text-white' : 'bg-gray-700 hover:bg-red-800 text-gray-200'}`}>
+            <label key={`${teamType}-${player}`} className={`flex items-center space-x-2 p-2 rounded-md cursor-pointer transition-colors ${selectedSquad.includes(player) ? 'bg-teal-700 text-white' : 'bg-gray-700 hover:bg-teal-800 text-gray-200'}`}> {/* Adjusted active color */}
               <input 
                 type="checkbox" 
                 checked={selectedSquad.includes(player)} 
                 onChange={() => handleSquadPlayerSelection(player, teamType)}
                 disabled={!selectedSquad.includes(player) && selectedSquad.length >= SQUAD_SIZE}
-                className="form-checkbox h-4 w-4 text-red-700 border-gray-500 rounded focus:ring-red-500 bg-gray-500 checked:bg-red-700 focus:ring-offset-gray-700"
+                className="form-checkbox h-4 w-4 text-teal-600 border-gray-500 rounded focus:ring-teal-500 bg-gray-500 checked:bg-teal-600 focus:ring-offset-gray-700" // Adjusted active color
               />
               <span className="text-sm">{player}</span>
             </label>
@@ -326,11 +331,9 @@ const ScoringPage: React.FC = () => {
 
 
   if (pageLoading) return <div className="flex justify-center items-center h-64"><LoadingSpinner size="lg" /></div>;
-  if (!matchDetails) return <div className="text-center p-8 text-xl text-gray-300">Match details not loaded or found. <Link to="/matches" className="text-red-400 hover:underline">Go to Matches</Link></div>;
+  if (!matchDetails) return <div className="text-center p-8 text-xl text-gray-300">Match details not loaded or found. <Link to="/matches" className="text-teal-400 hover:underline">Go to Matches</Link></div>;
 
   if (showTossModal) {
-    const inputClass = "w-full p-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 text-gray-100 placeholder-gray-400";
-    const labelClass = "block text-sm font-medium text-gray-200 mb-1";
     return (
       <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
         <div className="relative bg-gray-800 p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
@@ -346,29 +349,29 @@ const ScoringPage: React.FC = () => {
           {matchId === "newmatch" && (
             <div className="mb-4 space-y-3">
                  <div>
-                    <label htmlFor="teamAName" className={labelClass}>Team A Name:</label>
+                    <label htmlFor="teamAName" className={modalLabelClass}>Team A Name:</label>
                     <input type="text" id="teamAName" value={matchDetails.teamAName} 
                             onChange={(e) => context.setMatchDetails({...matchDetails, teamAName: e.target.value, ...(tossWinnerNameState === matchDetails.teamAName && { tossWinnerNameState: e.target.value}) })} 
-                            className={inputClass}/>
+                            className={modalInputClass}/>
                  </div>
                  <div>
-                    <label htmlFor="teamBName" className={labelClass}>Team B Name:</label>
+                    <label htmlFor="teamBName" className={modalLabelClass}>Team B Name:</label>
                     <input type="text" id="teamBName" value={matchDetails.teamBName} 
                             onChange={(e) => context.setMatchDetails({...matchDetails, teamBName: e.target.value, ...(tossWinnerNameState === matchDetails.teamBName && { tossWinnerNameState: e.target.value})})}
-                            className={inputClass}/>
+                            className={modalInputClass}/>
                  </div>
             </div>
           )}
           <div className="mb-4">
-            <label htmlFor="tossWinner" className={labelClass}>Toss Won By:</label>
-            <select id="tossWinner" value={tossWinnerNameState || ''} onChange={(e) => setTossWinnerNameState(e.target.value)} className={inputClass}>
+            <label htmlFor="tossWinner" className={modalLabelClass}>Toss Won By:</label>
+            <select id="tossWinner" value={tossWinnerNameState || ''} onChange={(e) => setTossWinnerNameState(e.target.value)} className={modalInputClass}>
               <option value="" disabled>Select Team</option>
               {matchDetails.teamAName && <option value={matchDetails.teamAName}>{matchDetails.teamAName}</option>}
               {matchDetails.teamBName && <option value={matchDetails.teamBName}>{matchDetails.teamBName}</option>}
             </select>
           </div>
           <div className="mb-6">
-            <label className={labelClass}>Elected To:</label>
+            <label className={modalLabelClass}>Elected To:</label>
             <div className="flex space-x-4">
               <Button variant={electedToState === "Bat" ? "primary" : "outline"} onClick={() => setElectedToState("Bat")} className="flex-1">Bat</Button>
               <Button variant={electedToState === "Bowl" ? "primary" : "outline"} onClick={() => setElectedToState("Bowl")} className="flex-1">Bowl</Button>
@@ -415,7 +418,6 @@ const ScoringPage: React.FC = () => {
         return !pStat || pStat.status === DismissalType.NOT_OUT;
     }) || [];
     
-    const inputClass = "w-full p-2 bg-gray-700 border border-gray-600 rounded-md text-gray-100 focus:ring-red-500 focus:border-red-500";
     return (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
             <div className="bg-gray-800 p-6 rounded-lg shadow-xl w-full max-w-lg border border-gray-700">
@@ -423,21 +425,21 @@ const ScoringPage: React.FC = () => {
                 <div className="space-y-4">
                     <div>
                         <label htmlFor="striker" className="block text-sm font-medium text-gray-300 mb-1">Striker:</label>
-                        <select id="striker" value={modalStriker} onChange={e => setModalStriker(e.target.value)} className={inputClass}>
+                        <select id="striker" value={modalStriker} onChange={e => setModalStriker(e.target.value)} className={modalInputClass}>
                             <option value="">Select Striker</option>
                             {availableBatsmen?.map(p => <option key={`s-${p}`} value={p} disabled={p === modalNonStriker}>{p}</option>)}
                         </select>
                     </div>
                     <div>
                         <label htmlFor="nonStriker" className="block text-sm font-medium text-gray-300 mb-1">Non-Striker:</label>
-                        <select id="nonStriker" value={modalNonStriker} onChange={e => setModalNonStriker(e.target.value)} className={inputClass}>
+                        <select id="nonStriker" value={modalNonStriker} onChange={e => setModalNonStriker(e.target.value)} className={modalInputClass}>
                             <option value="">Select Non-Striker</option>
                             {availableBatsmen?.map(p => <option key={`ns-${p}`} value={p} disabled={p === modalStriker}>{p}</option>)}
                         </select>
                     </div>
                     <div>
                         <label htmlFor="bowler" className="block text-sm font-medium text-gray-300 mb-1">Current Bowler:</label>
-                        <select id="bowler" value={modalBowler} onChange={e => setModalBowler(e.target.value)} className={inputClass}>
+                        <select id="bowler" value={modalBowler} onChange={e => setModalBowler(e.target.value)} className={modalInputClass}>
                             <option value="">Select Bowler</option>
                             {currentBowlingTeamSquad?.map(p => <option key={`b-${p}`} value={p}>{p}</option>)}
                         </select>
@@ -463,20 +465,20 @@ const ScoringPage: React.FC = () => {
                 <div className="space-y-3">
                     <div>
                         <label className="text-sm text-gray-300">Batsman Out:</label>
-                        <select value={wicketDetails.batsmanOut} onChange={e => setWicketDetails(s => ({...s, batsmanOut: e.target.value}))} className="w-full mt-1 p-2 bg-gray-700 rounded">
+                        <select value={wicketDetails.batsmanOut} onChange={e => setWicketDetails(s => ({...s, batsmanOut: e.target.value}))} className={`w-full mt-1 p-2 bg-gray-700 rounded ${modalInputFocusClass}`}>
                             {activeBatsmen.map(b => <option key={b} value={b}>{b}</option>)}
                         </select>
                     </div>
                     <div>
                         <label className="text-sm text-gray-300">Dismissal Type:</label>
-                        <select value={wicketDetails.dismissalType} onChange={e => setWicketDetails(s => ({...s, dismissalType: e.target.value as DismissalType}))}  className="w-full mt-1 p-2 bg-gray-700 rounded">
+                        <select value={wicketDetails.dismissalType} onChange={e => setWicketDetails(s => ({...s, dismissalType: e.target.value as DismissalType}))}  className={`w-full mt-1 p-2 bg-gray-700 rounded ${modalInputFocusClass}`}>
                             {Object.values(DismissalType).filter(dt => dt !== DismissalType.NOT_OUT).map(type => <option key={type} value={type}>{type}</option>)}
                         </select>
                     </div>
                      {(wicketDetails.dismissalType === DismissalType.CAUGHT || wicketDetails.dismissalType === DismissalType.STUMPED || wicketDetails.dismissalType === DismissalType.RUN_OUT) && (
                         <div>
                             <label className="text-sm text-gray-300">Fielder:</label>
-                            <select value={wicketDetails.fielder} onChange={e => setWicketDetails(s => ({...s, fielder: e.target.value}))}  className="w-full mt-1 p-2 bg-gray-700 rounded">
+                            <select value={wicketDetails.fielder} onChange={e => setWicketDetails(s => ({...s, fielder: e.target.value}))}  className={`w-full mt-1 p-2 bg-gray-700 rounded ${modalInputFocusClass}`}>
                                 <option value="">Select Fielder</option>
                                 {currentBowlingTeamSquad?.map(p => <option key={p} value={p}>{p}</option>)}
                             </select>
@@ -501,7 +503,7 @@ const ScoringPage: React.FC = () => {
                 setAvailableTeamBPlayers(matchDetails.teamBSquad || []); setSelectedTeamBSquad(matchDetails.teamBSquad || []);
                 setShowSquadSelectionModal(true);
             }} className="mt-2" variant="primary">Select Squads</Button>
-            <Link to="/matches" className="block mt-4 text-red-400 hover:underline">Go to Matches</Link>
+            <Link to="/matches" className="block mt-4 text-teal-400 hover:underline">Go to Matches</Link>
         </div>
     );
   }
@@ -510,7 +512,7 @@ const ScoringPage: React.FC = () => {
         <div className="text-center p-8 text-xl text-gray-300">
             <p className="mb-3">Player roles (striker, bowler) not set.</p>
             <Button onClick={() => setShowPlayerRolesModal(true)} className="mt-2" variant="primary">Set Player Roles</Button>
-            <Link to="/matches" className="block mt-4 text-red-400 hover:underline">Go to Matches</Link>
+            <Link to="/matches" className="block mt-4 text-teal-400 hover:underline">Go to Matches</Link>
         </div>
     );
   }

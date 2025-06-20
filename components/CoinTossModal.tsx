@@ -14,7 +14,6 @@ const CoinIcon: React.FC<{
   logoUrl?: string;
 }> = ({ side, isFlipping, logoUrl = "/logo.png" }) => {
   const coinBaseClasses = "w-24 h-24 sm:w-32 sm:h-32 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ease-in-out overflow-hidden";
-  // Adjust padding for the logo to fit well within the circle
   const logoImageClasses = "w-full h-full object-contain p-3 sm:p-4"; 
 
   if (isFlipping) {
@@ -25,7 +24,7 @@ const CoinIcon: React.FC<{
     );
   }
 
-  let bgColor = 'bg-yellow-500'; // Default for initial state 
+  let bgColor = 'bg-yellow-500'; 
   if (side === 'Heads') {
     bgColor = 'bg-green-500';
   } else if (side === 'Tails') {
@@ -45,7 +44,6 @@ const CoinTossModal: React.FC<CoinTossModalProps> = ({ isOpen, onClose, onProcee
   const [result, setResult] = useState<'Heads' | 'Tails' | null>(null);
 
   useEffect(() => {
-    // Reset on close
     if (!isOpen) {
       setIsFlipping(false);
       setResult(null);
@@ -54,12 +52,12 @@ const CoinTossModal: React.FC<CoinTossModalProps> = ({ isOpen, onClose, onProcee
 
   const handleFlipCoin = () => {
     setIsFlipping(true);
-    setResult(null); // Clear previous result
+    setResult(null); 
     setTimeout(() => {
       const toss = Math.random() < 0.5 ? 'Heads' : 'Tails';
       setResult(toss);
       setIsFlipping(false);
-    }, 1500); // Simulate flip duration
+    }, 1500); 
   };
 
   if (!isOpen) {
@@ -81,7 +79,7 @@ const CoinTossModal: React.FC<CoinTossModalProps> = ({ isOpen, onClose, onProcee
             <button
                 onClick={onClose}
                 aria-label="Close coin toss modal"
-                className="text-gray-400 hover:text-gray-200 p-1 rounded-full focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                className="text-gray-400 hover:text-gray-200 p-1 rounded-full focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-gray-800" // Updated focus
             >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

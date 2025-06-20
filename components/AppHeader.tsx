@@ -27,7 +27,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ onSearchClick, onMenuClick }) => 
           {user && ( // Show hamburger only if user is logged in (as menu content is user-specific)
             <button
               aria-label="Open menu"
-              className="p-2 mr-1 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600 sm:hidden"
+              className="p-2 mr-1 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500 sm:hidden" // Updated focus ring
               onClick={onMenuClick}
             >
               <Bars3Icon className="w-6 h-6" />
@@ -43,18 +43,18 @@ const AppHeader: React.FC<AppHeaderProps> = ({ onSearchClick, onMenuClick }) => 
           <div className="flex items-center space-x-2 sm:space-x-3">
             <button
               aria-label="Search"
-              className="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500" // Updated focus ring
               onClick={onSearchClick}
             >
               <MagnifyingGlassIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-300" />
             </button>
-            <button aria-label="Chat" className="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600">
+            <button aria-label="Chat" className="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500"> {/* Updated focus ring */}
               <ChatBubbleLeftEllipsisIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-300" />
             </button>
             <button
               aria-label="Notifications"
               onClick={handleNotificationClick}
-              className="relative p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-600"
+              className="relative p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500" // Updated focus ring
             >
               <BellIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-300" />
               {/* Static notification dot indicator */}

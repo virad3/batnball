@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { UserProfile } from '../types'; // Import UserProfile
 import {
@@ -61,10 +61,6 @@ const calculateProfileCompletion = (profile: UserProfile | null): number => {
     }
   });
   
-  // Ensure username and profileType (often set by default) also contribute if desired
-  // For this calculation, we are focusing on user-fillable optional fields.
-  // If we wanted to include mandatory fields like username, adjust totalConsideredFields and add checks.
-
   return totalConsideredFields > 0 ? Math.round((completedFields / totalConsideredFields) * 100) : 0;
 };
 
@@ -72,6 +68,7 @@ const calculateProfileCompletion = (profile: UserProfile | null): number => {
 const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
   const { user, userProfile, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = async () => {
     onClose(); 
@@ -97,9 +94,8 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
 
   const profileCompletionPercentage = calculateProfileCompletion(userProfile);
 
-  const profilePicUrl = userProfile?.profilePicUrl || user?.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile?.username || user?.email || 'User')}&background=random&color=fff`;
+  const profilePicUrl = userProfile?.profilePicUrl || user?.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile?.username || user?.email || 'User')}&background=4B5563&color=E5E7EB`; // Darker avatar bg
   const userName = userProfile?.username || user?.displayName || user?.email?.split('@')[0] || "User";
-  // Use mobile number from profile if available, otherwise a placeholder for display. The calculation uses the actual profile data.
   const userDisplayPhone = userProfile?.mobile_number || "Update Mobile Number"; 
 
 
@@ -116,7 +112,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
 
       {/* Side Menu Panel */}
       <div
-        className={`fixed top-0 left-0 bottom-0 z-50 flex w-72 sm:w-80 flex-col bg-white shadow-xl transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 bottom-0 z-50 flex w-72 sm:w-80 flex-col bg-gray-800 shadow-xl transition-transform duration-300 ease-in-out ${ // Changed main bg to gray-800
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         role="dialog"
@@ -124,36 +120,36 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
         aria-labelledby="side-menu-title"
       >
         {/* Header (User Profile Section) */}
-        <div className="bg-slate-800 p-4 text-white">
+        <div className="bg-gray-800 p-4 text-gray-100 border-b border-gray-700"> {/* Consistent header bg */}
           <div className="flex justify-between items-center mb-3">
             <h2 id="side-menu-title" className="sr-only">Main Menu</h2>
             <img
               src={profilePicUrl}
               alt={userName}
-              className="h-16 w-16 rounded-full border-2 border-slate-500 object-cover"
+              className="h-16 w-16 rounded-full border-2 border-gray-600 object-cover" // Adjusted border
             />
-            <button onClick={onClose} className="text-slate-400 hover:text-white p-1">
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-100 p-1"> {/* Adjusted text color */}
               <XMarkIcon className="h-6 w-6" />
             </button>
           </div>
           <NavLink to="/profile" onClick={onClose} className="block group">
             <div className="flex items-center justify-between">
                 <div>
-                    <h3 className="text-lg font-semibold group-hover:text-red-400">{userName}</h3>
-                    <p className="text-xs text-slate-300">{userDisplayPhone}</p>
+                    <h3 className="text-lg font-semibold group-hover:text-yellow-400">{userName}</h3> {/* Yellow hover for name */}
+                    <p className="text-xs text-gray-400">{userDisplayPhone}</p>
                 </div>
-                <ChevronRightIcon className="h-5 w-5 text-slate-400 group-hover:text-red-400" />
+                <ChevronRightIcon className="h-5 w-5 text-gray-400 group-hover:text-yellow-400" /> {/* Yellow hover for icon */}
             </div>
           </NavLink>
-          <div className="mt-2 w-full bg-slate-600 rounded-full h-1.5">
-            <div className="bg-teal-500 h-1.5 rounded-full" style={{ width: `${profileCompletionPercentage}%` }}></div>
+          <div className="mt-2 w-full bg-gray-600 rounded-full h-1.5"> {/* Darker progress bg */}
+            <div className="bg-teal-500 h-1.5 rounded-full" style={{ width: `${profileCompletionPercentage}%` }}></div> {/* Teal progress bar */}
           </div>
-          <p className="text-right text-xs text-slate-400 mt-1">{profileCompletionPercentage}%</p>
+          <p className="text-right text-xs text-gray-400 mt-1">{profileCompletionPercentage}%</p>
         </div>
 
 
         {/* Menu Items Section */}
-        <nav className="flex-1 overflow-y-auto bg-gray-50 text-gray-700">
+        <nav className="flex-1 overflow-y-auto bg-gray-800 text-gray-200"> {/* Darker bg, lighter text */}
           <ul>
             {menuItems.map((item) => (
               <li key={item.name}>
@@ -163,13 +159,15 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
                     if (item.action) item.action();
                     onClose();
                   }}
-                  className={({ isActive }) =>
-                    `flex items-center px-4 py-3 text-sm font-medium transition-colors hover:bg-gray-200 ${
-                      isActive ? 'bg-red-100 text-red-700' : 'text-gray-700'
+                  className={({ isActive }) => // isActive is from react-router-dom
+                    `flex items-center px-4 py-3 text-sm font-medium transition-colors hover:bg-gray-700 ${ // Darker hover
+                      isActive ? 'bg-gray-700 text-yellow-400' : 'text-gray-200' // Active state uses yellow
                     }`
                   }
                 >
-                  <item.icon className={`h-5 w-5 mr-3 ${item.path.startsWith(location.pathname) && item.path !== "/" ? 'text-red-600' : 'text-gray-500'}`} />
+                  <item.icon className={`h-5 w-5 mr-3 ${
+                      location.pathname.startsWith(item.path) && (item.path !== "/" || location.pathname === "/") ? 'text-yellow-400' : 'text-gray-400' // Active icon yellow
+                    }`} />
                   <span className="flex-grow">{item.name}</span>
                   {item.badge && (
                     <span className={`ml-2 text-xs font-semibold px-2 py-0.5 rounded-full`}>
@@ -184,10 +182,10 @@ const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
         </nav>
         
         {/* Footer actions like Logout */}
-        <div className="border-t border-gray-200 p-2 bg-gray-50">
+        <div className="border-t border-gray-700 p-2 bg-gray-800"> {/* Darker footer */}
             <button
                 onClick={handleLogout}
-                className="flex items-center w-full px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-100 hover:text-red-700 rounded-md transition-colors"
+                className="flex items-center w-full px-4 py-3 text-sm font-medium text-red-500 hover:bg-red-700 hover:text-red-100 rounded-md transition-colors" // Adjusted hover for logout
             >
                 <ArrowRightOnRectangleIcon className="h-5 w-5 mr-3" />
                 Logout

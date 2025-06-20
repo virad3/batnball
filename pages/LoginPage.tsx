@@ -52,7 +52,7 @@ const LoginPage: React.FC = () => {
   };
 
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
-  const inputFocusClass = "focus:ring-red-500 focus:border-red-500";
+  const inputFocusClass = "focus:ring-teal-500 focus:border-teal-500"; // Changed focus color
   const inputClass = `${inputBaseClass} ${inputFocusClass}`;
   const labelClass = "block text-sm font-medium text-gray-200";
 
@@ -134,7 +134,7 @@ const LoginPage: React.FC = () => {
             onClick={handleGoogleSignIn}
             isLoading={authLoading && !localError} 
             disabled={authLoading}
-            className="w-full bg-white text-gray-700 hover:bg-gray-100 focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500 border border-gray-300"
+            className="w-full bg-white text-gray-700 hover:bg-gray-100 focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-teal-500 border border-gray-300" // Google button focus ring
             size="lg"
             aria-label="Sign in with Google"
           >
@@ -145,7 +145,7 @@ const LoginPage: React.FC = () => {
 
         <p className="mt-8 text-center text-sm text-gray-400">
           Don't have an account?{' '}
-          <Link to="/signup" className="font-medium text-red-500 hover:text-red-400 hover:underline">
+          <Link to="/signup" className="font-medium text-teal-400 hover:text-teal-300 hover:underline">
             Sign Up
           </Link>
         </p>

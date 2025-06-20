@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Match, InningsRecord, MatchFormat } from '../types'; 
@@ -81,7 +80,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match }) => {
             </p>
           </div>
           {match.status === "Completed" && (
-            <span className="bg-gray-900 text-gray-100 text-xs font-bold px-3 py-1 rounded-full">
+            <span className="bg-gray-700 text-gray-200 text-xs font-bold px-3 py-1 rounded-full">
               RESULT
             </span>
           )}
@@ -91,7 +90,7 @@ const MatchCard: React.FC<MatchCardProps> = ({ match }) => {
             </span>
           )}
           {match.status === "Upcoming" && (
-             <span className="bg-yellow-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+             <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full">
               UPCOMING
             </span>
           )}

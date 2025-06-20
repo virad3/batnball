@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Tournament, TournamentStatus } from '../types';
@@ -39,9 +38,9 @@ const TournamentCard: React.FC<TournamentCardProps> = ({ tournament }) => {
   const status = getTournamentStatus(startDate, endDate);
 
   const statusBadgeStyles: Record<TournamentStatus, string> = {
-    Upcoming: "bg-blue-500 text-white",
-    Ongoing: "bg-red-500 text-white",
-    Past: "bg-gray-600 text-white",
+    Upcoming: "bg-blue-600 text-white", // Updated
+    Ongoing: "bg-red-600 text-white",  // Consistent
+    Past: "bg-gray-700 text-gray-200",   // Updated
   };
 
   const formattedStartDate = formatDateForCard(startDate);

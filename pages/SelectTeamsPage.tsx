@@ -79,12 +79,6 @@ const SelectTeamsPage: React.FC = () => {
         return;
     }
     
-    // Optional: Check if selectedDateTime is in the past, if scheduling past matches is not allowed
-    // if (selectedDateTime < new Date()) {
-    //   setError("Cannot schedule a match in the past.");
-    //   return;
-    // }
-
     setError(null);
     setIsLoading(true);
     try {
@@ -96,13 +90,12 @@ const SelectTeamsPage: React.FC = () => {
         format: matchFormat,
         overs_per_innings: matchFormat === MatchFormat.TEST ? undefined : overs,
         venue: venue.trim(),
-        date: selectedDateTime.toISOString(), // Send as ISO string
-        status: "Upcoming" as "Upcoming", // Explicitly set status
+        date: selectedDateTime.toISOString(), 
+        status: "Upcoming" as "Upcoming", 
       };
 
       const newMatch = await startNewMatch(partialMatchData);
       if (newMatch && newMatch.id) {
-        // Navigate to matches page to see the scheduled match
         navigate('/matches'); 
       } else {
         throw new Error("Failed to create a new match instance.");
@@ -119,7 +112,7 @@ const SelectTeamsPage: React.FC = () => {
     <div className="flex flex-col items-center space-y-3">
       <button
         onClick={onSelect}
-        className="w-32 h-32 sm:w-36 sm:h-36 bg-gray-700 rounded-full flex items-center justify-center text-gray-100 shadow-lg hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-red-500"
+        className="w-32 h-32 sm:w-36 sm:h-36 bg-gray-700 rounded-full flex items-center justify-center text-gray-100 shadow-lg hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-teal-500" // Updated focus
         aria-label={team ? `Change ${placeholderText}`: `Select ${placeholderText}`}
       >
         {team?.logoUrl ? (
@@ -141,7 +134,7 @@ const SelectTeamsPage: React.FC = () => {
   );
   
   const inputBaseClass = "block w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 sm:text-sm text-gray-100 placeholder-gray-400";
-  const inputFocusClass = "focus:ring-red-500 focus:border-red-500";
+  const inputFocusClass = "focus:ring-teal-500 focus:border-teal-500"; // Changed focus color
   const inputClass = `${inputBaseClass} ${inputFocusClass}`;
   const labelClass = "block text-sm font-medium text-gray-300 mb-1";
 
@@ -152,7 +145,7 @@ const SelectTeamsPage: React.FC = () => {
           <button 
             onClick={() => navigate(-1)} 
             aria-label="Go back" 
-            className="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+            className="p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-gray-800" // Updated focus
           >
             <ArrowLeftIcon className="w-6 h-6" />
           </button>
@@ -161,8 +154,8 @@ const SelectTeamsPage: React.FC = () => {
             onClick={handleProceedToMatch}
             disabled={!selectedTeamA || !selectedTeamB || isLoading}
             aria-label="Schedule Match"
-            className={`p-2 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed 
-                        ${isLoading ? 'bg-gray-600' : 'bg-red-700 hover:bg-red-600'}`}
+            className={`p-2 rounded-full text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed 
+                        ${isLoading ? 'bg-gray-600' : 'bg-teal-600 hover:bg-teal-500'}`} // Changed button color to teal
           >
             {isLoading ? <LoadingSpinner size="sm" /> : <CalendarDaysIcon className="w-6 h-6" />}
           </button>
