@@ -158,8 +158,9 @@ const MatchResultCard: React.FC<{ match: Match; onClick: () => void }> = ({ matc
         </div>
     </button>
 );
-
-export const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQuery, onClose }) => {
+};
+// Renamed component to SearchOverlayComponent and removed inline export
+const SearchOverlayComponent: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQuery, onClose }) => {
   const [allFetchedResults, setAllFetchedResults] = useState<SearchResultItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -331,5 +332,6 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSe
     </div>
   );
 };
-// Removed default export line as it's now a named export.
-// export default SearchOverlayComponent;
+
+// Export the component with the alias 'SearchOverlay'
+export { SearchOverlayComponent as SearchOverlay };
