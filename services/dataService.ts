@@ -16,6 +16,7 @@ export const getAllMatches = async (): Promise<Match[]> => {
   if (!userId) return [];
 
   const matchesCol = db.collection('matches') as FirebaseCollectionReference;
+  // Default sort by date descending to show recent matches first in a general list
   const q = matchesCol.where('user_id', '==', userId).orderBy('date', 'desc');
   const querySnapshot = await q.get() as FirebaseQuerySnapshot;
   return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Match));
@@ -26,6 +27,7 @@ export const getRecentMatches = async (count: number = 3): Promise<Match[]> => {
   if (!userId) return [];
 
   const matchesCol = db.collection('matches') as FirebaseCollectionReference;
+  // Fetches most recent matches based on date, could be completed, live, or even past 'upcoming'
   const q = matchesCol
     .where('user_id', '==', userId)
     .orderBy('date', 'desc')
@@ -35,15 +37,15 @@ export const getRecentMatches = async (count: number = 3): Promise<Match[]> => {
 };
 
 
-export const getUpcomingMatches = async (count: number = 3): Promise<Match[]> => {
+export const getUpcomingMatches = async (count: number = 5): Promise<Match[]> => {
   const userId = getUserId();
   if (!userId) return [];
 
   const matchesCol = db.collection('matches') as FirebaseCollectionReference;
   const q = matchesCol
     .where('user_id', '==', userId)
-    .where('status', '==', 'Upcoming')
-    .orderBy('date', 'asc')
+    .where('date', '>', Timestamp.now()) // Query for dates in the future
+    .orderBy('date', 'asc') // Show the soonest upcoming matches first
     .limit(count);
   const querySnapshot = await q.get() as FirebaseQuerySnapshot;
   return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Match));
@@ -68,10 +70,26 @@ export const createMatch = async (matchData: Partial<Match>): Promise<Match> => 
   const userId = getUserId();
   if (!userId) throw new Error("User must be logged in to create a match.");
 
+  let matchDateTimestamp: firebase.firestore.Timestamp;
+  if (matchData.date) {
+    if (typeof matchData.date === 'string') {
+      matchDateTimestamp = Timestamp.fromDate(new Date(matchData.date));
+    } else if (matchData.date instanceof Timestamp) {
+      matchDateTimestamp = matchData.date;
+    } else {
+      // Fallback or error if date format is unexpected
+      console.warn("Unexpected date format for match, defaulting to now:", matchData.date);
+      matchDateTimestamp = Timestamp.now();
+    }
+  } else {
+    matchDateTimestamp = Timestamp.now();
+  }
+  
   const matchToInsert = {
     ...matchData,
     user_id: userId,
-    date: matchData.date ? Timestamp.fromDate(new Date(matchData.date as string)) : Timestamp.now(),
+    date: matchDateTimestamp, // Ensure it's a Firestore Timestamp
+    status: matchData.status || "Upcoming", // Default to Upcoming if not specified
     innings1Record: matchData.innings1Record || null,
     innings2Record: matchData.innings2Record || null,
   };
@@ -115,7 +133,7 @@ export const getOngoingTournaments = async (count: number = 2): Promise<Tourname
   const querySnapshot = await q.get() as FirebaseQuerySnapshot;
   const ongoing = querySnapshot.docs
     .map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Tournament))
-    .filter(t => t.endDate && Timestamp.fromDate(new Date(t.endDate as string)) >= currentDate)
+    .filter(t => t.endDate && (t.endDate instanceof Timestamp ? t.endDate : Timestamp.fromDate(new Date(t.endDate as string))) >= currentDate)
     .slice(0, count);
   return ongoing;
 };
@@ -549,4 +567,17 @@ export const searchTournamentsByName = async (searchTerm: string, limitNum: numb
         .limit(limitNum);
     const querySnapshot = await q.get() as FirebaseQuerySnapshot;
     return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Tournament));
+};
+
+export const searchTeamsByName = async (searchTerm: string, limitNum: number = 5): Promise<Team[]> => {
+  const teamsCol = db.collection('teams') as FirebaseCollectionReference;
+  const searchTermCapitalized = searchTerm.charAt(0).toUpperCase() + searchTerm.slice(1).toLowerCase();
+
+  const q = teamsCol
+      .orderBy("name")
+      .where("name", ">=", searchTermCapitalized)
+      .where("name", "<=", searchTermCapitalized + '\uf8ff')
+      .limit(limitNum);
+  const querySnapshot = await q.get() as FirebaseQuerySnapshot;
+  return querySnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as Team));
 };

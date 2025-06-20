@@ -27,7 +27,15 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (matchWithPotentialTimestamp.date instanceof Timestamp) { // Use imported Timestamp
         processedDate = matchWithPotentialTimestamp.date.toDate().toISOString();
     } else if (typeof matchWithPotentialTimestamp.date === 'string') {
-        processedDate = matchWithPotentialTimestamp.date;
+        // Attempt to parse if it's not already ISO, or ensure it is
+        try {
+            const d = new Date(matchWithPotentialTimestamp.date);
+            if(isNaN(d.getTime())) throw new Error("Invalid date string for conversion");
+            processedDate = d.toISOString();
+        } catch(e) {
+            console.warn("Match date string could not be parsed to ISO, using as is:", matchWithPotentialTimestamp.date, e);
+            processedDate = matchWithPotentialTimestamp.date; // Use as is if parsing fails, assuming it's already correct
+        }
     } else {
         console.warn("Match date in unexpected format during conversion:", matchWithPotentialTimestamp.date);
         processedDate = new Date().toISOString(); 
@@ -120,22 +128,25 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const startNewMatch = useCallback(async (partialMatchData: Partial<Match>): Promise<Match | null> => {
     console.log('[MatchContext] startNewMatch called with partialMatchData:', partialMatchData);
     try {
-        // Ensure default squads are generated if not provided, based on team names
         const teamAName = partialMatchData.teamAName || "Team A";
         const teamBName = partialMatchData.teamBName || "Team B";
 
         const teamASquad = partialMatchData.teamASquad || Array.from({ length: SQUAD_SIZE }, (_, i) => `${teamAName} Player ${i + 1}`);
         const teamBSquad = partialMatchData.teamBSquad || Array.from({ length: SQUAD_SIZE }, (_, i) => `${teamBName} Player ${i + 1}`);
 
+        // Ensure date is handled correctly. dataService.createMatch will convert string to Timestamp.
+        const matchDate = partialMatchData.date || new Date().toISOString();
+
         const newMatchData: Partial<Match> = {
-            status: "Upcoming",
+            status: "Upcoming", // Default to Upcoming, especially if date is future.
             ...partialMatchData,
+            date: matchDate, // Pass the date through
             teamAName,
             teamBName,
             teamASquad,
             teamBSquad,
         };
-        const createdMatchFromDb = await createMatch(newMatchData);
+        const createdMatchFromDb = await createMatch(newMatchData); // createMatch in dataService handles Timestamp conversion
         console.log('[MatchContext] Match CREATED by dataService in startNewMatch:', createdMatchFromDb);
 
         if (createdMatchFromDb) {
@@ -167,7 +178,7 @@ export const MatchProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         ...(match as Match),
         tossWinnerName: tossWinner,
         electedTo: elected,
-        status: "Live",
+        status: "Live", // Status changes to Live once toss is done and innings are about to start
         innings1Record: innings1,
         current_batting_team: battingFirstTeam,
     };

@@ -1,70 +1,90 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Match } from '../types';
-import { getAllMatches } from '../services/dataService'; 
+import { getAllMatches, getUpcomingMatches } from '../services/dataService'; 
 import MatchCard from '../components/MatchCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext'; 
 
+type MatchFilterTabs = 'my' | 'upcoming' | 'played' | 'network' | 'nearby';
+
 const MatchesPage: React.FC = () => {
-  const [matches, setMatches] = useState<Match[]>([]);
+  const [allMyMatches, setAllMyMatches] = useState<Match[]>([]);
+  const [upcomingMatches, setUpcomingMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeFilterTab, setActiveFilterTab] = useState<'my' | 'played' | 'network' | 'nearby'>('my');
+  const [activeFilterTab, setActiveFilterTab] = useState<MatchFilterTabs>('my');
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  const fetchMatchesData = useCallback(async () => {
+    if (!user) { 
+      setLoading(false);
+      setAllMyMatches([]);
+      setUpcomingMatches([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      // Fetch all matches for 'My' and 'Played' tabs
+      const allUserMatches = await getAllMatches(); 
+      setAllMyMatches(allUserMatches);
+
+      // Fetch upcoming matches specifically for the 'Upcoming' tab
+      if (activeFilterTab === 'upcoming') {
+        const futureMatches = await getUpcomingMatches();
+        setUpcomingMatches(futureMatches);
+      } else if (activeFilterTab === 'my' && upcomingMatches.length === 0){ // Pre-fetch for upcoming if My is default
+         const futureMatches = await getUpcomingMatches();
+         setUpcomingMatches(futureMatches);
+      }
+      
+    } catch (error) {
+      console.error("Failed to fetch matches:", error);
+      setAllMyMatches([]); 
+      setUpcomingMatches([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, activeFilterTab, upcomingMatches.length]);
+
+
   useEffect(() => {
-    const fetchMatches = async () => {
-      if (!user) { 
-        setLoading(false);
-        setMatches([]);
-        return;
-      }
-      setLoading(true);
-      try {
-        const allUserMatches = await getAllMatches(); 
-        setMatches(allUserMatches);
-      } catch (error) {
-        console.error("Failed to fetch matches:", error);
-        setMatches([]); 
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchMatches();
-  }, [user]);
+    fetchMatchesData();
+  }, [fetchMatchesData]); // activeFilterTab is now a dependency of fetchMatchesData
 
   const handleStartNewMatchFlow = () => {
     navigate('/start-match/select-teams'); 
   };
 
-  const filteredMatches = useMemo(() => {
+  const displayedMatches = useMemo(() => {
     if (!user) return [];
     switch (activeFilterTab) {
       case 'my':
-        return matches; 
+        return allMyMatches; 
+      case 'upcoming':
+        return upcomingMatches;
       case 'played':
-        return matches.filter(match => match.status === "Completed");
-      case 'network':
+        return allMyMatches.filter(match => match.status === "Completed");
+      case 'network': // Placeholder
         return []; 
-      case 'nearby':
+      case 'nearby':  // Placeholder
         return []; 
       default:
-        return matches;
+        return allMyMatches;
     }
-  }, [matches, activeFilterTab, user]);
+  }, [allMyMatches, upcomingMatches, activeFilterTab, user]);
 
   const TabButton: React.FC<{
     label: string;
-    filterKey: 'my' | 'played' | 'network' | 'nearby';
+    filterKey: MatchFilterTabs;
   }> = ({ label, filterKey }) => {
     const isActive = activeFilterTab === filterKey;
     return (
       <button
         onClick={() => setActiveFilterTab(filterKey)}
-        className={`px-4 py-3 sm:px-6 text-sm font-medium focus:outline-none transition-colors duration-150
+        className={`px-3 py-3 sm:px-4 text-xs sm:text-sm font-medium focus:outline-none transition-colors duration-150 whitespace-nowrap
           ${isActive 
             ? 'bg-gray-100 text-gray-900 rounded-t-lg shadow' 
             : 'text-gray-400 hover:text-gray-200'
@@ -82,20 +102,21 @@ const MatchesPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="bg-gray-800 p-4 rounded-lg shadow-md flex justify-between items-center border border-gray-700">
-        <p className="text-gray-100 text-sm sm:text-base">Want to start a match?</p>
+        <p className="text-gray-100 text-sm sm:text-base">Want to schedule a match?</p>
         <Button 
           variant="primary" 
           className="bg-teal-600 hover:bg-teal-500 text-white font-semibold" 
           onClick={handleStartNewMatchFlow}
           size="sm"
         >
-          START A MATCH
+          SCHEDULE MATCH
         </Button>
       </div>
       
       <div className="border-b border-gray-700">
-        <nav className="-mb-px flex space-x-1 sm:space-x-2" aria-label="Match Filters">
-          <TabButton label="My" filterKey="my" />
+        <nav className="-mb-px flex space-x-1 sm:space-x-2 overflow-x-auto" aria-label="Match Filters">
+          <TabButton label="My Matches" filterKey="my" />
+          <TabButton label="Upcoming" filterKey="upcoming" />
           <TabButton label="Played" filterKey="played" />
           <TabButton label="Network" filterKey="network" />
           <TabButton label="Nearby" filterKey="nearby" />
@@ -104,9 +125,9 @@ const MatchesPage: React.FC = () => {
 
       {loading ? (
         <div className="flex justify-center items-center py-10"><LoadingSpinner size="lg" /></div>
-      ) : filteredMatches.length > 0 ? (
+      ) : displayedMatches.length > 0 ? (
         <div className="space-y-4">
-          {filteredMatches.map(match => (
+          {displayedMatches.map(match => (
             <MatchCard key={match.id} match={match} />
           ))}
         </div>
@@ -114,7 +135,7 @@ const MatchesPage: React.FC = () => {
         <p className="text-center text-gray-400 py-8">
             {activeFilterTab === 'network' || activeFilterTab === 'nearby' 
               ? `No ${activeFilterTab} matches found (Feature coming soon).`
-              : `No ${activeFilterTab === 'my' ? 'matches' : activeFilterTab} matches found.`
+              : `No ${activeFilterTab} matches found.`
             }
         </p>
       )}

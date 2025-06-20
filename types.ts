@@ -192,7 +192,8 @@ export interface Team {
 }
 
 export interface SearchResultItem {
+  id?: string; // Added ID for navigation
   title: string;
   description: string;
-  type: "Player" | "Team" | "Match" | "Tournament" | "Other" | string; // Allow string for flexibility from Gemini
+  type: "Player" | "Team" | "Match" | "Tournament" | "Other" | string; // Allow string for flexibility
 }

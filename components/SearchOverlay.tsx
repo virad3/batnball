@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import { ChevronLeftIcon, XMarkIcon, QrCodeIcon, UserIcon, UserGroupIcon, CalendarDaysIcon, TrophyIcon, DocumentTextIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-import { searchPlayersByName, searchMatchesByTerm, searchTournamentsByName } from '../services/dataService';
-import { SearchResultItem, UserProfile, Match, Tournament } from '../types';
+import { searchPlayersByName, searchMatchesByTerm, searchTournamentsByName, searchTeamsByName } from '../services/dataService';
+import { SearchResultItem } from '../types'; // UserProfile, Match, Tournament, Team types are implicitly used via dataService results
 import LoadingSpinner from './LoadingSpinner';
 import { Timestamp } from '../services/firebaseClient'; // Use re-exported Timestamp
 
@@ -44,6 +45,7 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const navigate = useNavigate(); // Initialize useNavigate
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedSearch = useCallback(
@@ -57,20 +59,30 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
       setIsSearching(true);
       setApiError(null);
       try {
-        const [playerResultsRaw, matchResultsRaw, tournamentResultsRaw] = await Promise.all([
+        const [playerResultsRaw, matchResultsRaw, tournamentResultsRaw, teamResultsRaw] = await Promise.all([
           searchPlayersByName(query, 5),
-          searchMatchesByTerm(query, 5),
-          searchTournamentsByName(query, 5)
+          searchMatchesByTerm(query, 3), 
+          searchTournamentsByName(query, 5),
+          searchTeamsByName(query, 5)
         ]);
 
         const combinedResults: SearchResultItem[] = [];
 
         playerResultsRaw.forEach(player => {
           combinedResults.push({
+            id: player.id, // Store ID
             title: player.username,
             description: player.profileType || `View ${player.username}'s profile`,
             type: "Player",
-            // id: player.id // Can be used for navigation
+          });
+        });
+        
+        teamResultsRaw.forEach(team => {
+          combinedResults.push({
+            id: team.id, // Store ID
+            title: team.name,
+            description: `Players: ${team.players.length}. Click to view details.`,
+            type: "Team",
           });
         });
 
@@ -79,10 +91,10 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
             ? match.date.toDate().toLocaleDateString() 
             : (typeof match.date === 'string' ? new Date(match.date).toLocaleDateString() : 'N/A');
           combinedResults.push({
+            id: match.id, // Store ID
             title: `${match.teamAName} vs ${match.teamBName}`,
             description: `${match.venue} on ${dateStr}`,
             type: "Match",
-            // id: match.id
           });
         });
 
@@ -91,24 +103,22 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
             ? tournament.startDate.toDate().toLocaleDateString() 
             : (typeof tournament.startDate === 'string' ? new Date(tournament.startDate).toLocaleDateString() : 'N/A');
           combinedResults.push({
+            id: tournament.id, // Store ID
             title: tournament.name,
             description: `Format: ${tournament.format}, Starts: ${startDateStr}`,
             type: "Tournament",
-            // id: tournament.id
           });
         });
         
-        // Simple sort: Players, then Teams, Matches, Tournaments, then Other
         combinedResults.sort((a, b) => {
             const typeOrder = { "Player": 1, "Team": 2, "Match": 3, "Tournament": 4, "Other": 5 };
             const orderA = typeOrder[a.type as keyof typeof typeOrder] || 6;
             const orderB = typeOrder[b.type as keyof typeof typeOrder] || 6;
             if (orderA !== orderB) return orderA - orderB;
-            return a.title.localeCompare(b.title); // Alphabetical within type
+            return a.title.localeCompare(b.title);
         });
 
-
-        setSearchResults(combinedResults.slice(0, 15)); // Limit total results displayed
+        setSearchResults(combinedResults.slice(0, 15));
 
       } catch (e) {
         console.error("Internal search failed:", e);
@@ -126,10 +136,34 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
   }, [searchQuery, debouncedSearch]);
   
   const handleResultItemClick = (result: SearchResultItem) => {
-    console.log("Search result clicked (internal search):", result);
-    // TODO: Implement navigation based on result.type and result.id
-    // Example: if (result.type === 'Player' && result.id) navigate(`/profile/${result.id}`);
-    onClose(); // Close search overlay after clicking a result
+    if (!result.id) {
+      console.warn("Search result item clicked, but no ID found for navigation:", result);
+      onClose(); // Close overlay even if navigation fails
+      return;
+    }
+
+    let path = '';
+    switch (result.type) {
+      case 'Player':
+        path = `/profile/${result.id}`;
+        break;
+      case 'Team':
+        path = `/teams/${result.id}`;
+        break;
+      case 'Match':
+        path = `/matches/${result.id}/score`; // Navigate to scoring page for a match
+        break;
+      case 'Tournament':
+        path = `/tournaments/${result.id}`;
+        break;
+      default:
+        console.warn(`Navigation not implemented for search result type: ${result.type}`);
+        onClose();
+        return;
+    }
+    
+    navigate(path);
+    onClose(); 
   };
 
   return (
@@ -191,7 +225,7 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ searchQuery, setSearchQue
                   onClick={() => handleResultItemClick(result)}
                   className="w-full text-left p-4 hover:bg-gray-200 focus:outline-none focus:bg-gray-200 transition-colors"
                   role="option"
-                  aria-selected="false" // This would be dynamic if keyboard navigation was implemented
+                  aria-selected="false"
                 >
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0 pt-0.5">
